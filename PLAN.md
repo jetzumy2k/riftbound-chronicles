@@ -154,7 +154,7 @@ Each decision needs an owner (the creator). The **recommended default** is what 
 
 | ID | Decision | Recommended default | Needed by |
 |---|---|---|---|
-| **D-01** | HP vs Attack growth mismatch (Appendix A) | **Implement §5 exactly as written.** Make sure skill damage coefficients and PvP normalization (D-16) can compensate, and put the curve on the Phase 20 agenda. Alternative: lower HP growth to about 1.12×. *This needs the creator's sign-off; Claude must not change it silently.* | **Blocker for Phase 2** |
+| **D-01** ✅ | HP vs Attack growth mismatch (Appendix A) | **APPROVED 2026-10-08: keep the spec and compensate.** §5 stats are implemented exactly. Outgoing damage and healing get a separate **Level Power Scale** `PowerScale(L) = 1.047^L` (config `Combat.PowerScalePerLevel`), which keeps equal-level fights at about 2–7 basic hits from L0 to L30 (Appendix B). PvP normalization (D-16) applies on top. Revisit in Phase 20. | Phase 2 (stats), Phase 6 (scale) |
 | **D-02** | Meaning of "Base Crit Damage 0.05%" | Treat it as a *bonus* on top of a base crit multiplier of **1.5×**: `critMult = 1.5 + CritDamageBonus`. Gear and enhancement (+2.5% per level) add to the bonus. Otherwise crits do nothing. | Phase 2 |
 | **D-03** | Crit Chance (no base stat exists) | Base **5%** crit chance, increased only by gear and skills. Server rolls with a seeded per-server RNG. | Phase 2 |
 | **D-04** | HP Regen unit | % of Max HP **per second, out of combat only** (in combat after 5 s without damage, or 0). Exact behavior is configurable. | Phase 2 |
@@ -163,7 +163,7 @@ Each decision needs an owner (the creator). The **recommended default** is what 
 | **D-07** | Split of "Standard/Uncommon" within the 70% | 45% Standard, 25% Uncommon. | Phase 10 |
 | **D-08** | Enhancement success and failure | +1 to +5 at 100%. From +6 on, rates decline (90/80/70/60/50, configurable). **Failure never downgrades or destroys** the item. A **Perfect Stone guarantees success**. Rates are shown to the player in the UI. No paid stones (D-15). Armor gains +8 Defense per level (CLAUDE.md §10). | Phase 8 |
 | **D-09** | Gear sink | Inventory cap of 150 gear instances. Salvage gear into Stone Fragments (10 fragments make 1 Enhancement Stone). Equipped and locked items can't be salvaged. | Phase 7 |
-| **D-10** | Single place vs multi-place | **One place in v1**: capitals, dungeon instances (cloned per session from ServerStorage into isolated regions) and PvP zones are all in one server, with StreamingEnabled. `TravelService` hides the boundary so a later move to reserved servers is localized. | **Blocker for Phase 1** |
+| **D-10** ✅ | Single place vs multi-place | **APPROVED 2026-10-08. One place in v1**: capitals, dungeon instances (cloned per session from ServerStorage into isolated regions) and PvP zones are all in one server, with StreamingEnabled. `TravelService` hides the boundary so a later move to reserved servers is localized. | **Blocker for Phase 1** |
 | **D-11** | Persistence library | ProfileStore (via Wally), wrapped by `ProfileServiceAdapter` → rename to `PersistenceAdapter`. | Phase 2 |
 | **D-12** | Cross-server config and events | DataStore holds the source of truth plus MessagingService invalidation. Scheduled events use UTC `os.time()` windows from config, so every server agrees without messages. | Phase 1 (skeleton), Phase 17 |
 | **D-13** | Audit-log storage and retention | DataStore partitioned by day, kept 90 days. A cleanup job runs on the owner's command. | Phase 17 |
@@ -171,7 +171,7 @@ Each decision needs an owner (the creator). The **recommended default** is what 
 | **D-15** | Monetization | None in v1. If added later: cosmetic game passes only. A policy review is mandatory before any paid random item. | Phase 22 |
 | **D-16** | PvP level disparity | Portal access needs Quest 4 **and** Level ≥ 10. PvP damage is normalized: each combatant fights at `min(ownLevel, opponentLevel + 5)` stats when attacking a lower-level player. Configurable. | Phase 12 |
 | **D-17** | Race balance per server | Soft cap: if one race is ≥ 65% of a server, join-time server hints prefer other servers. Not a hard block. | Phase 12 |
-| **D-18** | XP curve | `XPToNext(L) = round(100 × 1.18^L)`, giving a target of ~20–25 active hours to L30. Mob XP scales with mob level, and dungeon clear bonuses provide ~60% of leveling XP. Tuned in Phase 20. | **Blocker for Phase 2** |
+| **D-18** ✅ | XP curve | **APPROVED 2026-10-08.** `XPToNext(L) = round(100 × 1.18^L)`, giving a target of ~20–25 active hours to L30 (79,094 total XP, so an average of ~3,500 XP/hour; the last level needs 12,150). Mob XP scales with mob level, and dungeon clear bonuses provide ~60% of leveling XP. Tuned in Phase 20. | **Blocker for Phase 2** |
 | **D-19** | Skill acquisition | All 3 regular skills of the chosen job are owned at job selection, with the first unlocked at L0 and the others at L3 and L6. The special skill is unlocked by the Quest 10 token, with an early "lite" special at L12 so the slot isn't empty for most of the game. Extra skills come later as content. | Phase 5 |
 | **D-20** | Defeat inside a dungeon | Respawn at the dungeon checkpoint while the session is alive and the player has rejoin charges left (default 3). Otherwise return to the race safe zone. Defeat in PvP always returns the player to the race safe zone (§14). | Phase 9 |
 | **D-21** | Characters per account | One character (race and job) per account in v1. Job change only through an admin action (audited). | Phase 2 |
@@ -394,9 +394,41 @@ Follow `PHASE_PROMPTS.md`, with these additions:
 
 ---
 
+## Appendix B — Level Power Scale (D-01 compensation)
+
+`PowerScale(L) = 1.047^L`, applied to outgoing skill and basic-attack damage and to healing. The attacker's (or healer's) level is used. The §5 stat values stay unchanged.
+
+| Level | HP ÷ ATK (raw hits) | PowerScale | Hits with scale (before defense) |
+|---:|---:|---:|---:|
+| 0 | 2.00 | 1.000 | 2.0 |
+| 5 | 3.09 | 1.258 | 2.5 |
+| 10 | 4.77 | 1.583 | 3.0 |
+| 15 | 7.38 | 1.992 | 3.7 |
+| 20 | 11.40 | 2.506 | 4.5 |
+| 25 | 17.61 | 3.153 | 5.6 |
+| 30 | 27.21 | 3.967 | 6.9 |
+
+Notes:
+- Defense (D-05, `K = 200 + 25 × attackerLevel`) adds about 20% mitigation at L0 and about 35% at L30. Skill coefficients greater than 1.0 shorten fights again. Final time-to-kill targets come from the Phase 20 simulation.
+- Mob HP and damage tables (Phase 9) get authored against these same scaled numbers.
+- Phase 2 unit tests check the raw §5 table (Appendix A). Phase 6 tests check this table.
+
+---
+
 ## 9. Immediate Next Steps
 
-1. **Creator:** review §4 and approve or modify at least **D-01, D-10, D-18** (the blockers) and ideally D-02 to D-04, D-21 and D-22.
-2. Run `git init` and make a first commit of the design pack.
-3. Give Claude Code **Phase 0 only** (from `docs/PHASE_PROMPTS.md`), pointing it at this PLAN.md as input.
-4. After Phase 0 is accepted, continue with Phase 1, then follow the amended order (… 4 → **6 → 5** → 7 …).
+1. ~~Creator approves D-01, D-10, D-18~~: **done 2026-10-08**. D-02 to D-04, D-21 and D-22 still use the recommended defaults, and the creator can override them before Phase 2.
+2. ~~git init + first commit~~: done (`24c2b64`).
+3. ~~Phase 0~~: docs written (`docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`, `docs/SECURITY_MODEL.md`), with the top security risks designed in detail (`SECURITY_MODEL.md` §5A).
+4. Next: **Phase 1**, then follow the amended order (… 4 → **6 → 5** → 7 …).
+
+## 10. Platform Verification Log
+
+Checked against current sources on 2026-10-08. Recheck before Phases 17, 22 and 25.
+
+| Item | Finding | Impact on plan |
+|---|---|---|
+| **ProfileStore** | It exists. It is loleris's successor to ProfileService, and it uses session locking to prevent duplication across servers. Sources disagree on how long a dead session holds the lock before it's stolen (~80 s vs 5 min). | Use it (D-11). Phase 2 reads the official wiki/source for the steal timeout and adds a test. |
+| **Players:BanAsync** | Live engine API. It needs `Players.BanningEnabled` to be on. The config takes `UserIds`, `Duration`, `DisplayReason` (≤ 400 chars, filtered), `PrivateReason`, `ExcludeAltAccounts` and `ApplyToUniverse`. `GetBanHistoryAsync` is also available. Roblox asks creators to post rules and provide an **appeal path**. | Phase 17 uses BanAsync, enables BanningEnabled, adds an appeals process (in `PLAYER_SUPPORT.md`) and a public rules page. |
+| **Open Cloud Luau Execution** | It exists. It runs Luau headlessly in a place with full DataModel access, for CI testing. Tasks run up to 5 min, with 10 concurrent per place. There is a reference repo `Roblox/place-ci-cd-demo`. | Optional CI path for Studio-level tests (Phase 1 sets up Lune first; Luau Execution can be added later). |
+| **Maturity labels** | Four labels: Minimal, Mild, Moderate, Restricted. **Minimal/Mild** experiences are eligible for **Roblox Kids (5–8)** and **Roblox Select (9–15)**. Moderate covers Select and 16+, and Restricted is 18+ age-verified. Kids/Select also have **additional publishing requirements**. Realistic or excessive violence can be moderated whatever the label. | Supports the 9+ / Mild target. Phase 22 must check the extra Kids/Select publishing requirements. |
