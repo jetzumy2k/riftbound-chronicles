@@ -2,7 +2,7 @@
 
 - **Phase:** 0 (Repository Audit)
 - **Date:** 2026-10-08
-- **Status:** Proposed. Schema v1 gets implemented in Phase 2. Fields owned by later phases ship in v1 as empty defaults, so later phases fill them without a migration where possible.
+- **Status:** Schema v1 implemented in Phase 2 (`src/server/Persistence/*`). Fields owned by later phases ship in v1 as empty defaults, so later phases fill them without a migration where possible.
 - **Existing data model:** none (no code). This document is the source of truth until code exists. After that, the code plus this document must agree.
 
 ---
@@ -41,7 +41,7 @@ type Profile = {
 
     -- Progression (Phase 2) ------------------------------------------------
     Level: number,                   -- 0..30
-    Experience: number,              -- 0 .. XPToNext(Level)-1 ; 0 at Level 30
+    Experience: number,              -- 0 .. XPToNext(Level)-1 ; 0 at Level 30 (XP at the cap is discarded, not banked)
     TotalExperience: number,         -- lifetime, for audits/analytics
 
     -- Skills (Phase 5) ------------------------------------------------------

@@ -1,0 +1,6 @@
+std = "roblox"
+
+[lints]
+# Services are singletons that legitimately shadow nothing; keep the default strictness otherwise.
+unused_variable = "warn"
+shadowing = "warn"

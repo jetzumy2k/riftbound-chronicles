@@ -1,0 +1,22 @@
+# Rojo build output / local places
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+build/
+
+# Wally packages (installed with `wally install`)
+Packages/
+ServerPackages/
+DevPackages/
+
+# Tool caches
+sourcemap.json
+roblox.yml
+.tooling/
+
+# Editors / OS
+.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db

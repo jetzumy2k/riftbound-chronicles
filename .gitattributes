@@ -1,0 +1,8 @@
+# Normalize line endings: LF in the repo and in the working tree.
+* text=auto eol=lf
+*.rbxl binary
+*.rbxm binary
+*.png binary
+*.jpg binary
+*.ogg binary
+*.mp3 binary

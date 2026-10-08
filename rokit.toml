@@ -1,0 +1,9 @@
+# Toolchain pinned for this project. Install with: rokit install
+[tools]
+rojo = "rojo-rbx/rojo@7.7.1"
+wally = "upliftgames/wally@0.3.2"
+stylua = "johnnymorganz/stylua@2.5.2"
+selene = "kampfkarren/selene@0.32.0"
+luau-lsp = "johnnymorganz/luau-lsp@1.70.1"
+lune = "lune-org/lune@0.10.5"
+run-in-roblox = "rojo-rbx/run-in-roblox@0.3.0"

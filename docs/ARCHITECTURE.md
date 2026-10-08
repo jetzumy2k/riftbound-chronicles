@@ -197,7 +197,7 @@ C→S means an intent from client to server. S→C means a push from server to c
 | `ClientReady` | C→S | — | 1 |
 | `Notify` | S→C | {kind, textKey, params} | 1 |
 | `ProfileSnapshot` | S→C | replicated profile view (`DATA_MODEL` §6) | 2 |
-| `ProfileDelta` | S→C | {path, value} batched | 2 |
+| `ProgressionUpdate` | S→C | {Level, Experience, XPToNext, LevelsGained} (typed per-domain updates replace a generic path/value delta, so every payload stays schema-validated) | 2 |
 | `SelectRace` | C→S | Race enum, FacePresetId (int in allowlist) | 3 |
 | `SelectJob` | C→S | Job enum | 4 |
 | `BasicAttack` | C→S | TargetRef? | 6 |
@@ -227,7 +227,7 @@ There is **no remote** that accepts damage, healing, XP, level, stats, loot, rar
 ### 6.3 Replication strategy
 - **Small per-player public state** (Level, Race, Job, equipped Title, PvP-protected flag) goes in **attributes** on the `Player` (server-written). This is cheap and readable by all clients for nameplates.
 - **HP/Focus**: the server writes attributes on the character (`HP`, `MaxHP`, `Focus`) plus the mirrored `Humanoid.Health`.
-- **Private state** (inventory, quests, wallet): the `ProfileSnapshot` on load, then batched `ProfileDelta`s. These are never placed in instances other clients could read.
+- **Private state** (inventory, quests, wallet): the `ProfileSnapshot` on load, then typed per-domain update events (`ProgressionUpdate` in Phase 2; later phases add their own). These are never placed in instances other clients could read.
 - **Combat feedback**: `CombatEvent`, batched and sent only to players within the relevance radius.
 
 ---
