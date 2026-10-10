@@ -10,8 +10,9 @@
 	    selection screens are shown.
 	  - Players always spawn at their own race's fixed SpawnLocation
 	    (deterministic), after streaming that area in.
-	  - On death the player respawns at home after a short delay. Phase 6
-	    replaces this with the authoritative defeat flow (SECURITY_MODEL §5A.1).
+	  - Respawns happen when CombatService requests them (defeat or reset,
+	    SECURITY_MODEL §5A.1). Every server-driven move grants an
+	    AntiExploitService grace window first.
 	  - After spawning, the server verifies the character is near the expected
 	    spawn and corrects it if not.
 ]]
@@ -24,9 +25,10 @@ local Log = require(ReplicatedStorage.Shared.Util.Log)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RaceService = require(script.Parent.RaceService)
 local JobService = require(script.Parent.JobService)
+local AntiExploitService = require(script.Parent.AntiExploitService)
+local CombatService = require(script.Parent.CombatService)
 local WorldService = require(script.Parent.WorldService)
 
-local RESPAWN_DELAY = 3
 local STREAM_TIMEOUT = 5
 local SPAWN_TOLERANCE = 40
 
@@ -56,6 +58,7 @@ local function verifySpawn(player: Player, character: Model)
 	end
 	if (root.Position - spawn.Position).Magnitude > SPAWN_TOLERANCE then
 		log:Warn("user=%d spawned away from home spawn; correcting", player.UserId)
+		AntiExploitService:GrantGrace(player, 2)
 		character:PivotTo(spawn.CFrame + Vector3.new(0, 4, 0))
 	end
 end
@@ -75,6 +78,7 @@ function TravelService:SpawnAtHome(player: Player)
 
 	spawning[player] = true
 	player.RespawnLocation = spawn
+	AntiExploitService:GrantGrace(player, 3)
 	pcall(function()
 		player:RequestStreamAroundAsync(spawn.Position, STREAM_TIMEOUT)
 	end)
@@ -92,18 +96,6 @@ end
 local function watchPlayer(player: Player)
 	player.CharacterAdded:Connect(function(character)
 		task.spawn(verifySpawn, player, character)
-
-		local humanoid = character:WaitForChild("Humanoid", 10)
-		if humanoid and humanoid:IsA("Humanoid") then
-			humanoid.Died:Connect(function()
-				task.delay(RESPAWN_DELAY, function()
-					-- Only respawn if this is still the player's current character.
-					if player.Parent == Players and player.Character == character then
-						TravelService:SpawnAtHome(player)
-					end
-				end)
-			end)
-		end
 	end)
 end
 
@@ -120,6 +112,10 @@ function TravelService:Init()
 		task.spawn(TravelService.SpawnAtHome, TravelService, player)
 	end)
 	JobService.JobChosen:Connect(function(player)
+		task.spawn(TravelService.SpawnAtHome, TravelService, player)
+	end)
+	-- Defeat / reset (CombatService decides when; SECURITY_MODEL §5A.1).
+	CombatService.RespawnRequested:Connect(function(player)
 		task.spawn(TravelService.SpawnAtHome, TravelService, player)
 	end)
 end

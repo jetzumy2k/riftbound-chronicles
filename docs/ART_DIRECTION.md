@@ -21,6 +21,7 @@ They define the **target look**: stylised-realistic anime fantasy (comparable to
 | Warrior | High Defense · Melee DPS | Swords, Greatswords, Polearms, Maces (Angel) / Axes (Devil) |
 | Healer | Healing · Support · Buff (Angel) / Debuff (Devil) | Staffs, Orbs |
 | Archer | Long Range · High DPS | Bows, Crossbows |
+| Mage *(added 2026-10-11, D-30; not on the sheet yet)* | Arcane Burst (Angel) / Hex Burst (Devil) · Area DPS | Staffs, Wands, Tomes |
 
 Each job has a full gear set per race: helm, chest, gloves, legs, boots, cape. These map to the D-25 equipment slots.
 

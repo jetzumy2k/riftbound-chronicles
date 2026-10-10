@@ -32,7 +32,7 @@ local PlayerDataController = require(script.Parent.PlayerDataController)
 
 local CONFIRM_TIMEOUT = 10
 local CARD_KEY: { [string]: string } =
-	{ Warrior = "cardWarrior", Healer = "cardHealer", Archer = "cardArcher" }
+	{ Warrior = "cardWarrior", Healer = "cardHealer", Archer = "cardArcher", Mage = "cardMage" }
 
 local log = Log.new("JobSelect")
 
@@ -243,7 +243,7 @@ local function build(race: string): ScreenGui
 	title.LayoutOrder = 1
 	title.Parent = header
 	local subtitle = Kit.label(
-		`{if raceDef then raceDef.displayName else "Champion"} walk three paths. Choose how you will fight.`,
+		`{if raceDef then raceDef.displayName else "Champion"} walk four paths. Choose how you will fight.`,
 		18,
 		Theme.Fonts.Accent,
 		Theme.Colors.TextDim

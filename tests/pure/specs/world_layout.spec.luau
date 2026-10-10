@@ -81,6 +81,37 @@ return function(t)
 			t.eq(ZoneGeometry.findZone({ WorldLayout.SafeZones[2] }, angel.spawnPosition), nil)
 		end)
 
+		t.it("training dummies stand in the yard, far enough from the safe zone for ranged jobs", function()
+			for _, race in Enums.Race do
+				local realm = WorldLayout.realmFor(race)
+				local center, size = WorldLayout.trainingYard(realm)
+				local positions = WorldLayout.dummyPositions(realm)
+				t.eq(#positions, WorldLayout.TrainingDummy.countPerRealm)
+				local zone = WorldLayout.SafeZones[if race == "Angel" then 1 else 2]
+				for _, p in positions do
+					t.eq(ZoneGeometry.findZone(WorldLayout.SafeZones, { p[1], p[2] + 3, p[3] }), nil, race)
+					t.ok(math.abs(p[1] - center[1]) < size[1] / 2, race)
+					t.ok(math.abs(p[3] - center[3]) < size[3] / 2, race)
+					-- Open ground outside the safe zone must exceed the longest basic attack (48).
+					local dx, dz = p[1] - zone.volume.center[1], p[3] - zone.volume.center[3]
+					local gap = math.sqrt(dx * dx + dz * dz) - zone.volume.radius
+					t.ok(gap >= 60, `{race}: only {gap} studs outside the safe zone`)
+				end
+			end
+		end)
+
+		t.it("the yard touches the capital platform on the spawn-facing side", function()
+			for _, race in Enums.Race do
+				local realm = WorldLayout.realmFor(race)
+				local center, size = WorldLayout.trainingYard(realm)
+				local edgeGap = math.abs(center[3] - realm.platformCenter[3])
+					- (size[3] / 2 + realm.platformSize[3] / 2)
+				t.near(edgeGap, 0, 1e-6, race)
+				local dir = WorldLayout.yardDirection(realm)
+				t.ok((center[3] - realm.platformCenter[3]) * dir > 0, race)
+			end
+		end)
+
 		t.it("the selection camera is outside both safe zones", function()
 			t.eq(ZoneGeometry.findZone(WorldLayout.SafeZones, WorldLayout.SelectionCamera.position), nil)
 		end)

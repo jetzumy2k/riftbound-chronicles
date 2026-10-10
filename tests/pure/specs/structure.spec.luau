@@ -173,6 +173,9 @@ return function(t)
 				-- Phase 4 review: one-shot, job enum only, ProfileLoaded + HasRace
 				-- states; job decides skill categories, never stats directly.
 				SelectJob = true,
+				-- Phase 6 review: intent only (optional target Model); server
+				-- validates cooldown, hostility, safe zones, range and LOS.
+				BasicAttack = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

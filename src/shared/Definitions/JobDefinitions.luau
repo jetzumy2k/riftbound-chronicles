@@ -88,8 +88,25 @@ JobDefinitions.Archer = freezeDeep({
 	},
 } :: JobDefinition)
 
+-- Added by the creator 2026-10-11 (PLAN.md D-30), inspired by Shaiya's mage.
+JobDefinitions.Mage = freezeDeep({
+	id = "Mage",
+	displayName = "Mage",
+	glyph = "✺",
+	roleByRace = {
+		Angel = "Arcane Burst · Area DPS",
+		Devil = "Hex Burst · Area DPS",
+	},
+	description = "Master of raw arcane power: devastating area spells, crowd control and barriers, but fragile up close.",
+	allowedSkillCategories = { "MagicAttack", "AreaMagic", "Control", "Barrier" },
+	weaponsByRace = {
+		Angel = { "Staff", "Wand", "Tome" },
+		Devil = { "Staff", "Wand", "Tome" },
+	},
+} :: JobDefinition)
+
 -- Display order on the selection screen.
-JobDefinitions.Order = table.freeze({ "Warrior", "Healer", "Archer" })
+JobDefinitions.Order = table.freeze({ "Warrior", "Healer", "Archer", "Mage" })
 
 -- Player-facing names for skill categories (internal ids stay stable).
 JobDefinitions.CategoryNames = table.freeze({
@@ -108,10 +125,14 @@ JobDefinitions.CategoryNames = table.freeze({
 	Mobility = "Mobility",
 	Mark = "Mark",
 	RangedArea = "Volley",
+	MagicAttack = "Spell",
+	AreaMagic = "Area Spell",
+	Control = "Crowd Control",
+	Barrier = "Barrier",
 })
 
 function JobDefinitions.get(job: any): JobDefinition?
-	if job == "Warrior" or job == "Healer" or job == "Archer" then
+	if job == "Warrior" or job == "Healer" or job == "Archer" or job == "Mage" then
 		return (JobDefinitions :: any)[job]
 	end
 	return nil

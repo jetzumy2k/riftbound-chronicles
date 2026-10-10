@@ -16,10 +16,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local ZoneGeometry = require(Shared.Logic.ZoneGeometry)
+local Signal = require(Shared.Util.Signal)
 
 local SWEEP_INTERVAL = 0.25
 
-local SafeZoneService = {}
+local SafeZoneService = {
+	-- (player, oldZoneId?, newZoneId?) from the 4 Hz sweep. Handlers must not yield.
+	ZoneChanged = Signal.new(),
+}
 
 local function rootPosition(player: Player): Vector3?
 	local character = player.Character
@@ -55,8 +59,10 @@ function SafeZoneService:Start()
 				local position = rootPosition(player)
 				local zone = if position then self:GetZoneAt(position) else nil
 				local id = if zone then zone.id else nil
-				if player:GetAttribute("SafeZone") ~= id then
+				local previous = player:GetAttribute("SafeZone")
+				if previous ~= id then
 					player:SetAttribute("SafeZone", id)
+					SafeZoneService.ZoneChanged:Fire(player, previous, id)
 				end
 			end
 		end

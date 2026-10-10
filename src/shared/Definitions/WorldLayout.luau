@@ -93,6 +93,56 @@ WorldLayout.SelectionCamera = table.freeze({
 	lookAt = { 0, 90, 0 },
 })
 
+-- Training yard (Phase 6): an open area attached to each capital, in front of
+-- the spawn and outside the safe zone, so melee AND ranged jobs can practise.
+-- Training dummies stand at the far end (Phase 9 adds real mobs).
+WorldLayout.TrainingYard = table.freeze({
+	depth = 160,
+	width = 180,
+	dummySpacing = 45,
+	dummyInset = 25, -- from the far edge
+	rangeMarkers = table.freeze({ 10, 20, 30, 40, 50 }), -- studs from the dummy line
+})
+
+WorldLayout.TrainingDummy = table.freeze({
+	countPerRealm = 3,
+	level = 1,
+	maxHp = 2500,
+})
+
+-- +1 / -1: which way along Z the spawn faces (the yard lies that way).
+function WorldLayout.yardDirection(realm: Realm): number
+	return if realm.spawnLookAt[3] >= realm.spawnPosition[3] then 1 else -1
+end
+
+-- Yard platform center {x, y, z} and size {x, y, z}.
+function WorldLayout.trainingYard(realm: Realm): ({ number }, { number })
+	local yard = WorldLayout.TrainingYard
+	local dir = WorldLayout.yardDirection(realm)
+	local c = realm.platformCenter
+	local center = { c[1], c[2], c[3] + dir * (realm.platformSize[3] / 2 + yard.depth / 2) }
+	return center, { yard.width, realm.platformSize[2], yard.depth }
+end
+
+--[[
+	Positions {x, y, z} of the training dummies for a realm (feet on the yard
+	top), spread across the far end of the yard.
+]]
+function WorldLayout.dummyPositions(realm: Realm): { { number } }
+	local yard = WorldLayout.TrainingYard
+	local count = WorldLayout.TrainingDummy.countPerRealm
+	local dir = WorldLayout.yardDirection(realm)
+	local center, size = WorldLayout.trainingYard(realm)
+	local top = center[2] + size[2] / 2
+	local lineZ = center[3] + dir * (size[3] / 2 - yard.dummyInset)
+	local positions = {}
+	for i = 1, count do
+		local offset = (i - (count + 1) / 2) * yard.dummySpacing
+		table.insert(positions, { center[1] + offset, top, lineZ })
+	end
+	return positions
+end
+
 function WorldLayout.realmFor(race: string): Realm?
 	return (WorldLayout.Realms :: any)[race]
 end

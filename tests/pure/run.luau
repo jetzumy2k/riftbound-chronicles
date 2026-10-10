@@ -33,6 +33,8 @@ local specs = {
 	{ "motion_math", require("./specs/motion_math.spec") },
 	{ "job_definitions", require("./specs/job_definitions.spec") },
 	{ "job_select_layout", require("./specs/job_select_layout.spec") },
+	{ "combat_math", require("./specs/combat_math.spec") },
+	{ "movement_check", require("./specs/movement_check.spec") },
 	{ "structure", require("./specs/structure.spec") },
 }
 

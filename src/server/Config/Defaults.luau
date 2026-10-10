@@ -35,4 +35,44 @@ return {
 		-- Fallback poll interval if a MessagingService invalidation is missed.
 		PollSeconds = 300,
 	},
+
+	-- Phase 6 combat (PLAN.md D-01..D-05, D-23, D-24; SECURITY_MODEL.md §5A).
+	Combat = {
+		-- D-01: outgoing damage/healing x PowerScalePerLevel ^ level.
+		PowerScalePerLevel = 1.047,
+		-- D-05: damage = raw * K / (K + Defense), K = base + perLevel * attackerLevel.
+		DefenseKBase = 200,
+		DefenseKPerLevel = 25,
+		-- Seconds after the last hostile action before a player counts as out of combat.
+		TagSeconds = 10,
+		DefeatDelaySeconds = 2.5,
+		SpawnProtectSeconds = 10,
+		ExitBubbleSeconds = 3,
+		-- D-04: HP regen (CLAUDE.md §5 % per second) only after this long out of combat.
+		RegenDelaySeconds = 5,
+		-- D-29 (approved): safe zones restore HP quickly (% of max HP per second).
+		SafeZoneRegenPctPerSecond = 20,
+		-- D-23: Focus resource.
+		FocusMax = 100,
+		FocusRegenPerSecond = 10,
+		-- SECURITY_MODEL §5A.3 range tolerance.
+		RangeToleranceStuds = 4,
+		MaxPingCompensationSeconds = 0.3,
+		-- Unsanctioned resets out of combat are allowed this often.
+		ResetCooldownSeconds = 15,
+		-- Players within this distance receive combat feedback events.
+		RelevanceRadius = 160,
+	},
+
+	-- SECURITY_MODEL §5A.2 movement validation. Shadow = log only (Phase 6).
+	AntiExploit = {
+		Mode = "Shadow",
+		SampleHz = 10,
+		SpeedFactor = 1.25,
+		SpeedToleranceStuds = 4,
+		MaxAirSeconds = 3,
+		RubberBandPoints = 3,
+		StrikePoints = 10,
+		TeleportStuds = 150,
+	},
 }

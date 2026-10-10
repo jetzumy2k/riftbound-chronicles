@@ -11,7 +11,7 @@ The experience combines:
 - Story-driven progression and quests.
 - Dungeon PvE.
 - Race-vs-race PvP.
-- Three job types: Healer, Warrior, Archer/Long-Range.
+- Four job types: Healer, Warrior, Archer/Long-Range, Mage (Mage added by the creator on 2026-10-11, PLAN.md D-30).
 - 3 regular skills + 1 special skill equipped at a time.
 - Randomized gear attributes.
 - Enhancement Stones and +10 equipment enhancement.
@@ -202,6 +202,24 @@ Allowed skill categories:
 - Mobility.
 - Mark/debuff.
 - Ranged area attack.
+
+## 6.4 Mage (added 2026-10-11, PLAN.md D-30)
+
+Identity:
+- Ranged magic damage.
+- Area spells.
+- Crowd control.
+- Protective barriers, but fragile up close.
+
+Allowed skill categories:
+- Magic attack.
+- Area magic.
+- Control (slow/root/stun).
+- Barrier.
+
+Not allowed:
+- Healing (Healer identity).
+- Archer-only precision systems.
 
 Every equipped skill must be validated against the player's job on the server.
 

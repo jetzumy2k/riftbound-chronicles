@@ -125,6 +125,25 @@ Run **Test → Clients and Servers → Local Server + 2 players** (or Play solo 
    print(JS:CanUseWeapon(p, "Greatsword"), JS:CanUseWeapon(p, "Bow"))          --> true false
    ```
 
+## Phase 6 manual tests (combat foundation)
+Each capital has a **Training Grounds** yard in front of the spawn, outside the safe zone. Floor stripes mark 10–50 studs from the 3 training dummies at the far end, so you can check each job's range (Warrior 8, Healer 32, Mage 40, Archer 48). If an attack is blocked, a toast says why (safe zone, too far, no line of sight, no target).
+
+1. **HUD:** under the level panel are the HP bar (`HP 200 / 200` at L0) and a blue Focus bar. **✦ PROTECTED** shows for 10 s after spawning.
+2. **Attack:** walk past the ring to a dummy. Then:
+   - Desktop: **click the dummy**, or press **F** facing it.
+   - Gamepad: **R2**.
+   - Phone: the big gold button.
+   White numbers float up; crits (~5%) show **gold ✦ numbers**; the dummy flashes white. Warrior must stand close (8 studs); Healer (32) and Archer (48) can hit from range but need line of sight.
+3. **Safe zone:** standing inside the ring, attacks do nothing (blocked in both directions). Walking out gives a 3 s **PROTECTED** bubble.
+4. **Defeat (non-graphic):** keep hitting a dummy to 0 (2,500 HP). It bursts into light and fades, then returns after 3 s.
+5. **Player defeat / reset:** Esc → Reset. Outside combat you respawn at home after ~1 s. Within 10 s of fighting, a reset counts as a defeat (light burst, respawn after 2.5 s, protected again).
+6. **Movement checks (shadow mode):** in the server command bar,
+   ```lua
+   game.Players:GetPlayers()[1].Character.Humanoid.WalkSpeed = 100
+   ```
+   then walk: the server log shows `[Security] … MovementSuspect (shadow) speed …`, and nothing is corrected yet (Enforce comes before PvP).
+7. **Tamper test** (client command bar): `game.ReplicatedStorage.Remotes.BasicAttack:FireServer(workspace)`. It's rejected (BadArgs, not a Model); there is no remote that can set damage or HP.
+
 ## Adding approved outfit art (Creator Store)
 Follow **`docs/ASSET_GUIDE.md`** (beginner-friendly). In short: insert a free Creator Store model, run `tools/studio/PrepareAccessory.luau` in the Command Bar (removes scripts and makes it a slot-tagged Accessory), then Save to File into `assets/Outfits/<_Angel|_Devil|LookName>/<Slot>.rbxm`. Each approved slot (Body, Cape, Wings, Halo, Horns, Tail) replaces only the matching built-in piece. Record credits in `assets/CREDITS.md`.
 

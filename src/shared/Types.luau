@@ -6,7 +6,7 @@
 ]]
 
 export type Race = "Angel" | "Devil"
-export type Job = "Healer" | "Warrior" | "Archer"
+export type Job = "Healer" | "Warrior" | "Archer" | "Mage"
 export type Rarity = "Standard" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythical"
 export type SkillType = "Regular" | "Special"
 export type WeaponType =
@@ -19,6 +19,8 @@ export type WeaponType =
 	| "Orb"
 	| "Bow"
 	| "Crossbow"
+	| "Wand"
+	| "Tome"
 export type ItemSlot = "Weapon" | "Helm" | "Chest" | "Legs" | "Boots" | "Accessory"
 export type Zone =
 	"AngelCapital"

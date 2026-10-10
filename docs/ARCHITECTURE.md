@@ -200,9 +200,9 @@ C→S means an intent from client to server. S→C means a push from server to c
 | `ProgressionUpdate` | S→C | {Level, Experience, XPToNext, LevelsGained} (typed per-domain updates replace a generic path/value delta, so every payload stays schema-validated) | 2 |
 | `SelectRace` | C→S | Race enum, FacePresetId (int, must belong to the race). One-shot; `ProfileLoaded` state | 3 |
 | `SelectJob` | C→S | Job enum. One-shot; `ProfileLoaded` + `HasRace` states | 4 |
-| `BasicAttack` | C→S | TargetRef? | 6 |
+| `BasicAttack` | C→S | optional target Model; server auto-targets otherwise. States: ProfileLoaded, HasJob, Alive | 6 |
 | `UseConsumable` | C→S | ItemDefId (stackable allowlist) | 6/7 |
-| `CombatEvent` | S→C | {sourceRef, targetRef, kind, amount, crit} (batched per frame) | 6 |
+| `CombatEvent` | S→C | {kind: Damage/Heal/Defeat/Revive, target Model, amount?, crit?} to players within `Combat.RelevanceRadius` | 6 |
 | `EquipSkill` | C→S | SkillId, SlotIndex (1–4) | 5 |
 | `SkillCast` | C→S | SkillId, TargetRef? / AimDirection (unit vector) | 5 |
 | `EquipItem` / `UnequipItem` | C→S | ItemGuid / SlotEnum | 7 |

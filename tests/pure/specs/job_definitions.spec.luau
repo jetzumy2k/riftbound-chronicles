@@ -31,7 +31,7 @@ return function(t)
 			t.eq(def.id, job)
 			t.ok(table.find(JobDefinitions.Order, job) ~= nil, job)
 		end
-		t.eq(JobDefinitions.get("Mage"), nil)
+		t.eq(JobDefinitions.get("Bard"), nil)
 	end)
 
 	t.it("skill categories match CLAUDE.md §6 and are valid enum values", function()
@@ -39,6 +39,7 @@ return function(t)
 			Healer = { "Heal", "Shield", "Cleanse", "HolyAttack", "AreaSupport" },
 			Warrior = { "Guard", "Shield", "DefenseBuff", "MeleeAttack", "AreaMelee", "Taunt" },
 			Archer = { "RangedAttack", "Precision", "Mobility", "Mark", "RangedArea" },
+			Mage = { "MagicAttack", "AreaMagic", "Control", "Barrier" },
 		}
 		for job, categories in expected do
 			local def = JobDefinitions.get(job)
@@ -67,13 +68,17 @@ return function(t)
 		t.ok(not JobDefinitions.allowsSkillCategory("Archer", "Heal"))
 		t.ok(not JobDefinitions.allowsSkillCategory("Archer", "MeleeAttack"))
 		t.ok(not JobDefinitions.allowsSkillCategory("Warrior", "RangedAttack"))
+		-- Mage magic stays separate from Healer support and Archer precision.
+		t.ok(not JobDefinitions.allowsSkillCategory("Mage", "Heal"))
+		t.ok(not JobDefinitions.allowsSkillCategory("Mage", "Precision"))
+		t.ok(not JobDefinitions.allowsSkillCategory("Healer", "AreaMagic"))
 		-- Shield is the only shared category (support shield vs warrior shield).
 		t.ok(JobDefinitions.allowsSkillCategory("Healer", "Shield"))
 		t.ok(JobDefinitions.allowsSkillCategory("Warrior", "Shield"))
 	end)
 
 	t.it("rejects unknown jobs and categories", function()
-		t.ok(not JobDefinitions.allowsSkillCategory("Mage", "Heal"))
+		t.ok(not JobDefinitions.allowsSkillCategory("Bard", "Heal"))
 		t.ok(not JobDefinitions.allowsSkillCategory("Healer", "Fireball"))
 		t.ok(not JobDefinitions.allowsSkillCategory("Healer", nil))
 	end)
@@ -95,6 +100,8 @@ return function(t)
 		t.ok(not JobDefinitions.allowsWeapon("Healer", "Angel", "Sword"))
 		t.ok(JobDefinitions.allowsWeapon("Archer", "Devil", "Crossbow"))
 		t.ok(not JobDefinitions.allowsWeapon("Archer", "Human", "Bow"))
+		t.ok(JobDefinitions.allowsWeapon("Mage", "Devil", "Tome"))
+		t.ok(not JobDefinitions.allowsWeapon("Mage", "Angel", "Sword"))
 	end)
 
 	t.it("every category has a player-facing name", function()

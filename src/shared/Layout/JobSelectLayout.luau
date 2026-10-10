@@ -48,7 +48,9 @@ local JobSelectLayout = {}
 JobSelectLayout.MIN_FONT_PX = 11
 JobSelectLayout.MIN_TOUCH_PX = 44
 JobSelectLayout.MAX_SCALE = 2.4
-JobSelectLayout.CARD_KEYS = table.freeze({ "cardWarrior", "cardHealer", "cardArcher" })
+-- One card per job, in JobDefinitions.Order (Mage added in D-30).
+JobSelectLayout.CARD_KEYS = table.freeze({ "cardWarrior", "cardHealer", "cardArcher", "cardMage" })
+local CARD_COUNT = #JobSelectLayout.CARD_KEYS
 
 local function rect(x: number, y: number, w: number, h: number): Rect
 	return { x = x, y = y, w = w, h = h }
@@ -150,20 +152,32 @@ local function buildWide(width: number, height: number): Layout
 	local layout = base("wide", scale, width, height)
 	local ox = (layout.canvas.w - 1280) / 2
 	local oy = (layout.canvas.h - 720) / 2
+	local cardW, gap = 280, 26
+	local rowW = CARD_COUNT * cardW + (CARD_COUNT - 1) * gap
+	local startX = ox + (1280 - rowW) / 2
 	layout.rects = {
 		header = rect(ox + 190, oy + 20, 900, 96),
-		cardWarrior = rect(ox + 70, oy + 136, 360, 440),
-		cardHealer = rect(ox + 460, oy + 136, 360, 440),
-		cardArcher = rect(ox + 850, oy + 136, 360, 440),
 		confirm = rect(ox + 460, oy + 600, 360, 56),
 		note = rect(ox + 340, oy + 668, 600, 20),
 	}
+	for index, key in JobSelectLayout.CARD_KEYS do
+		layout.rects[key] = rect(startX + (index - 1) * (cardW + gap), oy + 136, cardW, 440)
+	end
 	return layout
 end
 
 local function buildTall(width: number, height: number): Layout
-	local headerH, cardH, gap, confirmH, noteH = 96, 210, 14, 60, 20
-	local fixed = 24 + headerH + gap + 3 * cardH + 2 * gap + 18 + confirmH + 12 + noteH + 12
+	local headerH, cardH, gap, confirmH, noteH = 96, 190, 14, 60, 20
+	local fixed = 24
+		+ headerH
+		+ gap
+		+ CARD_COUNT * cardH
+		+ (CARD_COUNT - 1) * gap
+		+ 18
+		+ confirmH
+		+ 12
+		+ noteH
+		+ 12
 	local scale = clampScale(math.min(width / 720, height / fixed))
 	local layout = base("tall", scale, width, height)
 	local ox = (layout.canvas.w - 720) / 2
@@ -184,10 +198,10 @@ end
 
 local function buildCompactPortrait(width: number, height: number): Layout
 	local columnW, titleH, gap, confirmH, noteH = 360, 32, 8, 56, 28
-	local cardWith, cardWithout = 150, 112
+	local cardWith, cardWithout = 150, 104
 
 	local function fixedFor(cardH: number): number
-		return 8 + titleH + 6 + 3 * cardH + 2 * gap + 8 + confirmH + 6 + noteH + 6
+		return 8 + titleH + 6 + CARD_COUNT * cardH + (CARD_COUNT - 1) * gap + 8 + confirmH + 6 + noteH + 6
 	end
 
 	local scale = clampScale(width / columnW)
@@ -229,7 +243,7 @@ local function buildCompactLandscape(width: number, height: number): Layout
 
 	local confirmY = canvasH - confirmH - 6
 	local cardsH = confirmY - 8 - top
-	local cardW = (canvasW - 24 - 2 * gap) / 3
+	local cardW = (canvasW - 24 - (CARD_COUNT - 1) * gap) / CARD_COUNT
 	layout.showDescription = cardW >= 190 and cardsH >= 200
 
 	layout.rects.header = rect(0, 4, canvasW, 28)

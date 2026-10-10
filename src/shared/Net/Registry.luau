@@ -61,6 +61,32 @@ return function(S: any)
 			states = { "ProfileLoaded", "HasRace" },
 		},
 
+		-- Basic attack intent (Phase 6). Optional target model; the server picks
+		-- the nearest hostile in front if omitted, and validates everything:
+		-- cooldown, hostility, safe zones, protection, range, line of sight.
+		BasicAttack = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.optional(S.instance("Model")) },
+			rate = { capacity = 6, refillPerSecond = 4 },
+			states = { "ProfileLoaded", "HasJob", "Alive" },
+		},
+
+		-- Server -> nearby clients: combat feedback for display only
+		-- (damage numbers, hit flash, non-graphic defeat effect).
+		CombatEvent = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive" }),
+					target = S.instance("Model"),
+					amount = S.optional(S.int(0)),
+					crit = S.optional(S.boolean()),
+				}),
+			},
+		},
+
 		-- Server -> client notification. Text is a localization key plus
 		-- server-generated parameters (never player-written text).
 		Notify = {

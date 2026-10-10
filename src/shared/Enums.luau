@@ -16,7 +16,8 @@ end
 
 Enums.Race = list({ "Angel", "Devil" })
 
-Enums.Job = list({ "Healer", "Warrior", "Archer" })
+-- Mage added by the creator 2026-10-11 (PLAN.md D-30).
+Enums.Job = list({ "Healer", "Warrior", "Archer", "Mage" })
 
 -- D-22: lowest -> highest. Epic added 2026-10-11 (creator decision, matches the gear concept sheet).
 Enums.Rarity = list({ "Standard", "Uncommon", "Rare", "Epic", "Legendary", "Mythical" })
@@ -43,11 +44,27 @@ Enums.SkillCategory = list({
 	"Mobility",
 	"Mark",
 	"RangedArea",
+	-- Mage (D-30)
+	"MagicAttack",
+	"AreaMagic",
+	"Control",
+	"Barrier",
 })
 
 -- Weapon families from the gear concept sheet (docs/ART_DIRECTION.md §2).
-Enums.WeaponType =
-	list({ "Sword", "Greatsword", "Polearm", "Mace", "Axe", "Staff", "Orb", "Bow", "Crossbow" })
+Enums.WeaponType = list({
+	"Sword",
+	"Greatsword",
+	"Polearm",
+	"Mace",
+	"Axe",
+	"Staff",
+	"Orb",
+	"Bow",
+	"Crossbow",
+	"Wand",
+	"Tome",
+})
 
 -- D-25.
 Enums.ItemSlot = list({ "Weapon", "Helm", "Chest", "Legs", "Boots", "Accessory" })

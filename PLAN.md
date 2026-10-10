@@ -182,6 +182,13 @@ Each decision needs an owner (the creator). The **recommended default** is what 
 | **D-26** ✅ | Character look | **APPROVED 2026-10-11: game outfits over the avatar.** Keep each player's face, hair, body shape and skin. The server removes casual clothing and accessories and dresses every character in race + look gear (`Appearance/Wardrobe`). | Phase 3 (pulled forward from 15/16) |
 | **D-27** ✅ | Art source | **APPROVED 2026-10-11: Roblox Creator Store assets, approved by the creator.** Approved accessories are saved as `.rbxm` under `assets/Outfits/<LookName>/` (Rojo → `ServerStorage.RC_Assets`). Until then a procedural fantasy outfit (`Appearance/OutfitBuilder`) is used. No unverified catalog IDs. | Phase 3, art pass 15/16 |
 | **D-28** ✅ | UI style | **APPROVED 2026-10-11: dark glass + gold fantasy.** All screens use `client/UI/Theme` + `client/UI/Kit`. | Phase 3 onward, polish in 19 |
+| **D-29** ✅ | Safe-zone healing | **APPROVED 2026-10-11.** CLAUDE.md §5 regen is very slow (0.02%/s of max HP at L0 is about 0.04 HP/s), so a defeated or hurt player would wait minutes. Proposal: inside a race safe zone, HP restores at 20% of max HP per second (`Combat.SafeZoneRegenPctPerSecond`, admin-tunable). Outside safe zones the §5 regen applies unchanged after 5 s out of combat (D-04). | Phase 6 |
+| **D-30** ✅ | Fourth job: Mage | **APPROVED 2026-10-11 by the creator** (reference game: Shaiya). Skill categories MagicAttack, AreaMagic, Control, Barrier; weapons Staff, Wand, Tome; basic attack *Arcane Missile* (40 studs). CLAUDE.md §1/§6.4 updated. Phase 5 needs 3 regular + 1 special Mage skills. | Phase 4 (retro), Phase 5 |
+| **D-31** ✅ | Gem sockets (Shaiya-inspired) | **APPROVED 2026-10-11 in principle.** Gear gets sockets and gems add stats. Designed as its own phase after Enhancement (Phase 8); never paid-random. | Future phase (after 8) |
+| **D-32** ✅ | Party EXP sharing | **APPROVED 2026-10-11.** Fold into the dungeon phase (Phase 9). | Phase 9 |
+| **D-33** ✅ | Allocatable stat points | **APPROVED 2026-10-11 in principle:** a *small bonus layer* of points per level on top of the unchanged CLAUDE.md §5 growth (§5 itself is not changed). Exact numbers and stats are designed in the Phase 20 balance review and need sign-off. | Phase 20 design |
+| **D-34** ✅ | Mounts and guilds | **APPROVED 2026-10-11 as post-launch features** (Phase 26+). | Post-launch |
+| **D-35** ✅ | Character art direction | **APPROVED 2026-10-11:** follow the concept sheets in `docs/characters and gears/` at least ~80% (silhouette, palette, layering, glow) with job-specific outfits, race features and held weapons. Missing pieces are designed by Claude to match the concept and approved by the creator. | Pulled forward from Phases 15/16 |
 
 ---
 

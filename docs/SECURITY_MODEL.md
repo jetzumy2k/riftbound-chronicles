@@ -2,7 +2,7 @@
 
 - **Phase:** 0 (Repository Audit)
 - **Date:** 2026-10-08
-- **Status:** Proposed threat model. Mitigations get implemented in the phases listed. Phase 21 audits them. The top risks (fake defeat, untrusted position) have binding designs in §5A.
+- **Status:** Phase 6 implemented T-02, T-05, T-06 (shadow mode), T-07, T-08, T-16, T-17, T-33 in CombatService / AntiExploitService / SafeZoneService. Proposed threat model for the rest. Mitigations get implemented in the phases listed. Phase 21 audits them. The top risks (fake defeat, untrusted position) have binding designs in §5A.
 - **Baseline assumption:** **every client is malicious.** It can call any remote with any arguments at any rate, read anything replicated to it, and move its own character arbitrarily, because the client owns its character's physics.
 
 ---

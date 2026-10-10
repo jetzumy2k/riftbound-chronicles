@@ -8,6 +8,7 @@
 	Exposes the SpawnLocation for each race (deterministic spawning).
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
@@ -16,6 +17,11 @@ local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
 
 local FOLDER_NAME = "RC_World"
+
+local CombatService = require(script.Parent.CombatService)
+
+local NPC_FOLDER_NAME = "RC_Npcs"
+local DUMMY_COLOR = Color3.fromRGB(196, 168, 120)
 
 local log = Log.new("WorldService")
 
@@ -148,6 +154,70 @@ local function buildRealm(root: Folder, realm: WorldLayout.Realm, safeZone: Worl
 	spawn.Parent = model
 	spawnByRace[realm.race] = spawn
 
+	-- Training yard: open ground outside the safe zone for melee and ranged practice.
+	local yardCenter, yardSize = WorldLayout.trainingYard(realm)
+	local yardCF = CFrame.new(v3(yardCenter))
+	local yardFloor = block(model, "TrainingYard", v3(yardSize), yardCF, base:Lerp(trim, 0.12), baseMaterial)
+	yardFloor:SetAttribute("RC_Zone", "TrainingGrounds")
+	local yardTop = yardCenter[2] + yardSize[2] / 2
+	local dir = WorldLayout.yardDirection(realm)
+	local dummies = WorldLayout.dummyPositions(realm)
+	local lineZ = dummies[1][3]
+	for _, distance in WorldLayout.TrainingYard.rangeMarkers do
+		local z = lineZ - dir * distance
+		local stripe = block(
+			model,
+			"RangeMarker",
+			Vector3.new(yardSize[1] - 16, 0.1, 0.6),
+			CFrame.new(yardCenter[1], yardTop + 0.05, z),
+			trim,
+			Enum.Material.Neon
+		)
+		decorative(stripe)
+		stripe.Transparency = 0.45
+		local gui = Instance.new("BillboardGui")
+		gui.Size = UDim2.fromOffset(90, 26)
+		gui.StudsOffset = Vector3.new(-(yardSize[1] / 2 - 14), 1.2, 0)
+		gui.MaxDistance = 90
+		gui.LightInfluence = 0
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, 1)
+		label.Text = `{distance} studs`
+		label.TextSize = 16
+		label.FontFace = Font.fromEnum(Enum.Font.GothamBold)
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.TextStrokeTransparency = 0.3
+		label.Parent = gui
+		gui.Parent = stripe
+	end
+	local sign = block(
+		model,
+		"TrainingSign",
+		Vector3.new(18, 5, 1),
+		CFrame.new(yardCenter[1], yardTop + 6, yardCenter[3] - dir * (yardSize[3] / 2 - 4))
+			* CFrame.Angles(0, if dir > 0 then math.pi else 0, 0),
+		trim,
+		Enum.Material.Neon
+	)
+	decorative(sign)
+	local signGui = Instance.new("SurfaceGui")
+	signGui.Face = Enum.NormalId.Back
+	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	signGui.PixelsPerStud = 30
+	local signText = Instance.new("TextLabel")
+	signText.BackgroundTransparency = 1
+	signText.Size = UDim2.fromScale(1, 1)
+	signText.Text = "⚔  TRAINING GROUNDS  ⚔"
+	signText.TextScaled = true
+	signText.FontFace = Font.fromEnum(Enum.Font.Merriweather)
+	signText.TextColor3 = Color3.fromRGB(40, 24, 8)
+	signText.Parent = signGui
+	signGui.Parent = sign
+	local signBack = signGui:Clone()
+	signBack.Face = Enum.NormalId.Front
+	signBack.Parent = sign
+
 	-- Visible safe-zone boundary ring (purely visual).
 	if safeZone and safeZone.volume.kind == "cylinder" then
 		local radius = safeZone.volume.radius :: number
@@ -187,6 +257,102 @@ function WorldService:Init()
 
 	root.Parent = Workspace
 	log:Info("graybox world built")
+end
+
+--------------------------------------------------------------------------------
+-- Training dummies (Phase 6 test targets)
+--------------------------------------------------------------------------------
+
+-- Simple part-built humanoid used if avatar rig creation is unavailable.
+local function fallbackDummy(): Model
+	local model = Instance.new("Model")
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Size = Vector3.new(2, 2, 1)
+	root.Transparency = 1
+	root.Parent = model
+	local torso = Instance.new("Part")
+	torso.Name = "Torso"
+	torso.Size = Vector3.new(2, 2, 1)
+	torso.CFrame = root.CFrame
+	torso.Parent = model
+	local head = Instance.new("Part")
+	head.Name = "Head"
+	head.Size = Vector3.new(1.2, 1.2, 1.2)
+	head.CFrame = root.CFrame * CFrame.new(0, 1.6, 0)
+	head.Parent = model
+	for _, part in { torso, head } do
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = part
+		weld.Parent = part
+	end
+	local humanoid = Instance.new("Humanoid")
+	humanoid.HipHeight = 2
+	humanoid.Parent = model
+	model.PrimaryPart = root
+	return model
+end
+
+local function createDummy(): Model
+	local description = Instance.new("HumanoidDescription")
+	for _, field in
+		{ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }
+	do
+		(description :: any)[field] = DUMMY_COLOR
+	end
+	local ok, rig = pcall(function()
+		return Players:CreateHumanoidModelFromDescriptionAsync(description, Enum.HumanoidRigType.R15)
+	end)
+	if ok and rig then
+		return rig
+	end
+	log:Warn("dummy rig creation failed (%s); using fallback", tostring(rig))
+	return fallbackDummy()
+end
+
+local function spawnDummies(folder: Folder)
+	local spec = WorldLayout.TrainingDummy
+	for _, realm in WorldLayout.Realms :: { [string]: WorldLayout.Realm } do
+		local center = v3(realm.platformCenter)
+		for index, position in WorldLayout.dummyPositions(realm) do
+			local model = createDummy()
+			model.Name = "Training Dummy"
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			local root = model:FindFirstChild("HumanoidRootPart")
+			if humanoid == nil or root == nil or not root:IsA("BasePart") then
+				model:Destroy()
+				continue
+			end
+			humanoid.DisplayName = "Training Dummy"
+			humanoid.NameDisplayDistance = 60
+			humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn
+			root.Anchored = true -- server-owned, never pushed around (SECURITY_MODEL T-33)
+			local feet = v3(position)
+			local height = humanoid.HipHeight + root.Size.Y / 2
+			local base = Vector3.new(feet.X, feet.Y + height, feet.Z)
+			model:PivotTo(CFrame.lookAt(base, Vector3.new(center.X, base.Y, center.Z)))
+			model:SetAttribute("RC_Npc", "TrainingDummy")
+			model:SetAttribute("RC_Index", index)
+			model.Parent = folder
+			CombatService:RegisterNpc(
+				model,
+				{ name = "Training Dummy", level = spec.level, maxHp = spec.maxHp }
+			)
+		end
+	end
+end
+
+function WorldService:Start()
+	local existing = Workspace:FindFirstChild(NPC_FOLDER_NAME)
+	if existing then
+		existing:Destroy()
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = NPC_FOLDER_NAME
+	folder.Parent = Workspace
+	spawnDummies(folder)
+	log:Info("training dummies ready")
 end
 
 -- Returns the fixed SpawnLocation for `race`.

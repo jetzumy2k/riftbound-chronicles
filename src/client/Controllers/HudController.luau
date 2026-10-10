@@ -36,6 +36,11 @@ local levelText: TextLabel
 local xpText: TextLabel
 local fill: Frame
 local safeBadge: Frame
+local protectedBadge: Frame
+local hpFill: Frame
+local hpText: TextLabel
+local focusFill: Frame
+local characterConnections: { RBXScriptConnection } = {}
 local scale: UIScale
 local lastLevel = -1
 
@@ -125,12 +130,61 @@ local function build()
 	Kit.corner(fill, 6)
 	Kit.new("UIGradient", { Color = Theme.GoldSequence, Parent = fill })
 
+	-- Vitals: HP + Focus (server-owned values mirrored as character attributes).
+	local vitals = Kit.glassPanel({
+		Name = "Vitals",
+		Position = UDim2.fromOffset(10, 78),
+		Size = UDim2.fromOffset(250, 44),
+		Parent = gui,
+	})
+	local hpTrack = Kit.new("Frame", {
+		BackgroundColor3 = Theme.Colors.Ink,
+		Position = UDim2.fromOffset(10, 7),
+		Size = UDim2.new(1, -20, 0, 18),
+		Parent = vitals,
+	})
+	Kit.corner(hpTrack, 6)
+	hpFill = Kit.new("Frame", {
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Size = UDim2.fromScale(1, 1),
+		Parent = hpTrack,
+	})
+	Kit.corner(hpFill, 6)
+	Kit.new("UIGradient", {
+		Color = ColorSequence.new(Color3.fromRGB(196, 40, 52), Color3.fromRGB(255, 120, 90)),
+		Parent = hpFill,
+	})
+	hpText = Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		TextSize = 13,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.Text,
+		TextStrokeTransparency = 0.4,
+		ZIndex = 3,
+		Parent = hpTrack,
+	})
+	local focusTrack = Kit.new("Frame", {
+		BackgroundColor3 = Theme.Colors.Ink,
+		Position = UDim2.fromOffset(10, 29),
+		Size = UDim2.new(1, -20, 0, 7),
+		Parent = vitals,
+	})
+	Kit.corner(focusTrack, 4)
+	focusFill = Kit.new("Frame", {
+		BackgroundColor3 = Color3.fromRGB(110, 190, 255),
+		Size = UDim2.fromScale(1, 1),
+		Parent = focusTrack,
+	})
+	Kit.corner(focusFill, 4)
+
 	-- Safe-zone badge (server-published attribute; display only).
 	safeBadge = Kit.new("Frame", {
 		Name = "SafeZone",
 		BackgroundColor3 = Theme.Colors.SafeDeep,
 		BackgroundTransparency = 0.15,
-		Position = UDim2.fromOffset(10, 78),
+		Position = UDim2.fromOffset(10, 130),
 		Size = UDim2.fromOffset(150, 30),
 		Visible = false,
 		Parent = gui,
@@ -147,7 +201,66 @@ local function build()
 		Parent = safeBadge,
 	})
 
+	-- Spawn / exit protection badge (text, not colour alone).
+	protectedBadge = Kit.new("Frame", {
+		Name = "Protected",
+		BackgroundColor3 = Theme.Colors.Glass,
+		BackgroundTransparency = 0.15,
+		Position = UDim2.fromOffset(166, 130),
+		Size = UDim2.fromOffset(120, 30),
+		Visible = false,
+		Parent = gui,
+	})
+	Kit.corner(protectedBadge, 15)
+	Kit.goldStroke(protectedBadge, 1.5)
+	Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = "✦  PROTECTED",
+		TextSize = 13,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.GoldBright,
+		Parent = protectedBadge,
+	})
+
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
+end
+
+local function renderVitals(character: Model?)
+	local hp = if character then character:GetAttribute("HP") else nil
+	local maxHp = if character then character:GetAttribute("MaxHP") else nil
+	local focus = if character then character:GetAttribute("Focus") else nil
+	if type(hp) ~= "number" or type(maxHp) ~= "number" or maxHp <= 0 then
+		hpText.Text = ""
+		hpFill.Size = UDim2.fromScale(0, 1)
+		focusFill.Size = UDim2.fromScale(0, 1)
+		protectedBadge.Visible = false
+		return
+	end
+	hpText.Text = `HP  {formatNumber(hp)} / {formatNumber(maxHp)}`
+	Kit.tween(hpFill, Kit.Tween.Quick, { Size = UDim2.fromScale(math.clamp(hp / maxHp, 0, 1), 1) })
+	if type(focus) == "number" then
+		focusFill.Size = UDim2.fromScale(math.clamp(focus / 100, 0, 1), 1)
+	end
+	protectedBadge.Visible = character ~= nil and character:GetAttribute("Protected") == true
+end
+
+local function bindCharacter(character: Model?)
+	for _, connection in characterConnections do
+		connection:Disconnect()
+	end
+	table.clear(characterConnections)
+	renderVitals(character)
+	if character then
+		for _, name in { "HP", "MaxHP", "Focus", "Protected" } do
+			table.insert(
+				characterConnections,
+				character:GetAttributeChangedSignal(name):Connect(function()
+					renderVitals(character)
+				end)
+			)
+		end
+	end
 end
 
 local function updateScale()
@@ -188,6 +301,9 @@ function HudController:Start()
 	end
 
 	local localPlayer = Players.LocalPlayer :: Player
+	localPlayer.CharacterAdded:Connect(bindCharacter)
+	bindCharacter(localPlayer.Character)
+
 	local function renderSafeZone()
 		safeBadge.Visible = localPlayer:GetAttribute("SafeZone") ~= nil
 	end
