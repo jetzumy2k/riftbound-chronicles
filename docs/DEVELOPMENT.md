@@ -106,6 +106,25 @@ Run **Test → Clients and Servers → Local Server + 2 players** (or Play solo 
    ```
    The server Output shows `[RC][Warn][Security] … code=…` lines, and nothing changes in game.
 
+## Phase 4 manual tests (job system)
+1. **New player:** after "Enter the Skyreach/Emberdeep", the **"✦ CHOOSE YOUR PATH ✦"** screen appears over a view of your capital. There is still no character.
+2. Three cards (Warrior / Healer / Archer) show the role line for your race (Angel Healer = *Buff*, Devil Healer = *Debuff*) and the weapons that job can use for your race (Angel Warrior: Sword · Greatsword · Polearm · Mace; Devil Warrior: … Axe …).
+3. Tap a card: "✓ SELECTED", the others dim, and the button reads "BEGIN AS WARRIOR". Press it: the character spawns at your capital.
+4. **Device check:** Test → Device → phone (portrait and landscape), tablet and desktop. Cards stack or sit side by side; nothing is cut off.
+5. **Tamper test** (client command bar):
+   ```lua
+   local r = game.ReplicatedStorage.Remotes.SelectJob
+   r:FireServer("Mage")      -- not a job → rejected (BadArgs)
+   r:FireServer("Healer")    -- after a job is chosen → rejected (JobAlreadyChosen)
+   ```
+6. **Server rule check** (server command bar, after choosing Warrior):
+   ```lua
+   local JS = require(game.ServerScriptService.Server.Services.JobService)
+   local p = game.Players:GetPlayers()[1]
+   print(JS:CanUseSkillCategory(p, "Taunt"), JS:CanUseSkillCategory(p, "Heal")) --> true false
+   print(JS:CanUseWeapon(p, "Greatsword"), JS:CanUseWeapon(p, "Bow"))          --> true false
+   ```
+
 ## Adding approved outfit art (Creator Store)
 Follow **`docs/ASSET_GUIDE.md`** (beginner-friendly). In short: insert a free Creator Store model, run `tools/studio/PrepareAccessory.luau` in the Command Bar (removes scripts and makes it a slot-tagged Accessory), then Save to File into `assets/Outfits/<_Angel|_Devil|LookName>/<Slot>.rbxm`. Each approved slot (Body, Cape, Wings, Halo, Horns, Tail) replaces only the matching built-in piece. Record credits in `assets/CREDITS.md`.
 

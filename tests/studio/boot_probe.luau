@@ -32,7 +32,8 @@ if remotes then
 	check(remotes:FindFirstChild("ProfileSnapshot") ~= nil, "ProfileSnapshot remote exists")
 	check(remotes:FindFirstChild("ProgressionUpdate") ~= nil, "ProgressionUpdate remote exists")
 	check(remotes:FindFirstChild("SelectRace") ~= nil, "SelectRace remote exists")
-	check(#remotes:GetChildren() == 5, `exactly the registered remotes exist ({#remotes:GetChildren()})`)
+	check(remotes:FindFirstChild("SelectJob") ~= nil, "SelectJob remote exists")
+	check(#remotes:GetChildren() == 6, `exactly the registered remotes exist ({#remotes:GetChildren()})`)
 end
 
 check(ReplicatedStorage:GetAttribute("RC_Maintenance") ~= true, "server is not in maintenance")

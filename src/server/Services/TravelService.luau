@@ -6,7 +6,8 @@
 
 	Phase 3 rules:
 	  - `Players.CharacterAutoLoads` is false (default.project.json). A player
-	    without a race never gets a character; the race screen is shown.
+	    gets a character only after choosing a race and a job; until then the
+	    selection screens are shown.
 	  - Players always spawn at their own race's fixed SpawnLocation
 	    (deterministic), after streaming that area in.
 	  - On death the player respawns at home after a short delay. Phase 6
@@ -22,6 +23,7 @@ local Log = require(ReplicatedStorage.Shared.Util.Log)
 
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RaceService = require(script.Parent.RaceService)
+local JobService = require(script.Parent.JobService)
 local WorldService = require(script.Parent.WorldService)
 
 local RESPAWN_DELAY = 3
@@ -36,7 +38,8 @@ local spawning: { [Player]: boolean } = {}
 
 local function homeSpawn(player: Player): SpawnLocation?
 	local data = PlayerDataService:GetData(player)
-	if data == nil or data.Race == nil then
+	-- A character only enters the world once race and job are both chosen.
+	if data == nil or data.Race == nil or data.Job == nil then
 		return nil
 	end
 	return WorldService:GetSpawnLocation(data.Race)
@@ -107,12 +110,16 @@ end
 function TravelService:Init()
 	-- Returning players: spawn as soon as the profile is ready.
 	PlayerDataService.ProfileLoaded:Connect(function(player, data)
-		if data.Race ~= nil then
+		if data.Race ~= nil and data.Job ~= nil then
 			task.spawn(TravelService.SpawnAtHome, TravelService, player)
 		end
 	end)
-	-- New players: spawn right after choosing a race.
+	-- New players: spawn once the second of race/job is chosen (homeSpawn
+	-- returns nil until both are set, so either signal may trigger it).
 	RaceService.RaceChosen:Connect(function(player)
+		task.spawn(TravelService.SpawnAtHome, TravelService, player)
+	end)
+	JobService.JobChosen:Connect(function(player)
 		task.spawn(TravelService.SpawnAtHome, TravelService, player)
 	end)
 end

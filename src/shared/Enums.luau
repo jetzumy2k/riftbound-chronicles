@@ -45,6 +45,10 @@ Enums.SkillCategory = list({
 	"RangedArea",
 })
 
+-- Weapon families from the gear concept sheet (docs/ART_DIRECTION.md §2).
+Enums.WeaponType =
+	list({ "Sword", "Greatsword", "Polearm", "Mace", "Axe", "Staff", "Orb", "Bow", "Crossbow" })
+
 -- D-25.
 Enums.ItemSlot = list({ "Weapon", "Helm", "Chest", "Legs", "Boots", "Accessory" })
 

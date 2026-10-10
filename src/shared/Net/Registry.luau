@@ -51,6 +51,16 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 		},
 
+		-- First-time job choice (Phase 4). One-shot, after a race is chosen.
+		-- Job changes are an admin action (PLAN.md D-21).
+		SelectJob = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(Enums.Job) },
+			rate = { capacity = 3, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded", "HasRace" },
+		},
+
 		-- Server -> client notification. Text is a localization key plus
 		-- server-generated parameters (never player-written text).
 		Notify = {

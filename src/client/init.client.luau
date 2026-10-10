@@ -21,6 +21,7 @@ local CONTROLLER_ORDER = {
 	"PlayerDataController",
 	"HudController",
 	"RaceSelectController",
+	"JobSelectController",
 	"CharacterMotionController",
 }
 

@@ -199,7 +199,7 @@ C→S means an intent from client to server. S→C means a push from server to c
 | `ProfileSnapshot` | S→C | replicated profile view (`DATA_MODEL` §6) | 2 |
 | `ProgressionUpdate` | S→C | {Level, Experience, XPToNext, LevelsGained} (typed per-domain updates replace a generic path/value delta, so every payload stays schema-validated) | 2 |
 | `SelectRace` | C→S | Race enum, FacePresetId (int, must belong to the race). One-shot; `ProfileLoaded` state | 3 |
-| `SelectJob` | C→S | Job enum | 4 |
+| `SelectJob` | C→S | Job enum. One-shot; `ProfileLoaded` + `HasRace` states | 4 |
 | `BasicAttack` | C→S | TargetRef? | 6 |
 | `UseConsumable` | C→S | ItemDefId (stackable allowlist) | 6/7 |
 | `CombatEvent` | S→C | {sourceRef, targetRef, kind, amount, crit} (batched per frame) | 6 |

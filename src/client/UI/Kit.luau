@@ -86,6 +86,52 @@ function Kit.list(
 end
 
 --[[
+	Positions a GuiObject at a layout rect {x, y, w, h} (canvas units) and
+	shows it; a nil rect hides it.
+]]
+function Kit.place(instance: GuiObject, r: { x: number, y: number, w: number, h: number }?)
+	if r == nil then
+		instance.Visible = false
+		return
+	end
+	instance.Visible = true
+	instance.AnchorPoint = Vector2.zero
+	instance.Position = UDim2.fromOffset(r.x, r.y)
+	instance.Size = UDim2.fromOffset(r.w, r.h)
+end
+
+--[[
+	Full-bleed darkening backdrop for full-screen menus (covers the top bar
+	too and swallows touches meant for the world).
+]]
+function Kit.backdrop(name: string, displayOrder: number, parent: Instance): ScreenGui
+	local screen = Kit.new("ScreenGui", {
+		Name = name,
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = displayOrder,
+	})
+	local shade = Kit.new("Frame", {
+		BackgroundColor3 = Theme.Colors.Ink,
+		BackgroundTransparency = 0.15,
+		Size = UDim2.fromScale(1, 1),
+		Active = true,
+		Parent = screen,
+	})
+	Kit.new("UIGradient", {
+		Rotation = 90,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.05),
+			NumberSequenceKeypoint.new(0.5, 0.45),
+			NumberSequenceKeypoint.new(1, 0.05),
+		}),
+		Parent = shade,
+	})
+	screen.Parent = parent
+	return screen
+end
+
+--[[
 	Gold border with a moving-light sheen. Returns the stroke and its gradient.
 ]]
 function Kit.goldStroke(parent: Instance, thickness: number, transparency: number?): (UIStroke, UIGradient)

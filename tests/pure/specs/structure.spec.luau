@@ -170,6 +170,9 @@ return function(t)
 				-- Phase 3 review: one-shot, enum + preset id only, ProfileLoaded state,
 				-- server validates preset/race pairing (SECURITY_MODEL.md T-30).
 				SelectRace = true,
+				-- Phase 4 review: one-shot, job enum only, ProfileLoaded + HasRace
+				-- states; job decides skill categories, never stats directly.
+				SelectJob = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then
