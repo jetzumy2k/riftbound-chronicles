@@ -18,4 +18,8 @@ return {
 	{ name = "PlayerDataService", layer = 1 },
 	{ name = "LevelService", layer = 2 },
 	{ name = "StatsService", layer = 2 },
+	{ name = "RaceService", layer = 2 },
+	{ name = "SafeZoneService", layer = 4 },
+	{ name = "WorldService", layer = 5 },
+	{ name = "TravelService", layer = 5 },
 }

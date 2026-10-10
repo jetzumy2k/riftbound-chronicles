@@ -198,7 +198,7 @@ C→S means an intent from client to server. S→C means a push from server to c
 | `Notify` | S→C | {kind, textKey, params} | 1 |
 | `ProfileSnapshot` | S→C | replicated profile view (`DATA_MODEL` §6) | 2 |
 | `ProgressionUpdate` | S→C | {Level, Experience, XPToNext, LevelsGained} (typed per-domain updates replace a generic path/value delta, so every payload stays schema-validated) | 2 |
-| `SelectRace` | C→S | Race enum, FacePresetId (int in allowlist) | 3 |
+| `SelectRace` | C→S | Race enum, FacePresetId (int, must belong to the race). One-shot; `ProfileLoaded` state | 3 |
 | `SelectJob` | C→S | Job enum | 4 |
 | `BasicAttack` | C→S | TargetRef? | 6 |
 | `UseConsumable` | C→S | ItemDefId (stackable allowlist) | 6/7 |
@@ -285,4 +285,4 @@ There is **no remote** that accepts damage, healing, XP, level, stats, loot, rar
 | D-12 | Cross-server config | DataStore + MessagingService (§7) |
 | D-13 | Audit-log storage | DataStore by day, 90 days |
 | D-21 | Characters per account | One |
-| D-22 | Rarity names | Standard, Uncommon, Rare, Legendary, Mythical |
+| D-22 ✅ | Rarity names | Standard, Uncommon, Rare, Epic, Legendary, Mythical |

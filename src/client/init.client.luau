@@ -20,6 +20,8 @@ local CONTROLLER_ORDER = {
 	"NotificationController",
 	"PlayerDataController",
 	"HudController",
+	"RaceSelectController",
+	"CharacterMotionController",
 }
 
 Log.setLevel(if RunService:IsStudio() then "Debug" else "Info")

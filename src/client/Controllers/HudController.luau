@@ -1,16 +1,17 @@
 --!strict
 --[[
-	HudController
-	Compact level + XP bar (mobile-first, CLAUDE.md §28):
-	  - Top-left, inside CoreUISafeInsets (never under the Roblox top bar or
-	    a phone notch).
-	  - Fixed pixel sizes scaled by a UIScale from viewport height so it stays
-	    readable on phones and unobtrusive on desktop.
-	  - Progress is shown as text ("1,234 / 5,000 XP") as well as bar fill, so
-	    colour is never the only indicator.
+	HudController — level medallion + XP bar and safe-zone badge, in the
+	dark-glass + gold style (UI/Theme, UI/Kit).
+
+	Mobile-first (CLAUDE.md §28):
+	  - Top-left, inside CoreUISafeInsets (never under the top bar or a notch).
+	  - Scaled from viewport height so it stays readable on phones.
+	  - Progress shown as text ("1,234 / 5,000 XP") as well as bar fill; the
+	    safe-zone badge has text and an icon, not colour alone.
 	  - Non-interactive: never blocks touches.
 
-	Phase 19 replaces the placeholder styling with the full UI kit.
+	Display only: values come from the server (PlayerDataController and the
+	server-set "SafeZone" attribute).
 ]]
 
 local Players = game:GetService("Players")
@@ -20,18 +21,23 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 
+local UI = script.Parent.Parent.UI
+local Theme = require(UI.Theme)
+local Kit = require(UI.Kit)
+
 local PlayerDataController = require(script.Parent.PlayerDataController)
 
-local BASE_HEIGHT = 720 -- design viewport height
-local MIN_SCALE, MAX_SCALE = 0.85, 1.4
+local BASE_HEIGHT = 720
+local MIN_SCALE, MAX_SCALE = 0.85, 1.35
 
 local HudController = {}
 
-local gui: ScreenGui
-local levelLabel: TextLabel
-local xpLabel: TextLabel
+local levelText: TextLabel
+local xpText: TextLabel
 local fill: Frame
+local safeBadge: Frame
 local scale: UIScale
+local lastLevel = -1
 
 local function formatNumber(n: number): string
 	local text = tostring(math.floor(n))
@@ -39,80 +45,107 @@ local function formatNumber(n: number): string
 	return (string.gsub(formatted, "^,", ""))
 end
 
-local function corner(parent: Instance, radius: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius)
-	c.Parent = parent
-end
-
 local function build()
-	gui = Instance.new("ScreenGui")
-	gui.Name = "RC_Hud"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = false
-	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	local gui = Kit.new("ScreenGui", {
+		Name = "RC_Hud",
+		ResetOnSpawn = false,
+		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	})
+	scale = Kit.new("UIScale", { Parent = gui })
 
-	scale = Instance.new("UIScale")
-	scale.Parent = gui
+	-- Progress panel.
+	local panel = Kit.glassPanel({
+		Name = "Progress",
+		Position = UDim2.fromOffset(10, 10),
+		Size = UDim2.fromOffset(250, 60),
+		Parent = gui,
+	})
 
-	local panel = Instance.new("Frame")
-	panel.Name = "Progress"
-	panel.Position = UDim2.fromOffset(8, 8)
-	panel.Size = UDim2.fromOffset(220, 48)
-	panel.BackgroundColor3 = Color3.fromRGB(20, 22, 32)
-	panel.BackgroundTransparency = 0.25
-	panel.Active = false
-	panel.Parent = gui
-	corner(panel, 10)
+	local medallion = Kit.new("Frame", {
+		Name = "Level",
+		BackgroundColor3 = Theme.Colors.Ink,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 6, 0.5, 0),
+		Size = UDim2.fromOffset(48, 48),
+		Parent = panel,
+	})
+	Kit.corner(medallion, 24)
+	Kit.goldStroke(medallion, 2)
+	Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, 5),
+		Size = UDim2.new(1, 0, 0, 10),
+		Text = "LV",
+		TextSize = 10,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.TextDim,
+		Parent = medallion,
+	})
+	levelText = Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, 14),
+		Size = UDim2.new(1, 0, 0, 26),
+		Text = "0",
+		TextSize = 22,
+		FontFace = Theme.Fonts.Display,
+		TextColor3 = Theme.Colors.GoldBright,
+		Parent = medallion,
+	})
 
-	local padding = Instance.new("UIPadding")
-	padding.PaddingLeft = UDim.new(0, 8)
-	padding.PaddingRight = UDim.new(0, 8)
-	padding.PaddingTop = UDim.new(0, 6)
-	padding.PaddingBottom = UDim.new(0, 6)
-	padding.Parent = panel
+	xpText = Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(62, 8),
+		Size = UDim2.new(1, -72, 0, 18),
+		Text = "",
+		TextSize = 13,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = panel,
+	})
 
-	levelLabel = Instance.new("TextLabel")
-	levelLabel.Name = "Level"
-	levelLabel.BackgroundTransparency = 1
-	levelLabel.Size = UDim2.fromOffset(64, 18)
-	levelLabel.Font = Enum.Font.GothamBold
-	levelLabel.TextSize = 16
-	levelLabel.TextColor3 = Color3.fromRGB(255, 236, 170)
-	levelLabel.TextXAlignment = Enum.TextXAlignment.Left
-	levelLabel.Text = "Lv 0"
-	levelLabel.Parent = panel
+	local track = Kit.new("Frame", {
+		Name = "Track",
+		BackgroundColor3 = Theme.Colors.Ink,
+		Position = UDim2.fromOffset(62, 32),
+		Size = UDim2.new(1, -74, 0, 12),
+		Parent = panel,
+	})
+	Kit.corner(track, 6)
+	Kit.new("UIStroke", { Color = Theme.Colors.GoldDeep, Thickness = 1, Transparency = 0.3, Parent = track })
 
-	xpLabel = Instance.new("TextLabel")
-	xpLabel.Name = "XP"
-	xpLabel.BackgroundTransparency = 1
-	xpLabel.AnchorPoint = Vector2.new(1, 0)
-	xpLabel.Position = UDim2.fromScale(1, 0)
-	xpLabel.Size = UDim2.new(1, -68, 0, 18)
-	xpLabel.Font = Enum.Font.Gotham
-	xpLabel.TextSize = 13
-	xpLabel.TextColor3 = Color3.fromRGB(225, 228, 240)
-	xpLabel.TextXAlignment = Enum.TextXAlignment.Right
-	xpLabel.TextTruncate = Enum.TextTruncate.AtEnd
-	xpLabel.Text = ""
-	xpLabel.Parent = panel
+	fill = Kit.new("Frame", {
+		Name = "Fill",
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Size = UDim2.fromScale(0, 1),
+		Parent = track,
+	})
+	Kit.corner(fill, 6)
+	Kit.new("UIGradient", { Color = Theme.GoldSequence, Parent = fill })
 
-	local track = Instance.new("Frame")
-	track.Name = "Track"
-	track.AnchorPoint = Vector2.new(0, 1)
-	track.Position = UDim2.fromScale(0, 1)
-	track.Size = UDim2.new(1, 0, 0, 10)
-	track.BackgroundColor3 = Color3.fromRGB(55, 60, 80)
-	track.Parent = panel
-	corner(track, 5)
-
-	fill = Instance.new("Frame")
-	fill.Name = "Fill"
-	fill.Size = UDim2.fromScale(0, 1)
-	fill.BackgroundColor3 = Color3.fromRGB(120, 200, 255)
-	fill.Parent = track
-	corner(fill, 5)
+	-- Safe-zone badge (server-published attribute; display only).
+	safeBadge = Kit.new("Frame", {
+		Name = "SafeZone",
+		BackgroundColor3 = Theme.Colors.SafeDeep,
+		BackgroundTransparency = 0.15,
+		Position = UDim2.fromOffset(10, 78),
+		Size = UDim2.fromOffset(150, 30),
+		Visible = false,
+		Parent = gui,
+	})
+	Kit.corner(safeBadge, 15)
+	Kit.new("UIStroke", { Color = Theme.Colors.Safe, Thickness = 1.5, Parent = safeBadge })
+	Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = "🛡  SAFE ZONE",
+		TextSize = 13,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.Safe,
+		Parent = safeBadge,
+	})
 
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
 end
@@ -125,14 +158,25 @@ local function updateScale()
 end
 
 local function render(state: PlayerDataController.State)
-	levelLabel.Text = `Lv {state.Level}`
+	levelText.Text = tostring(state.Level)
+	local ratio
 	if state.Level >= Constants.Level.Max then
-		xpLabel.Text = "MAX LEVEL"
-		fill.Size = UDim2.fromScale(1, 1)
+		xpText.Text = "MAX LEVEL"
+		ratio = 1
 	elseif state.XPToNext > 0 then
-		xpLabel.Text = `{formatNumber(state.Experience)} / {formatNumber(state.XPToNext)} XP`
-		fill.Size = UDim2.fromScale(math.clamp(state.Experience / state.XPToNext, 0, 1), 1)
+		xpText.Text = `{formatNumber(state.Experience)} / {formatNumber(state.XPToNext)} XP`
+		ratio = math.clamp(state.Experience / state.XPToNext, 0, 1)
+	else
+		ratio = 0
 	end
+	Kit.tween(fill, Kit.Tween.Smooth, { Size = UDim2.fromScale(ratio, 1) })
+
+	if lastLevel >= 0 and state.Level > lastLevel then
+		-- Level-up pulse on the medallion.
+		levelText.TextSize = 30
+		Kit.tween(levelText, Kit.Tween.Smooth, { TextSize = 22 })
+	end
+	lastLevel = state.Level
 end
 
 function HudController:Start()
@@ -142,6 +186,13 @@ function HudController:Start()
 	if camera then
 		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
 	end
+
+	local localPlayer = Players.LocalPlayer :: Player
+	local function renderSafeZone()
+		safeBadge.Visible = localPlayer:GetAttribute("SafeZone") ~= nil
+	end
+	localPlayer:GetAttributeChangedSignal("SafeZone"):Connect(renderSafeZone)
+	renderSafeZone()
 
 	render(PlayerDataController:Get())
 	PlayerDataController.Changed:Connect(function(state)

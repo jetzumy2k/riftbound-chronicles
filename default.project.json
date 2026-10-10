@@ -26,6 +26,16 @@
 			"$properties": {
 				"StreamingEnabled": true
 			}
+		},
+		"Players": {
+			"$properties": {
+				"CharacterAutoLoads": false
+			}
+		},
+		"ServerStorage": {
+			"RC_Assets": {
+				"$path": "assets"
+			}
 		}
 	}
 }

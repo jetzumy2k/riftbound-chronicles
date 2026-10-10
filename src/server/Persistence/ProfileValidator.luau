@@ -19,6 +19,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Constants = require(Shared.Constants)
 local Enums = require(Shared.Enums)
 local XPTable = require(Shared.Logic.XPTable)
+local FacePresets = require(Shared.Definitions.FacePresets)
 local ProfileTemplate = require(script.Parent.ProfileTemplate)
 
 local MAX_NOTES = 25
@@ -26,8 +27,6 @@ local MAX_KEY_LENGTH = 64
 local MAX_REWARD_ID_LENGTH = 128
 local MAX_STACK = 1000000000
 local MAX_CURRENCY = 1000000000000
--- Phase 3 replaces this with the real preset allowlist size.
-local MAX_FACE_PRESET = 64
 
 local ProfileValidator = {}
 
@@ -151,7 +150,16 @@ local function repairIdentity(data: Data, note: (string) -> ())
 		note(`Job: invalid '{tostring(data.Job)}' cleared`)
 		data.Job = nil
 	end
-	fixInt(data, "FacePreset", 1, MAX_FACE_PRESET, 1, "FacePreset", note)
+	-- Face preset must exist and, once a race is chosen, belong to that race.
+	local preset = data.FacePreset
+	local validPreset = if data.Race ~= nil
+		then FacePresets.isValidFor(preset, data.Race)
+		else FacePresets.get(preset) ~= nil
+	if not validPreset then
+		local fallback = if data.Race ~= nil then FacePresets.defaultFor(data.Race) else 1
+		note(`FacePreset: {tostring(preset)} -> {fallback}`)
+		data.FacePreset = fallback
+	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
 end

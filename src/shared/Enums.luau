@@ -18,8 +18,8 @@ Enums.Race = list({ "Angel", "Devil" })
 
 Enums.Job = list({ "Healer", "Warrior", "Archer" })
 
--- D-22: lowest -> highest.
-Enums.Rarity = list({ "Standard", "Uncommon", "Rare", "Legendary", "Mythical" })
+-- D-22: lowest -> highest. Epic added 2026-10-11 (creator decision, matches the gear concept sheet).
+Enums.Rarity = list({ "Standard", "Uncommon", "Rare", "Epic", "Legendary", "Mythical" })
 
 Enums.SkillType = list({ "Regular", "Special" })
 

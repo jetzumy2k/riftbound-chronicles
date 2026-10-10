@@ -122,6 +122,8 @@ return function(t)
 			local files = {}
 			listFiles(`{SRC}/shared/Logic`, files)
 			listFiles(`{SRC}/shared/Util`, files)
+			listFiles(`{SRC}/shared/Definitions`, files)
+			listFiles(`{SRC}/shared/Layout`, files)
 			listFiles(`{SRC}/server/Config`, files)
 			for _, name in PURE_PERSISTENCE do
 				table.insert(files, `{SRC}/server/Persistence/{name}.luau`)
@@ -163,7 +165,12 @@ return function(t)
 		t.it("client->server remotes are exactly the reviewed allowlist", function()
 			-- Adding a client->server remote is a security review event:
 			-- update this list deliberately with SECURITY_MODEL.md.
-			local allowed = { ClientReady = true }
+			local allowed = {
+				ClientReady = true,
+				-- Phase 3 review: one-shot, enum + preset id only, ProfileLoaded state,
+				-- server validates preset/race pairing (SECURITY_MODEL.md T-30).
+				SelectRace = true,
+			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then
 					t.ok(allowed[name], `unreviewed client->server remote '{name}'`)
@@ -172,7 +179,16 @@ return function(t)
 		end)
 
 		t.it("progression services register no remote handlers", function()
-			for _, name in { "LevelService", "StatsService", "PlayerDataService" } do
+			for _, name in
+				{
+					"LevelService",
+					"StatsService",
+					"PlayerDataService",
+					"SafeZoneService",
+					"WorldService",
+					"TravelService",
+				}
+			do
 				local source = stripComments(fs.readFile(`{SRC}/server/Services/{name}.luau`))
 				t.ok(
 					not string.find(source, "NetService:Handle(", 1, true),

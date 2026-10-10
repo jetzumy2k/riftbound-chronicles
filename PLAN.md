@@ -175,10 +175,13 @@ Each decision needs an owner (the creator). The **recommended default** is what 
 | **D-19** | Skill acquisition | All 3 regular skills of the chosen job are owned at job selection, with the first unlocked at L0 and the others at L3 and L6. The special skill is unlocked by the Quest 10 token, with an early "lite" special at L12 so the slot isn't empty for most of the game. Extra skills come later as content. | Phase 5 |
 | **D-20** | Defeat inside a dungeon | Respawn at the dungeon checkpoint while the session is alive and the player has rejoin charges left (default 3). Otherwise return to the race safe zone. Defeat in PvP always returns the player to the race safe zone (§14). | Phase 9 |
 | **D-21** | Characters per account | One character (race and job) per account in v1. Job change only through an admin action (audited). | Phase 2 |
-| **D-22** | Rarity names | Standard, Uncommon, Rare, Legendary, Mythical. (CLAUDE.md §9 says "finalize in Phase 3," but rarity is used from Phase 7. Finalize in Phase 1 enums.) | Phase 1 |
+| **D-22** ✅ | Rarity names | **Updated 2026-10-11:** Standard, Uncommon, Rare, **Epic**, Legendary, Mythical (6 tiers; Epic added by the creator to match the gear concept sheet). The default drop tables in CLAUDE.md §12/§15 don't use Epic, so Phase 10/14 must decide whether events or tables include it. (CLAUDE.md §9 says "finalize in Phase 3," but rarity is used from Phase 7. Finalize in Phase 1 enums.) | Phase 1 |
 | **D-23** | Resource system | One resource, **Focus** (100 max, regenerates ~10/s). Skills cost Focus. Healer heals cost more. | Phase 5/6 |
 | **D-24** | Same-race combat | Friendly fire off. Heals and buffs only target the same race and your party. | Phase 6 |
 | **D-25** | Equipment slots | Weapon, Helm, Chest, Legs, Boots, Accessory (Quest 3 reward). | Phase 7 |
+| **D-26** ✅ | Character look | **APPROVED 2026-10-11: game outfits over the avatar.** Keep each player's face, hair, body shape and skin. The server removes casual clothing and accessories and dresses every character in race + look gear (`Appearance/Wardrobe`). | Phase 3 (pulled forward from 15/16) |
+| **D-27** ✅ | Art source | **APPROVED 2026-10-11: Roblox Creator Store assets, approved by the creator.** Approved accessories are saved as `.rbxm` under `assets/Outfits/<LookName>/` (Rojo → `ServerStorage.RC_Assets`). Until then a procedural fantasy outfit (`Appearance/OutfitBuilder`) is used. No unverified catalog IDs. | Phase 3, art pass 15/16 |
+| **D-28** ✅ | UI style | **APPROVED 2026-10-11: dark glass + gold fantasy.** All screens use `client/UI/Theme` + `client/UI/Kit`. | Phase 3 onward, polish in 19 |
 
 ---
 

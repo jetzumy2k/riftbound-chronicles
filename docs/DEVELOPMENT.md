@@ -86,6 +86,29 @@ Check:
 - Stop, then Play again (with API access): level and XP are restored.
 - From a **client** command bar, firing any remote with XP-like arguments changes nothing. The only client-to-server remote is `ClientReady`.
 
+## Phase 3 manual tests (race system)
+Run **Test → Clients and Servers → Local Server + 2 players** (or Play solo for the basics).
+
+1. **First join:** the "✦ CHOOSE YOUR REALM ✦" screen appears with two glass cards (Angels / Devils) and a 3D preview panel in the middle. There is no character yet.
+2. **Tap a card:** it glows, gets a "✓ SELECTED" ribbon and the other card dims. The preview shows **your own avatar** in that race's outfit, slowly turning; drag it to rotate. Tap the look medallions: the preview recolours and the title shows `LOOK · <NAME>`. The gold button reads "ENTER THE SKYREACH" / "ENTER THE EMBERDEEP".
+3. **Enter:** the screen closes and the character spawns on that race's capital wearing the fantasy outfit (tunic, armour, cape, gloves, boots; Angels: wings + ring of light; Devils: horns, bat wings, tail). Casual avatar clothing and hats are removed; face, hair and skin stay. The HUD shows the level medallion, XP bar and **🛡 SAFE ZONE**.
+4. **Two players** (Local Server): pick different races. Each spawns only at their own capital. Note that Studio test players ("Player1", "Player2") have a default avatar, so the face and body underneath look generic; that's Studio, not the game.
+5. **Leave the safe zone** (walk past the glowing ring): the SAFE ZONE badge disappears.
+6. **Reset (Esc → Reset):** you respawn at your own capital after ~3 s, re-dressed.
+7. **Rejoin** (needs a published place with API access): no race screen, and you spawn straight at home.
+8. **Tamper test** (client command bar):
+   ```lua
+   local r = game.ReplicatedStorage.Remotes.SelectRace
+   r:FireServer("Devil", 1)      -- Angel preset with Devil race → rejected (InvalidFacePreset)
+   r:FireServer("Human", 1)      -- not an enum value → rejected (BadArgs)
+   r:FireServer("Angel", 1, "x") -- extra argument → rejected (BadArity)
+   r:FireServer("Devil", 5)      -- after a race is chosen → rejected (RaceAlreadyChosen)
+   ```
+   The server Output shows `[RC][Warn][Security] … code=…` lines, and nothing changes in game.
+
+## Adding approved outfit art (Creator Store)
+Follow **`docs/ASSET_GUIDE.md`** (beginner-friendly). In short: insert a free Creator Store model, run `tools/studio/PrepareAccessory.luau` in the Command Bar (removes scripts and makes it a slot-tagged Accessory), then Save to File into `assets/Outfits/<_Angel|_Devil|LookName>/<Slot>.rbxm`. Each approved slot (Body, Cape, Wings, Halo, Horns, Tail) replaces only the matching built-in piece. Record credits in `assets/CREDITS.md`.
+
 ## How pure tests load game modules
 Game modules use normal Roblox requires (`require(script.Parent.X)`, `game:GetService("ReplicatedStorage").Shared...`) so luau-lsp type-checks them. `tests/pure/loader.luau` emulates just enough of the DataModel (ReplicatedStorage.Shared → `src/shared`, ServerScriptService.Server → `src/server`) to run them under Lune. Any other service is unavailable, so a module that needs the engine fails to load. That's how the "pure module" rule is enforced. In specs: `local load = require("../loader")` then `load("src/shared/Logic/XPTable")`.
 

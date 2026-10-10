@@ -5,7 +5,7 @@ local Constants = load("src/shared/Constants")
 return function(t)
 	t.describe("Enums", function()
 		t.it("Rarity is ordered lowest to highest (D-22)", function()
-			local expected = { "Standard", "Uncommon", "Rare", "Legendary", "Mythical" }
+			local expected = { "Standard", "Uncommon", "Rare", "Epic", "Legendary", "Mythical" }
 			t.eq(#Enums.Rarity, #expected)
 			for i, name in expected do
 				t.eq(Enums.Rarity[i], name)
@@ -23,6 +23,7 @@ return function(t)
 
 		t.it("indexOf() returns positions", function()
 			t.eq(Enums.indexOf(Enums.Rarity, "Rare"), 3)
+			t.eq(Enums.indexOf(Enums.Rarity, "Epic"), 4)
 			t.eq(Enums.indexOf(Enums.Rarity, "Nope"), nil)
 		end)
 

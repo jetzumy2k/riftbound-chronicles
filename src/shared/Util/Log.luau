@@ -14,7 +14,8 @@
 ]]
 
 export type Level = "Debug" | "Info" | "Warn" | "Error"
-export type Sink = (level: Level, scope: string, message: string) -> ()
+-- `location` is "Folder.Module:line" of the code that logged (nil if unknown).
+export type Sink = (level: Level, scope: string, message: string, location: string?) -> ()
 
 export type Logger = {
 	scope: string,
@@ -31,8 +32,12 @@ local Log = {}
 
 local minimumRank = LEVEL_RANK.Info
 
-local function defaultSink(level: Level, scope: string, message: string)
-	local line = `[RC][{level}][{scope}] {message}`
+-- Roblox attributes print/warn to this module ("Log:NN"), so the real call
+-- site is appended to each line instead.
+local function defaultSink(level: Level, scope: string, message: string, location: string?)
+	local line = if location
+		then `[RC][{level}][{scope}] {message}  @{location}`
+		else `[RC][{level}][{scope}] {message}`
 	if level == "Warn" or level == "Error" then
 		warn(line)
 	else
@@ -57,12 +62,28 @@ local function format(fmt: string, ...: any): string
 	return `{fmt} <format error: {tostring(result)}>`
 end
 
-local function emit(level: Level, scope: string, fmt: string, ...: any)
+--[[
+	Returns "Parent.Module:line" for the stack frame `depth` levels above the
+	caller of this function, or nil.
+]]
+local function callSite(depth: number): string?
+	local source, line = debug.info(depth + 1, "sl")
+	if source == nil or line == nil then
+		return nil
+	end
+	-- Keep the last two path segments: "Services.NetService" / "specs/log.spec".
+	local segments = string.split((string.gsub(source, "[/]", ".")), ".")
+	local count = #segments
+	local short = if count >= 2 then `{segments[count - 1]}.{segments[count]}` else source
+	return `{short}:{line}`
+end
+
+local function emit(level: Level, scope: string, location: string?, fmt: string, ...: any)
 	if LEVEL_RANK[level] < minimumRank then
 		return
 	end
 	-- Cast: pcall on a no-result function is typed as returning one value.
-	local ok, err = pcall(sink :: any, level, scope, format(fmt, ...))
+	local ok, err = pcall(sink :: any, level, scope, format(fmt, ...), location)
 	if not ok then
 		defaultSink("Error", "Log", `sink failed: {tostring(err)}`)
 	end
@@ -100,17 +121,18 @@ end
 function Log.new(scope: string): Logger
 	local logger = { scope = scope } :: any
 
+	-- callSite(2): skip callSite's caller (this method) to reach the logging code.
 	function logger:Debug(fmt: string, ...: any)
-		emit("Debug", scope, fmt, ...)
+		emit("Debug", scope, callSite(2), fmt, ...)
 	end
 	function logger:Info(fmt: string, ...: any)
-		emit("Info", scope, fmt, ...)
+		emit("Info", scope, callSite(2), fmt, ...)
 	end
 	function logger:Warn(fmt: string, ...: any)
-		emit("Warn", scope, fmt, ...)
+		emit("Warn", scope, callSite(2), fmt, ...)
 	end
 	function logger:Error(fmt: string, ...: any)
-		emit("Error", scope, fmt, ...)
+		emit("Error", scope, callSite(2), fmt, ...)
 	end
 
 	--[[
@@ -130,7 +152,7 @@ function Log.new(scope: string): Logger
 		if suppressed > 0 then
 			message ..= ` (+{suppressed} suppressed)`
 		end
-		emit(level, scope, "%s", message)
+		emit(level, scope, callSite(2), "%s", message)
 	end
 
 	return logger :: Logger

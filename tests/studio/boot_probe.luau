@@ -31,7 +31,8 @@ if remotes then
 	check(remotes.ClientReady:IsA("RemoteEvent"), "ClientReady is a RemoteEvent")
 	check(remotes:FindFirstChild("ProfileSnapshot") ~= nil, "ProfileSnapshot remote exists")
 	check(remotes:FindFirstChild("ProgressionUpdate") ~= nil, "ProgressionUpdate remote exists")
-	check(#remotes:GetChildren() == 4, `exactly the registered remotes exist ({#remotes:GetChildren()})`)
+	check(remotes:FindFirstChild("SelectRace") ~= nil, "SelectRace remote exists")
+	check(#remotes:GetChildren() == 5, `exactly the registered remotes exist ({#remotes:GetChildren()})`)
 end
 
 check(ReplicatedStorage:GetAttribute("RC_Maintenance") ~= true, "server is not in maintenance")
@@ -67,5 +68,12 @@ local LevelService = require(Services.LevelService)
 local StatsService = require(Services.StatsService)
 check(type(LevelService.GrantXP) == "function", "LevelService.GrantXP exists (server-internal)")
 check(StatsService:GetBaseStats(nil :: any) == nil, "stats for an unloaded player are nil")
+
+-- Phase 3: graybox world, fixed spawns, no auto-spawned characters.
+local world = workspace:FindFirstChild("RC_World")
+check(world ~= nil, "graybox world built")
+check(world ~= nil and world:FindFirstChild("Spawn_Angel", true) ~= nil, "Angel spawn exists")
+check(world ~= nil and world:FindFirstChild("Spawn_Devil", true) ~= nil, "Devil spawn exists")
+check(game:GetService("Players").CharacterAutoLoads == false, "characters only spawn after race choice")
 
 print(if failures == 0 then "PROBE RESULT: ALL PASSED" else `PROBE RESULT: {failures} FAILED`)

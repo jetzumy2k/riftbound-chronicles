@@ -291,10 +291,11 @@ Suggested rarity hierarchy:
 1. Common/Standard
 2. Uncommon
 3. Rare
-4. Legendary
-5. Mythical
+4. Epic
+5. Legendary
+6. Mythical
 
-The exact names can be finalized during Phase 3.
+Epic was added by the creator on 2026-10-11 to match the gear concept sheet (see `docs/ART_DIRECTION.md`, PLAN.md D-22). Code names: Standard, Uncommon, Rare, Epic, Legendary, Mythical.
 
 ---
 

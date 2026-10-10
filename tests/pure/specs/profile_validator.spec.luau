@@ -20,6 +20,7 @@ return function(t)
 	t.it("a valid mid-game profile needs no repairs", function()
 		local data = fresh()
 		data.Race = "Devil"
+		data.FacePreset = 7
 		data.Job = "Archer"
 		data.Level = 12
 		data.Experience = 50
@@ -100,11 +101,23 @@ return function(t)
 			t.ok(#notes >= 2)
 		end)
 
-		t.it("repairs face preset out of range", function()
+		t.it("repairs unknown face presets", function()
 			local data = fresh()
 			data.FacePreset = 9999
 			ProfileValidator.repair(data)
-			t.eq(data.FacePreset, 64)
+			t.eq(data.FacePreset, 1)
+		end)
+
+		t.it("a face preset must belong to the chosen race", function()
+			local data = fresh()
+			data.Race = "Devil"
+			data.FacePreset = 2 -- an Angel preset
+			ProfileValidator.repair(data)
+			t.eq(data.FacePreset, 5) -- first Devil preset
+			local ok = fresh()
+			ok.Race = "Angel"
+			ok.FacePreset = 3
+			t.eq(#ProfileValidator.repair(ok), 0)
 		end)
 	end)
 

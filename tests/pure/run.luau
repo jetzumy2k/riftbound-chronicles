@@ -26,6 +26,11 @@ local specs = {
 	{ "migrations", require("./specs/migrations.spec") },
 	{ "reward_claims", require("./specs/reward_claims.spec") },
 	{ "profile_view", require("./specs/profile_view.spec") },
+	{ "race_definitions", require("./specs/race_definitions.spec") },
+	{ "face_presets", require("./specs/face_presets.spec") },
+	{ "world_layout", require("./specs/world_layout.spec") },
+	{ "race_select_layout", require("./specs/race_select_layout.spec") },
+	{ "motion_math", require("./specs/motion_math.spec") },
 	{ "structure", require("./specs/structure.spec") },
 }
 

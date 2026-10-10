@@ -23,6 +23,8 @@
 local Enums = require(script.Parent.Parent.Enums)
 local Constants = require(script.Parent.Parent.Constants)
 
+local FacePresets = require(script.Parent.Parent.Definitions.FacePresets)
+
 local NotifyKind = { "Info", "Warning", "Welcome" }
 local MAX_LEVEL = Constants.Level.Max
 
@@ -36,6 +38,17 @@ return function(S: any)
 			args = {},
 			rate = { capacity = 2, refillPerSecond = 0.05 },
 			states = {},
+		},
+
+		-- First-time race choice (Phase 3). One-shot: the server rejects it once a
+		-- race is set. The preset id must belong to the chosen race (checked by
+		-- RaceService against FacePresets; the client never sends asset ids).
+		SelectRace = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(Enums.Race), S.int(1, FacePresets.maxId()) },
+			rate = { capacity = 3, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded" },
 		},
 
 		-- Server -> client notification. Text is a localization key plus
@@ -62,7 +75,7 @@ return function(S: any)
 				S.struct({
 					Race = S.optional(S.enum(Enums.Race)),
 					Job = S.optional(S.enum(Enums.Job)),
-					FacePreset = S.int(1, 64),
+					FacePreset = S.int(1, FacePresets.maxId()),
 					Level = S.int(0, MAX_LEVEL),
 					Experience = S.int(0),
 					XPToNext = S.int(0),

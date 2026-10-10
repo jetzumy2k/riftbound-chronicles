@@ -101,7 +101,7 @@ type Profile = {
 type ItemInstance = {
     Guid: string,                    -- HttpService:GenerateGUID(false), server only
     DefId: ItemDefId,                -- must exist in ItemDefinitions
-    Rarity: RarityId,                -- Standard|Uncommon|Rare|Legendary|Mythical
+    Rarity: RarityId,                -- Standard|Uncommon|Rare|Epic|Legendary|Mythical
     ItemLevel: number,               -- 0..30
     Attributes: { { Stat: StatId, Value: number } }, -- rolled; count by rarity; pool by category/job
     Enhancement: number,             -- 0..10

@@ -60,6 +60,22 @@ return function(t)
 		Log.setSink(nil)
 	end)
 
+	t.it("passes the real call site (not the logger) to the sink", function()
+		local locations = {}
+		Log.setSink(function(_, _, _, location)
+			table.insert(locations, location or "nil")
+		end)
+		local log = Log.new("T")
+		log:Info("x")
+		log:Throttled("loc:1", 1000, "Warn", "y")
+		Log.clearThrottle("loc:")
+		Log.setSink(nil)
+		for _, location in locations do
+			t.ok(string.find(location, "log.spec:", 1, true) ~= nil, location)
+		end
+		t.eq(#locations, 2)
+	end)
+
 	t.it("rejects unknown levels", function()
 		t.throws(function()
 			Log.setLevel("Verbose" :: any)
