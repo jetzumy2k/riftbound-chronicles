@@ -64,6 +64,17 @@ return {
 		RelevanceRadius = 160,
 	},
 
+	-- Movement modes (Walk / Sprint / Crouch). Speeds are server-set so the
+	-- movement validator always knows the legitimate speed.
+	Movement = {
+		WalkSpeed = 16,
+		SprintSpeed = 25,
+		CrouchSpeed = 8,
+		-- Sprinting spends Focus while moving; it stops when Focus runs out.
+		SprintFocusPerSecond = 6,
+		SprintMinFocus = 10,
+	},
+
 	-- SECURITY_MODEL §5A.2 movement validation. Shadow = log only (Phase 6).
 	AntiExploit = {
 		Mode = "Shadow",

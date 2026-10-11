@@ -980,8 +980,15 @@ local function handOrArm(body: Body, side: string): BasePart?
 end
 
 -- Weapon frames inside the hand: +Y runs from the grip toward the tip.
+-- The hand's +Y points up the forearm; a closed fist holds a shaft across
+-- the palm, along the hand's -Z. These grips must match the arm solver in
+-- tools/anim/generate_arms.py (GRIP) so the authored animation aims them.
+--   FORWARD_GRIP  sword: across the fist, tilted 20 degrees toward the fingers
+--   POLE_GRIP     staff and bow: straight across the fist
+--   POINT_GRIP    wand: along the fingers, like a pointer
 local FORWARD_GRIP = CFrame.new(0, -0.1, 0) * CFrame.Angles(math.rad(-110), 0, 0)
-local VERTICAL_GRIP = CFrame.new(0, -0.05, -0.12)
+local POLE_GRIP = CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+local POINT_GRIP = CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-160), 0, 0)
 
 local function sword(ctx: Ctx, body: Body)
 	local hand = handOrArm(body, "Right")
@@ -1051,7 +1058,7 @@ local function staff(ctx: Ctx, body: Body)
 	if hand == nil then
 		return
 	end
-	local g = VERTICAL_GRIP
+	local g = POLE_GRIP
 	segment(
 		ctx,
 		hand,
@@ -1107,13 +1114,14 @@ local function bow(ctx: Ctx, body: Body)
 	if hand == nil then
 		return
 	end
-	local g = VERTICAL_GRIP
+	local g = POLE_GRIP
 	local angel = ctx.race == "Angel"
 	local points = {}
 	local steps = 6
 	for i = 0, steps do
 		local t = (i / steps) * 2 - 1
-		local z = -0.6 * (1 - t * t) - 0.15 * t ^ 4
+		-- The grip (t = 0) sits in the hand; the limbs curve back toward the string.
+		local z = 0.6 * t * t - 0.15 * t ^ 4
 		table.insert(points, (g * CFrame.new(0, t * 2.5, z)).Position)
 	end
 	for i = 1, #points - 1 do
@@ -1124,17 +1132,10 @@ local function bow(ctx: Ctx, body: Body)
 	for _, index in { 1, #points } do
 		piece(ctx, hand, "glow", Vector3.new(0.2, 0.36, 0.2), CFrame.new(points[index]), { ellipsoid = true })
 	end
-	piece(
-		ctx,
-		hand,
-		"leather",
-		Vector3.new(0.26, 0.6, 0.26),
-		g * CFrame.new(0, 0, -0.6),
-		{ ellipsoid = true }
-	)
+	piece(ctx, hand, "leather", Vector3.new(0.26, 0.6, 0.26), g, { ellipsoid = true })
 	if not angel then
 		for _, t in { -0.6, 0.6 } do
-			local base = (g * CFrame.new(0, t * 2.5, -0.6 * (1 - t * t))).Position
+			local base = (g * CFrame.new(0, t * 2.5, 0.6 * t * t)).Position
 			segment(ctx, hand, "horn", base, base + Vector3.new(0, t * 0.3, -0.5), 0.08)
 		end
 	end
@@ -1143,7 +1144,7 @@ end
 local function wandAndTome(ctx: Ctx, body: Body)
 	local hand = handOrArm(body, "Right")
 	if hand then
-		local g = FORWARD_GRIP
+		local g = POINT_GRIP
 		segment(
 			ctx,
 			hand,

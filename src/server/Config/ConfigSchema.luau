@@ -46,6 +46,14 @@ return function(S: any)
 			RelevanceRadius = S.number(20, 1000),
 		}),
 
+		Movement = S.struct({
+			WalkSpeed = S.number(4, 40),
+			SprintSpeed = S.number(4, 60),
+			CrouchSpeed = S.number(2, 40),
+			SprintFocusPerSecond = S.number(0, 100),
+			SprintMinFocus = S.number(0, 1000),
+		}),
+
 		AntiExploit = S.struct({
 			Mode = S.enum({ "Off", "Shadow", "Enforce" }),
 			SampleHz = S.int(2, 30),

@@ -26,6 +26,9 @@
 				"Health": {
 					"$path": "src/starterchar/Health.server.luau"
 				}
+			},
+			"$properties": {
+				"GameSettingsAvatar": "R15"
 			}
 		},
 		"Workspace": {

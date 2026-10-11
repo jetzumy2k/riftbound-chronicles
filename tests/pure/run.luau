@@ -35,6 +35,8 @@ local specs = {
 	{ "job_select_layout", require("./specs/job_select_layout.spec") },
 	{ "combat_math", require("./specs/combat_math.spec") },
 	{ "movement_check", require("./specs/movement_check.spec") },
+	{ "animation_clips", require("./specs/animation_clips.spec") },
+	{ "combo_math", require("./specs/combo_math.spec") },
 	{ "structure", require("./specs/structure.spec") },
 }
 

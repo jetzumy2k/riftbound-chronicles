@@ -176,6 +176,9 @@ return function(t)
 				-- Phase 6 review: intent only (optional target Model); server
 				-- validates cooldown, hostility, safe zones, range and LOS.
 				BasicAttack = true,
+				-- Animation pass review: enum-only intent; the server sets the
+				-- speed (validator-safe) and drains Focus for sprint.
+				SetMovementMode = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

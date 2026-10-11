@@ -1,8 +1,6 @@
 local load = require("../loader")
 local CombatMath = load("src/shared/Logic/CombatMath")
 local StatFormulas = load("src/shared/Logic/StatFormulas")
-local BasicAttacks = load("src/shared/Definitions/BasicAttacks")
-local Enums = load("src/shared/Enums")
 local Defaults = load("src/server/Config/Defaults")
 
 local C = Defaults.Combat
@@ -163,24 +161,6 @@ return function(t)
 			facts.targetIsPlayer = false
 			facts.targetRace = "Angel"
 			t.ok((CombatMath.canHarm(facts)))
-		end)
-	end)
-
-	t.describe("basic attacks", function()
-		t.it("every job has a basic attack with sane numbers", function()
-			for _, job in Enums.Job do
-				local attack = BasicAttacks.forJob(job)
-				t.ok(attack ~= nil, job)
-				t.ok(attack.range > 0 and attack.range <= 60, job)
-				t.ok(attack.cooldown >= 0.5 and attack.cooldown <= 3, job)
-				t.ok(attack.coefficient > 0 and attack.coefficient <= 2, job)
-			end
-			t.eq(BasicAttacks.forJob("Bard"), nil)
-		end)
-
-		t.it("melee is short range, ranged is long range", function()
-			t.ok(BasicAttacks.forJob("Warrior").range < BasicAttacks.forJob("Healer").range)
-			t.ok(BasicAttacks.forJob("Healer").range < BasicAttacks.forJob("Archer").range)
 		end)
 	end)
 end

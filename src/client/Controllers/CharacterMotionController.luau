@@ -18,8 +18,10 @@
 	independent). Speeds never exceed the server-set WalkSpeed, so this is
 	compatible with movement validation (SECURITY_MODEL.md §5A.2).
 
-	Joint offsets (lean, head look) are applied on this client only; other
-	players see the standard animation. Replicating them is a Phase 15 item.
+	Joint offsets (lean, head look, landing dip) go to PoseController as the
+	"motion" layer, on top of the authored animation (AnimationController).
+	They are local to this client; other players see the animation (it runs
+	for everyone) but not this lean / head look.
 ]]
 
 local Players = game:GetService("Players")
@@ -31,6 +33,8 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local MotionMath = require(Shared.Logic.MotionMath)
 local Log = require(Shared.Util.Log)
+
+local PoseController = require(script.Parent.PoseController)
 
 local RENDER_STEP_NAME = "RC_CharacterMotion"
 local MANUAL_STATES: { [Enum.HumanoidStateType]: boolean } = {
@@ -53,12 +57,6 @@ type Rig = {
 	character: Model,
 	humanoid: Humanoid,
 	root: BasePart,
-	rootJoint: Motor6D?,
-	neck: Motor6D?,
-	waist: Motor6D?,
-	rootC0: CFrame,
-	neckC0: CFrame,
-	waistC0: CFrame,
 	align: AlignOrientation,
 	attachment: Attachment,
 	connections: { RBXScriptConnection },
@@ -79,6 +77,9 @@ local leanPitch, leanRoll = 0, 0
 local neckYaw, neckPitch, waistYaw = 0, 0, 0
 local dip = 0
 local fallSpeed = 0
+-- Temporary facing override (aiming at an attack target).
+local faceYaw: number? = nil
+local faceUntil = 0
 
 local function getControls(): any
 	if controls then
@@ -95,9 +96,10 @@ local function getControls(): any
 	return controls
 end
 
-local function motor(parent: Instance?, name: string): Motor6D?
-	local joint = parent and parent:FindFirstChild(name)
-	return if joint and joint:IsA("Motor6D") then joint else nil
+local MOTION_LAYER = "motion"
+
+local function setMotion(character: Model, joint: string, offset: CFrame?)
+	PoseController.setLayer(character, MOTION_LAYER, joint, offset)
 end
 
 local function teardown()
@@ -110,14 +112,8 @@ local function teardown()
 	for _, connection in current.connections do
 		connection:Disconnect()
 	end
-	if current.rootJoint then
-		current.rootJoint.C0 = current.rootC0
-	end
-	if current.neck then
-		current.neck.C0 = current.neckC0
-	end
-	if current.waist then
-		current.waist.C0 = current.waistC0
+	for _, joint in { "Root", "Neck", "Waist" } do
+		setMotion(current.character, joint, nil)
 	end
 	current.align:Destroy()
 	current.attachment:Destroy()
@@ -170,7 +166,9 @@ local function step(dt: number)
 	current.align.Enabled = not manual
 	humanoid.AutoRotate = manual
 	local cameraYaw, cameraPitch = cameraAngles()
-	if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
+	if faceYaw and os.clock() < faceUntil then
+		facingYaw = faceYaw -- turn toward the attack target
+	elseif UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
 		facingYaw = cameraYaw -- shift-lock / first person: face the camera
 	else
 		local direction = humanoid.MoveDirection
@@ -208,11 +206,7 @@ local function step(dt: number)
 	end
 	dip = MotionMath.damp(dip, 0, D.landingRecoverRate, dt)
 
-	if current.rootJoint then
-		current.rootJoint.C0 = current.rootC0
-			* CFrame.new(0, -dip, 0)
-			* CFrame.Angles(-leanPitch, 0, leanRoll)
-	end
+	setMotion(current.character, "Root", CFrame.new(0, -dip, 0) * CFrame.Angles(-leanPitch, 0, leanRoll))
 
 	-- 5. Head and upper body follow the camera.
 	local targetNeckYaw, targetNeckPitch, targetWaistYaw = 0, 0, 0
@@ -222,12 +216,8 @@ local function step(dt: number)
 	neckYaw = MotionMath.damp(neckYaw, targetNeckYaw, D.headRate, dt)
 	neckPitch = MotionMath.damp(neckPitch, targetNeckPitch, D.headRate, dt)
 	waistYaw = MotionMath.damp(waistYaw, targetWaistYaw, D.headRate, dt)
-	if current.neck then
-		current.neck.C0 = current.neckC0 * CFrame.Angles(neckPitch, neckYaw, 0)
-	end
-	if current.waist then
-		current.waist.C0 = current.waistC0 * CFrame.Angles(0, waistYaw, 0)
-	end
+	setMotion(current.character, "Neck", CFrame.Angles(neckPitch, neckYaw, 0))
+	setMotion(current.character, "Waist", CFrame.Angles(0, waistYaw, 0))
 end
 
 local function setup(character: Model)
@@ -238,14 +228,6 @@ local function setup(character: Model)
 	if humanoid == nil or not humanoid:IsA("Humanoid") or root == nil or not root:IsA("BasePart") then
 		return
 	end
-
-	-- R15 joints, with R6 fallbacks.
-	local lowerTorso = character:FindFirstChild("LowerTorso")
-	local upperTorso = character:FindFirstChild("UpperTorso")
-	local head = character:FindFirstChild("Head")
-	local rootJoint = motor(lowerTorso, "Root") or motor(root, "RootJoint")
-	local neck = motor(head, "Neck") or motor(character:FindFirstChild("Torso"), "Neck")
-	local waist = motor(upperTorso, "Waist")
 
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "RC_MotionAttachment"
@@ -271,12 +253,6 @@ local function setup(character: Model)
 		character = character,
 		humanoid = humanoid,
 		root = root,
-		rootJoint = rootJoint,
-		neck = neck,
-		waist = waist,
-		rootC0 = if rootJoint then rootJoint.C0 else CFrame.identity,
-		neckC0 = if neck then neck.C0 else CFrame.identity,
-		waistC0 = if waist then waist.C0 else CFrame.identity,
 		align = align,
 		attachment = attachment,
 		connections = {},
@@ -297,12 +273,24 @@ local function setup(character: Model)
 
 	rig = newRig
 	RunService:BindToRenderStep(RENDER_STEP_NAME, Enum.RenderPriority.Input.Value + 1, step)
-	log:Debug(
-		"motion layer active (R15 joints: root=%s neck=%s waist=%s)",
-		tostring(rootJoint ~= nil),
-		tostring(neck ~= nil),
-		tostring(waist ~= nil)
-	)
+	log:Debug("motion layer active")
+end
+
+--[[
+	Turns the local character to face `position` for `seconds` (aiming an
+	attack). Uses the same eased AlignOrientation turn as normal movement.
+]]
+function CharacterMotionController.faceToward(position: Vector3, seconds: number)
+	local current = rig
+	if current == nil then
+		return
+	end
+	local offset = position - current.root.Position
+	if Vector3.new(offset.X, 0, offset.Z).Magnitude < 0.5 then
+		return
+	end
+	faceYaw = MotionMath.yawOf(offset.X, offset.Z)
+	faceUntil = os.clock() + seconds
 end
 
 function CharacterMotionController:Start()

@@ -111,6 +111,24 @@ Start with the race features. They make the biggest visual difference and are th
 
 ---
 
+## Part D: publishing animations (before release)
+Roblox only plays animations owned by the game's owner. In Studio the game plays its animations without publishing, but **a live server needs every clip published once** under your account (or your group, if the game belongs to a group).
+
+1. Open the game place in Studio (Rojo synced, not in Play mode).
+2. Open `tools/studio/ExportAnimations.luau`, copy everything, paste it into the Command Bar, press Enter. Output says how many clips were exported.
+3. In the Explorer open **ServerStorage → RC_AnimationExport**.
+4. For each clip: right-click → **Save to Roblox…** → keep the name → **Submit**. Copy the asset id shown.
+5. Paste each id into `src/shared/Definitions/AnimationAssets.luau`, using the clip's name:
+   ```lua
+   return table.freeze({
+       Warrior_Attack1 = "rbxassetid://1234567890",
+       Warrior_Attack1_Upper = "rbxassetid://1234567891",
+   })
+   ```
+6. Run the tests (`lune run tests/pure/run`); they reject names or ids that don't match a clip.
+
+If a clip changes later, export and publish that clip again and update its id.
+
 ## Troubleshooting
 | Problem | Fix |
 |---|---|

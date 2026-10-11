@@ -24,9 +24,12 @@ local Enums = require(script.Parent.Parent.Enums)
 local Constants = require(script.Parent.Parent.Constants)
 
 local FacePresets = require(script.Parent.Parent.Definitions.FacePresets)
+local AnimationClips = require(script.Parent.Parent.Definitions.AnimationClips)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
 local MAX_LEVEL = Constants.Level.Max
+
+local ACTION_NAMES = table.clone(AnimationClips.NAMES)
 
 return function(S: any)
 	return {
@@ -72,6 +75,16 @@ return function(S: any)
 			states = { "ProfileLoaded", "HasJob", "Alive" },
 		},
 
+		-- Movement mode intent (Walk / Sprint / Crouch). The server decides the
+		-- speed, drains Focus for sprinting and publishes the "Stance" attribute.
+		SetMovementMode = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum({ "Walk", "Sprint", "Crouch" }) },
+			rate = { capacity = 8, refillPerSecond = 4 },
+			states = { "ProfileLoaded", "Alive" },
+		},
+
 		-- Server -> nearby clients: combat feedback for display only
 		-- (damage numbers, hit flash, non-graphic defeat effect).
 		CombatEvent = {
@@ -79,10 +92,19 @@ return function(S: any)
 			kind = "Event",
 			args = {
 				S.struct({
-					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive" }),
+					-- "Attack": `target` is the attacker, `action` the AnimationClips
+					-- clip every nearby client plays on it, `step` its combo step.
+					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive", "Attack" }),
 					target = S.instance("Model"),
 					amount = S.optional(S.int(0)),
 					crit = S.optional(S.boolean()),
+					action = S.optional(S.enum(ACTION_NAMES)),
+					-- "Attack": the target the attack was aimed at (if any).
+					aim = S.optional(S.instance("Model")),
+					step = S.optional(S.int(1, 3)),
+					-- "Damage": who dealt it, and whether it was a finisher.
+					source = S.optional(S.instance("Model")),
+					heavy = S.optional(S.boolean()),
 				}),
 			},
 		},

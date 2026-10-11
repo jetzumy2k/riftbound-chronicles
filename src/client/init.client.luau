@@ -22,7 +22,10 @@ local CONTROLLER_ORDER = {
 	"HudController",
 	"RaceSelectController",
 	"JobSelectController",
+	"PoseController",
+	"AnimationController",
 	"CharacterMotionController",
+	"MovementModeController",
 	"CombatController",
 	"CombatFeedbackController",
 }

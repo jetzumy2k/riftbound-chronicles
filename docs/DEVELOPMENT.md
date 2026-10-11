@@ -144,6 +144,32 @@ Each capital has a **Training Grounds** yard in front of the spawn, outside the 
    then walk: the server log shows `[Security] … MovementSuspect (shadow) speed …`, and nothing is corrected yet (Enforce comes before PvP).
 7. **Tamper test** (client command bar): `game.ReplicatedStorage.Remotes.BasicAttack:FireServer(workspace)`. It's rejected (BadArgs, not a Model); there is no remote that can set damage or HP.
 
+## Animation and movement checks
+Character animation is authored keyframe clips (`src/shared/Definitions/AnimationClips.luau`, PLAN.md D-36) played through each character's Animator by `AnimationController`. Until the clips are published (docs/ASSET_GUIDE.md Part D) they are registered for play-testing in Studio; Output then shows `[Animation] registered … for play-testing`. A warning `animation … is not published and could not be registered` means you are outside Studio and must publish first.
+
+**Controls**
+
+| | Desktop | Gamepad | Phone |
+|---|---|---|---|
+| Attack (tap or hold) | click target / hold mouse / F | R2 | gold job button (3 combo pips) |
+| Sprint | hold Shift | L3 | » RUN button |
+| Crouch | C or Ctrl (toggle) | B | ⌄ CROUCH button |
+
+1. **Idle / walking:** standing still plays the job's combat idle (breathing, weapon ready); walking keeps the weapon held while the legs walk.
+2. **Sprint:** speed 16 → 25, running stride with arm pump; Focus drains while moving.
+3. **Crouch:** lowered stance; crouch-walk cycle while moving.
+4. **Combos (press repeatedly or hold):** each job chains 3 steps, the 3rd is a heavy finisher, then a short pause.
+   - Warrior: horizontal slash → rising backhand → overhead cleave with a lunge and ground shockwave.
+   - Healer: staff thrust (radiant bolt) → staff point (bolt) → two-handed staff slam (ring of light + pillar on the target).
+   - Mage: wand flick (missile) → palm blast (missile from the left hand) → gather and two-handed arcane burst (large orb).
+   - Archer: side-on draw and release → quicker second shot → wide-stance power shot (charging glow, bright arrow, burst).
+5. **Hit feel:** damage numbers appear when the swing/projectile lands; both fighters freeze for a few frames (hit-stop); your camera shakes slightly; targets flinch, finishers stagger them.
+6. **Attack while walking:** the legs keep walking (upper-body version of the attack).
+7. **Defeat:** non-graphic kneel with head bowed, then light burst and fade.
+8. **Two players:** each sees the other's loops, combos and effects exactly once.
+
+**Authoring tools** (`tools/anim`, not shipped): `lune run tools/anim/dump_clips > build/clips.json`, then `python tools/anim/generate_arms.py build/clips.json` (solves weapon arms into `AnimationArms.luau`) and `python tools/anim/render_clips.py build/clips.json build/clips` (stick-figure contact sheets for review). Needs Python with numpy, scipy, matplotlib.
+
 ## Adding approved outfit art (Creator Store)
 Follow **`docs/ASSET_GUIDE.md`** (beginner-friendly). In short: insert a free Creator Store model, run `tools/studio/PrepareAccessory.luau` in the Command Bar (removes scripts and makes it a slot-tagged Accessory), then Save to File into `assets/Outfits/<_Angel|_Devil|LookName>/<Slot>.rbxm`. Each approved slot (Body, Cape, Wings, Halo, Horns, Tail) replaces only the matching built-in piece. Record credits in `assets/CREDITS.md`.
 

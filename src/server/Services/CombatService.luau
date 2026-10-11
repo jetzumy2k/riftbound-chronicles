@@ -8,6 +8,10 @@
 	  - All numbers come from shared Logic/CombatMath and profile/server stats.
 	    No remote accepts damage, healing, HP or death. Clients only send
 	    `BasicAttack(target?)` intents.
+	  - Basic attacks are 3-step combos (BasicAttacks, Logic/ComboMath): the
+	    server decides the step from its own timing. Damage lands on the
+	    clip's Hit frame (plus projectile travel time) and the target is
+	    re-validated at that moment (D-36).
 	  - Every hit is validated: attacker alive and off cooldown, target exists
 	    and is hostile (race, safe zones recomputed now, protection), range with
 	    bounded lag compensation, line of sight for ranged attacks.
@@ -31,6 +35,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage.Shared
 local BasicAttacks = require(Shared.Definitions.BasicAttacks)
 local CombatMath = require(Shared.Logic.CombatMath)
+local ComboMath = require(Shared.Logic.ComboMath)
 local StatFormulas = require(Shared.Logic.StatFormulas)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
@@ -43,10 +48,17 @@ local LevelService = require(script.Parent.LevelService)
 local StatsService = require(script.Parent.StatsService)
 local JobService = require(script.Parent.JobService)
 local SafeZoneService = require(script.Parent.SafeZoneService)
+local AntiExploitService = require(script.Parent.AntiExploitService)
 
 local TICK_SECONDS = 0.25
 local AUTO_TARGET_CONE = 0.35 -- dot product: ~70 degrees either side of facing
 local NPC_RESET_SECONDS = 3
+-- Combo presses may arrive this much early (network jitter).
+local COMBO_SLACK = 0.1
+-- Extra reach a melee hit keeps between the swing and its Hit frame.
+local MELEE_FOLLOW_STUDS = 6
+-- Client lunge duration (CombatController); used for the speed allowance.
+local LUNGE_SECONDS = 0.14
 
 local log = Log.new("CombatService")
 
@@ -71,7 +83,7 @@ export type Entity = {
 	protectedUntil: number,
 	lastHostileAt: number,
 	lastAttacker: Entity?,
-	nextAttackAt: number,
+	combo: ComboMath.State,
 	lastResetAt: number,
 }
 
@@ -147,10 +159,13 @@ local function mirror(entity: Entity)
 	end
 end
 
-local function broadcast(target: Entity, payload: { [string]: any })
+local function broadcast(target: Entity, payload: { [string]: any }, exclude: Player?)
 	local radius = combatConfig().RelevanceRadius
 	local recipients = {}
 	for _, player in Players:GetPlayers() do
+		if player == exclude then
+			continue
+		end
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if root and root:IsA("BasePart") and (root.Position - target.root.Position).Magnitude <= radius then
@@ -206,7 +221,7 @@ local function newEntity(
 		protectedUntil = 0,
 		lastHostileAt = -math.huge,
 		lastAttacker = nil,
-		nextAttackAt = 0,
+		combo = ComboMath.new(),
 		lastResetAt = -math.huge,
 	}
 end
@@ -252,14 +267,21 @@ function defeat(entity: Entity, attacker: Entity?, reason: string)
 	end
 end
 
-local function applyDamage(target: Entity, amount: number, attacker: Entity, crit: boolean)
+local function applyDamage(target: Entity, amount: number, attacker: Entity, crit: boolean, heavy: boolean?)
 	local t = now()
 	target.hp = math.max(0, target.hp - amount)
 	target.lastHostileAt = t
 	target.lastAttacker = attacker
 	attacker.lastHostileAt = t
 	mirror(target)
-	broadcast(target, { kind = "Damage", target = target.model, amount = amount, crit = crit })
+	broadcast(target, {
+		kind = "Damage",
+		target = target.model,
+		amount = amount,
+		crit = crit,
+		source = attacker.model,
+		heavy = heavy == true,
+	})
 	if target.hp <= 0 then
 		defeat(target, attacker, "Combat")
 	end
@@ -415,6 +437,44 @@ local function notifyBlocked(player: Player, reason: string)
 	NetService:FireClient("Notify", player, { kind = "Warning", textKey = key })
 end
 
+-- The hit lands (Hit frame / projectile arrival): re-check, then damage.
+local function landHit(
+	attacker: Entity,
+	target: Entity,
+	attack: BasicAttacks.BasicAttack,
+	step: BasicAttacks.ComboStep
+)
+	if
+		entitiesByModel[attacker.model] ~= attacker
+		or entitiesByModel[target.model] ~= target
+		or attacker.defeated
+		or target.defeated
+	then
+		return
+	end
+	-- Safe zones and protection may have changed while the swing / arrow flew.
+	if not CombatMath.canHarm(harmFacts(attacker, target)) then
+		return
+	end
+	local config = combatConfig()
+	if attack.style == "Melee" then
+		local distance = (target.root.Position - attacker.root.Position).Magnitude
+		if distance > attack.range + config.RangeToleranceStuds + MELEE_FOLLOW_STUDS then
+			return -- the target stepped out of the swing
+		end
+	end
+	local amount, crit = CombatMath.damage({
+		attack = attacker.attack,
+		attackerLevel = attacker.level,
+		coefficient = step.coefficient,
+		critChancePct = attacker.critChancePct,
+		critMultiplier = attacker.critMultiplier,
+		roll = rng:NextNumber(),
+		defense = target.defense,
+	}, config)
+	applyDamage(target, amount, attacker, crit, step.heavy)
+end
+
 local function onBasicAttack(player: Player, targetModel: Model?)
 	local attacker = entityByPlayer[player]
 	if attacker == nil or attacker.defeated then
@@ -425,14 +485,30 @@ local function onBasicAttack(player: Player, targetModel: Model?)
 		return
 	end
 	local t = now()
-	if t < attacker.nextAttackAt then
-		return -- cooldown is server-tracked; early presses are simply ignored
+	-- The server decides the combo step from its own clock; early presses
+	-- are simply ignored.
+	local stepIndex = ComboMath.resolve(attacker.combo, t, attack.steps, COMBO_SLACK)
+	if stepIndex == nil then
+		return
 	end
-	attacker.nextAttackAt = t + attack.cooldown
+	ComboMath.commit(attacker.combo, t, attack.steps, stepIndex, attack.finisherCooldown)
+	local step = attack.steps[stepIndex]
 	-- Attacking ends spawn / exit protection immediately.
 	attacker.protectedUntil = 0
-
+	if step.lunge then
+		-- The client may step in toward its target during the swing.
+		AntiExploitService:GrantSpeedAllowance(player, step.lunge / LUNGE_SECONDS, LUNGE_SECONDS + 0.5)
+	end
 	local target = if targetModel then entitiesByModel[targetModel] else autoTarget(attacker, attack.range)
+	-- Everyone nearby (attacker included, for aim / projectile VFX) sees the
+	-- swing or cast; the attacker's client already started it locally.
+	broadcast(attacker, {
+		kind = "Attack",
+		target = attacker.model,
+		action = step.clip,
+		step = stepIndex,
+		aim = if target then target.model else nil,
+	})
 	if target == nil then
 		notifyBlocked(player, if inSafeZone(attacker) then "safeZone" else "noTarget")
 		return
@@ -465,16 +541,8 @@ local function onBasicAttack(player: Player, targetModel: Model?)
 		end
 	end
 
-	local amount, crit = CombatMath.damage({
-		attack = attacker.attack,
-		attackerLevel = attacker.level,
-		coefficient = attack.coefficient,
-		critChancePct = attacker.critChancePct,
-		critMultiplier = attacker.critMultiplier,
-		roll = rng:NextNumber(),
-		defense = target.defense,
-	}, config)
-	applyDamage(target, amount, attacker, crit)
+	local travel = if step.projectileSpeed then distance / step.projectileSpeed else 0
+	task.delay(BasicAttacks.hitTime(step) + travel, landHit, attacker, target, attack, step)
 end
 
 --------------------------------------------------------------------------------
@@ -595,6 +663,30 @@ function CombatService:RegisterNpc(model: Model, spec: NpcSpec): boolean
 	humanoid.BreakJointsOnDeath = false
 	mirror(entity)
 	return true
+end
+
+-- Current Focus of a player's combat entity (0 if none).
+function CombatService:GetFocus(player: Player): number
+	local entity = entityByPlayer[player]
+	return if entity then entity.focus else 0
+end
+
+--[[
+	Spends Focus. Returns false (and spends nothing) if the player has less
+	than `amount` or is defeated.
+]]
+function CombatService:SpendFocus(player: Player, amount: number): boolean
+	local entity = entityByPlayer[player]
+	if entity == nil or entity.defeated or entity.focus < amount then
+		return false
+	end
+	entity.focus -= amount
+	return true
+end
+
+function CombatService:IsDefeated(player: Player): boolean
+	local entity = entityByPlayer[player]
+	return entity == nil or entity.defeated
 end
 
 function CombatService:GetEntity(model: Model): Entity?

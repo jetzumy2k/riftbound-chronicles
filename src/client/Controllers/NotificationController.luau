@@ -35,6 +35,7 @@ local STRINGS: { [string]: string } = {
 	["combat.blocked.outOfRange"] = "Too far away. Move closer.",
 	["combat.blocked.lineOfSight"] = "No clear line of sight.",
 	["combat.blocked.noTarget"] = "No target in range. Face an enemy or tap one.",
+	["movement.noFocus"] = "Not enough Focus to sprint.",
 }
 
 local ICONS: { [string]: string } = {

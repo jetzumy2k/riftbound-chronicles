@@ -130,6 +130,22 @@ return function(t)
 		end
 	end)
 
+	t.it("job glyphs use symbols Roblox fonts render (no exotic dingbats)", function()
+		-- Rendered reliably by Roblox's fonts / emoji fallback. ✧ ➹ ✺ did not render.
+		local SAFE = {
+			["⚔"] = true,
+			["♥"] = true,
+			["🏹"] = true,
+			["🔮"] = true,
+			["☀"] = true,
+			["✦"] = true,
+		}
+		for _, job in Enums.Job do
+			local def = JobDefinitions.get(job)
+			t.ok(SAFE[def.glyph] == true, `{job} glyph '{def.glyph}' is not in the safe set`)
+		end
+	end)
+
 	t.it("definitions are deeply frozen", function()
 		local def = JobDefinitions.get("Warrior")
 		t.ok(table.isfrozen(def))
