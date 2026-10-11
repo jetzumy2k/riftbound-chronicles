@@ -13,7 +13,7 @@
 ]]
 
 -- ▼▼▼ EDIT ME ▼▼▼
-local SLOT = "Wings" -- Wings | Halo | Horns | Tail | Cape | Body
+local SLOT = "Wings" -- Wings | Halo | Horns | Tail | Cape | Body | Weapon
 local LOOK = "_Angel" -- _Angel or _Devil (every look of that race), or one look name, e.g. "Dawnlight"
 -- ▲▲▲ EDIT ME ▲▲▲
 
@@ -29,6 +29,8 @@ local SLOT_INFO = {
 	Horns = { attachment = "HatAttachment", accessoryType = Enum.AccessoryType.Hat },
 	Tail = { attachment = "WaistBackAttachment", accessoryType = Enum.AccessoryType.Waist },
 	Body = { attachment = "BodyFrontAttachment", accessoryType = Enum.AccessoryType.Front },
+	-- Held in the right hand (left-hand bows: rotate with TURN after testing).
+	Weapon = { attachment = "RightGripAttachment", accessoryType = Enum.AccessoryType.Unknown },
 }
 
 local LOOKS = {
@@ -48,7 +50,7 @@ local Selection = game:GetService("Selection")
 local ServerStorage = game:GetService("ServerStorage")
 
 local info = SLOT_INFO[SLOT]
-assert(info, "SLOT must be one of: Wings, Halo, Horns, Tail, Cape, Body")
+assert(info, "SLOT must be one of: Wings, Halo, Horns, Tail, Cape, Body, Weapon")
 assert(LOOKS[LOOK], `LOOK '{LOOK}' is not valid. Use _Angel, _Devil or a look name like Dawnlight.`)
 
 local selected = Selection:Get()
@@ -83,7 +85,10 @@ for _, item in source:GetDescendants() do
 	end
 end
 assert(#parts > 0, "This model has no parts to wear.")
-assert(#parts <= 60, `This model has {#parts} parts. Pick a lighter model (60 parts max) for mobile performance.`)
+assert(
+	#parts <= 60,
+	`This model has {#parts} parts. Pick a lighter model (60 parts max) for mobile performance.`
+)
 
 if SCALE ~= 1 and source:IsA("Model") then
 	source:ScaleTo(source:GetScale() * SCALE)
@@ -133,7 +138,8 @@ end
 
 local attachment = Instance.new("Attachment")
 attachment.Name = info.attachment
-attachment.CFrame = CFrame.new(-OFFSET) * CFrame.Angles(math.rad(-TURN.X), math.rad(-TURN.Y), math.rad(-TURN.Z))
+attachment.CFrame = CFrame.new(-OFFSET)
+	* CFrame.Angles(math.rad(-TURN.X), math.rad(-TURN.Y), math.rad(-TURN.Z))
 attachment.Parent = handle
 
 source.Name = "Model"
@@ -149,10 +155,14 @@ end
 accessory.Parent = import
 Selection:Set({ accessory })
 
-print("────────────────────────────────────────────────────────")
+print(
+	"────────────────────────────────────────────────────────"
+)
 print(`✅ Prepared "{accessory.Name}" ({#parts} parts, removed {removed} scripts/extras).`)
 print(`   It is selected in ServerStorage → RC_Import.`)
 print(`   Right-click it → "Save to File…" and save it as:`)
 print(`   riftbound-chronicles/assets/Outfits/{LOOK}/{SLOT}.rbxm`)
 print("   (create the folder if it does not exist yet)")
-print("────────────────────────────────────────────────────────")
+print(
+	"────────────────────────────────────────────────────────"
+)

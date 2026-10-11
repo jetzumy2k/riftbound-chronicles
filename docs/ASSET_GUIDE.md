@@ -65,7 +65,7 @@ In Studio's **View** tab, turn on:
 1. In the **Explorer**, click the model you just inserted. Select only that one.
 2. Open `tools/studio/PrepareAccessory.luau` in a text editor.
 3. Change the two lines marked **EDIT ME**:
-   - `SLOT`: what it is: `Wings`, `Halo`, `Horns`, `Tail`, `Cape` or `Body`
+   - `SLOT`: what it is: `Wings`, `Halo`, `Horns`, `Tail`, `Cape`, `Body` or `Weapon` (held in the right hand)
    - `LOOK`: who wears it:
      - `_Angel` = every Angel look (easiest; recommended for wings and halos)
      - `_Devil` = every Devil look

@@ -58,7 +58,7 @@ local function applyToCharacter(player: Player, character: Model)
 	end
 	local data = PlayerDataService:GetData(player)
 	if data and data.Race then
-		Wardrobe.dress(character, data.Race, data.FacePreset)
+		Wardrobe.dress(character, data.Race, data.FacePreset, data.Job)
 	end
 end
 

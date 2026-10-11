@@ -52,7 +52,7 @@ return function(t)
 
 	t.it("every preset has a full palette and every role resolves to a colour", function()
 		for _, preset in FacePresets.List do
-			for _, role in { "cloth", "metal", "glow", "leather", "wing", "horn", "unknown" } do
+			for _, role in { "cloth", "metal", "glow", "leather", "wing", "horn", "blade", "wood", "unknown" } do
 				local color = FacePresets.roleColor(preset, role)
 				t.eq(#color, 3, `{preset.name}.{role}`)
 				for _, channel in color do

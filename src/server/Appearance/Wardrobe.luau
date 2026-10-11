@@ -121,7 +121,11 @@ end
 	Dresses `character`. Safe to call repeatedly (previous outfit is replaced).
 	Returns true if the look was applied.
 ]]
-function Wardrobe.dress(character: Model, race: string, presetId: number): boolean
+--[[
+	`job` selects the job outfit and weapon (nil = recruit look, e.g. the
+	realm-selection preview before a job is chosen).
+]]
+function Wardrobe.dress(character: Model, race: string, presetId: number, job: string?): boolean
 	local preset = FacePresets.get(presetId)
 	if preset == nil or preset.race ~= race then
 		return false
@@ -138,7 +142,7 @@ function Wardrobe.dress(character: Model, race: string, presetId: number): boole
 		humanoid:AddAccessory(accessory:Clone())
 	end
 	-- Procedural pieces fill every slot the approved art does not cover.
-	OutfitBuilder.build(character, race, preset, covered)
+	OutfitBuilder.build(character, race, preset, covered, job)
 
 	applyFaceTexture(character, preset.faceTexture)
 	return true
