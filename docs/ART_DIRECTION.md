@@ -44,7 +44,7 @@ The concept sheets are painted 2D key art. In Roblox that quality comes from **a
 | Wings, halos, horns | Accessories (MeshParts + SurfaceAppearance) | Procedural placeholder in place; art needed |
 | Weapons | Tool / Accessory MeshParts with grip attachments | Phase 5/7 system; art needed |
 | Animations | Authored or motion-captured R15 KeyframeSequences per state (idle/walk/run/jump/attack/skill/defend/cast), uploaded as Animation assets | Motion layer done; animations needed |
-| Terrain/areas | Roblox Terrain + modular building kits (MeshParts) | Phase 16 |
+| Terrain/areas | Roblox Terrain + modular building kits (MeshParts) | Capitals: procedural kit in place (D-37); mesh art can replace pieces later |
 
 Until the art exists, the game runs on the procedural outfit (`Appearance/OutfitBuilder`) and the default animations with the motion layer on top.
 

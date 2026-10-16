@@ -1,0 +1,128 @@
+--!strict
+--[[
+	ZoneAtmosphere — lighting and atmosphere per area (PLAN.md D-37).
+
+	The client (AtmosphereController) blends to the preset of the area the
+	camera is in. Colours are {r, g, b}. Display only. Pure module.
+
+	  Neutral  the race selection view and anywhere unclaimed
+	  Angel    clear afternoon sky, light blue haze, gentle bloom (white
+	           marble washes out under strong exposure / bloom)
+	  Devil    low ember-red sun, warm haze, readable dark stone
+]]
+
+export type Preset = {
+	clockTime: number,
+	brightness: number,
+	ambient: { number },
+	outdoorAmbient: { number },
+	colorShiftTop: { number },
+	exposure: number,
+	-- Atmosphere
+	density: number,
+	haze: number,
+	glare: number,
+	atmosphereColor: { number },
+	decay: { number },
+	-- ColorCorrection
+	tint: { number },
+	saturation: number,
+	contrast: number,
+	-- Bloom
+	bloomIntensity: number,
+	bloomThreshold: number,
+}
+
+local ZoneAtmosphere = {}
+
+ZoneAtmosphere.Presets = table.freeze({
+	Neutral = table.freeze({
+		clockTime = 14.5,
+		brightness = 2.4,
+		ambient = { 110, 110, 120 },
+		outdoorAmbient = { 140, 140, 150 },
+		colorShiftTop = { 255, 240, 220 },
+		exposure = 0,
+		density = 0.3,
+		haze = 1,
+		glare = 0.2,
+		atmosphereColor = { 199, 210, 230 },
+		decay = { 110, 120, 140 },
+		tint = { 255, 252, 248 },
+		saturation = 0.05,
+		contrast = 0.05,
+		bloomIntensity = 0.5,
+		bloomThreshold = 1.8,
+	} :: Preset),
+	Angel = table.freeze({
+		clockTime = 14,
+		brightness = 2.2,
+		ambient = { 120, 122, 135 },
+		outdoorAmbient = { 140, 145, 160 },
+		colorShiftTop = { 255, 236, 205 },
+		exposure = -0.25,
+		density = 0.22,
+		haze = 0.4,
+		glare = 0.1,
+		atmosphereColor = { 190, 215, 250 },
+		decay = { 92, 128, 182 },
+		tint = { 255, 248, 236 },
+		saturation = 0.14,
+		contrast = 0.16,
+		bloomIntensity = 0.3,
+		bloomThreshold = 2.4,
+	} :: Preset),
+	Devil = table.freeze({
+		clockTime = 16.8,
+		brightness = 2.6,
+		ambient = { 150, 92, 80 },
+		outdoorAmbient = { 168, 104, 86 },
+		colorShiftTop = { 255, 150, 100 },
+		exposure = 0.35,
+		density = 0.32,
+		haze = 1.4,
+		glare = 0.3,
+		atmosphereColor = { 255, 145, 105 },
+		decay = { 140, 56, 42 },
+		tint = { 255, 232, 220 },
+		saturation = 0.12,
+		contrast = 0.1,
+		bloomIntensity = 0.55,
+		bloomThreshold = 1.8,
+	} :: Preset),
+})
+
+-- Studs from a capital's centre within which its preset applies fully, and
+-- the extra distance over which it blends out to Neutral.
+ZoneAtmosphere.FULL_RADIUS = 420
+ZoneAtmosphere.BLEND_DISTANCE = 200
+
+function ZoneAtmosphere.get(name: string): Preset
+	return (ZoneAtmosphere.Presets :: any)[name] or ZoneAtmosphere.Presets.Neutral
+end
+
+-- 0..1 weight of a capital's preset at `distance` from its centre.
+function ZoneAtmosphere.weight(distance: number): number
+	local t = (distance - ZoneAtmosphere.FULL_RADIUS) / ZoneAtmosphere.BLEND_DISTANCE
+	return 1 - math.clamp(t, 0, 1)
+end
+
+-- Linear blend of two presets (a at 0, b at 1).
+function ZoneAtmosphere.blend(a: Preset, b: Preset, alpha: number): Preset
+	local out: any = {}
+	for key, value in a :: any do
+		local other = (b :: any)[key]
+		if type(value) == "number" then
+			out[key] = value + (other - value) * alpha
+		else
+			out[key] = {
+				value[1] + (other[1] - value[1]) * alpha,
+				value[2] + (other[2] - value[2]) * alpha,
+				value[3] + (other[3] - value[3]) * alpha,
+			}
+		end
+	end
+	return out
+end
+
+return table.freeze(ZoneAtmosphere)

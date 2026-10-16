@@ -170,6 +170,16 @@ Character animation is authored keyframe clips (`src/shared/Definitions/Animatio
 
 **Authoring tools** (`tools/anim`, not shipped): `lune run tools/anim/dump_clips > build/clips.json`, then `python tools/anim/generate_arms.py build/clips.json` (solves weapon arms into `AnimationArms.luau`) and `python tools/anim/render_clips.py build/clips.json build/clips` (stick-figure contact sheets for review). Needs Python with numpy, scipy, matplotlib.
 
+## Capital checks
+Server Output: `Skyreach Citadel built (… parts)` and `Emberdeep Bastion built (… parts)` (budget ≤ 1,000 each).
+1. **Skyreach Citadel (Angels):** bright sky and golden bloom; white-gold cathedral with twin bell towers, rose window and a floating gold ring behind the spawn; spired corner towers; colonnades with blue banners; gold lamps; the city floats on a rock island over clouds, with floating islets.
+2. **Emberdeep Bastion (Devils):** ember-red dusk; black keep with a glowing portcullis, lava moat and spiked towers; braziers with fire; the city stands on pillars over a lava sea with lava falls, jagged spires, drifting embers and a volcano beyond the training yard.
+3. **Gates:** Desert Rift (left), Jungle Rift (right), Rift Dungeons (back, beside the landmark). They are sealed (force-field barrier, "Opens with the … update").
+4. **Lighting** changes smoothly between the two capitals and the selection view.
+5. **Mobile:** walk the plaza on a phone emulator; frame rate should stay smooth.
+
+**Preview tools** (`tools/world`, not shipped): `lune run tools/world/dump_capitals > build/capitals.json` runs the real builder offline, then `python tools/world/render_capitals.py build/capitals.json build/capitals` draws top and side views.
+
 ## Adding approved outfit art (Creator Store)
 Follow **`docs/ASSET_GUIDE.md`** (beginner-friendly). In short: insert a free Creator Store model, run `tools/studio/PrepareAccessory.luau` in the Command Bar (removes scripts and makes it a slot-tagged Accessory), then Save to File into `assets/Outfits/<_Angel|_Devil|LookName>/<Slot>.rbxm`. Each approved slot (Body, Cape, Wings, Halo, Horns, Tail) replaces only the matching built-in piece. Record credits in `assets/CREDITS.md`.
 

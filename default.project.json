@@ -1,50 +1,58 @@
 {
-	"name": "RiftboundChronicles",
-	"tree": {
-		"$className": "DataModel",
-		"ReplicatedStorage": {
-			"Shared": {
-				"$path": "src/shared"
-			}
-		},
-		"ServerScriptService": {
-			"Server": {
-				"$path": "src/server"
-			},
-			"ServerPackages": {
-				"$path": "ServerPackages"
-			}
-		},
-		"StarterPlayer": {
-			"StarterPlayerScripts": {
-				"Client": {
-					"$path": "src/client"
-				}
-			},
-			"StarterCharacterScripts": {
-				"$className": "StarterCharacterScripts",
-				"Health": {
-					"$path": "src/starterchar/Health.server.luau"
-				}
-			},
-			"$properties": {
-				"GameSettingsAvatar": "R15"
-			}
-		},
-		"Workspace": {
-			"$properties": {
-				"StreamingEnabled": true
-			}
-		},
-		"Players": {
-			"$properties": {
-				"CharacterAutoLoads": false
-			}
-		},
-		"ServerStorage": {
-			"RC_Assets": {
-				"$path": "assets"
-			}
-		}
-	}
+  "name": "RiftboundChronicles",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      },
+      "ServerPackages": {
+        "$path": "ServerPackages"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      },
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "Health": {
+          "$path": "src/starterchar/Health.server.luau"
+        }
+      },
+      "$properties": {
+        "GameSettingsAvatar": "R15"
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": true
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "ServerStorage": {
+      "RC_Assets": {
+        "$path": "assets"
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
+        "GlobalShadows": true
+      }
+    }
+  }
 }

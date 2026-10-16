@@ -116,4 +116,78 @@ return function(t)
 			t.eq(ZoneGeometry.findZone(WorldLayout.SafeZones, WorldLayout.SelectionCamera.position), nil)
 		end)
 	end)
+
+	t.describe("city plan", function()
+		local ZoneAtmosphere = load("src/shared/Definitions/ZoneAtmosphere")
+		local City = WorldLayout.City
+
+		t.it("toWorld maps the local frame onto each platform", function()
+			for _, realm in WorldLayout.Realms do
+				local origin = WorldLayout.toWorld(realm, { 0, 0, 0 })
+				t.eq(origin[1], realm.platformCenter[1])
+				t.eq(origin[2], realm.platformCenter[2] + realm.platformSize[2] / 2)
+				-- "forward" points at the training yard.
+				local ahead = WorldLayout.toWorld(realm, { 0, 0, 10 })
+				local yard = WorldLayout.trainingYard(realm)
+				t.ok(math.abs(ahead[3] - yard[3]) < math.abs(origin[3] - yard[3]), realm.race)
+			end
+		end)
+
+		t.it("gates, towers and the landmark sit on the platform", function()
+			for _, realm in WorldLayout.Realms do
+				local half = realm.platformSize[1] / 2
+				for _, gate in City.gates do
+					t.ok(
+						math.abs(gate.position[1]) <= half - 10 and math.abs(gate.position[3]) <= half - 10,
+						gate.id
+					)
+				end
+				for _, tower in City.towers do
+					t.ok(math.abs(tower[1]) <= half - 10 and math.abs(tower[3]) <= half - 10)
+				end
+				local l = City.landmark
+				t.ok(math.abs(l.position[3]) + l.depth / 2 <= half, "landmark fits")
+			end
+		end)
+
+		t.it("gates are unique, away from the spawn and clear of the landmark", function()
+			local seen = {}
+			local l = City.landmark
+			for _, gate in City.gates do
+				t.ok(not seen[gate.id], `duplicate gate {gate.id}`)
+				seen[gate.id] = true
+				local x, z = gate.position[1], gate.position[3]
+				t.ok(math.sqrt(x * x + z * z) > 60, `{gate.id} too close to the spawn`)
+				local insideLandmark = math.abs(x - l.position[1]) < l.width / 2 + 15
+					and math.abs(z - l.position[3]) < l.depth / 2 + 8
+				t.ok(not insideLandmark, `{gate.id} overlaps the landmark`)
+			end
+			t.ok(seen.DesertRift and seen.JungleRift and seen.Dungeons, "all three gates")
+		end)
+
+		t.it("atmosphere presets blend and fade with distance", function()
+			for _, name in { "Neutral", "Angel", "Devil" } do
+				t.ok(ZoneAtmosphere.Presets[name] ~= nil, name)
+			end
+			t.eq(ZoneAtmosphere.weight(0), 1)
+			t.eq(ZoneAtmosphere.weight(ZoneAtmosphere.FULL_RADIUS + ZoneAtmosphere.BLEND_DISTANCE + 1), 0)
+			local mid = ZoneAtmosphere.blend(ZoneAtmosphere.get("Angel"), ZoneAtmosphere.get("Devil"), 0.5)
+			local angel, devil = ZoneAtmosphere.get("Angel"), ZoneAtmosphere.get("Devil")
+			t.near(mid.clockTime, (angel.clockTime + devil.clockTime) / 2, 1e-9)
+			t.near(mid.tint[2], (angel.tint[2] + devil.tint[2]) / 2, 1e-9)
+			t.eq(ZoneAtmosphere.get("Nowhere"), ZoneAtmosphere.Presets.Neutral)
+			-- Readability guards (creator review 2026-10-16): the sun is up in
+			-- every capital and glow never swamps the scene.
+			for name, preset in ZoneAtmosphere.Presets do
+				t.ok(preset.clockTime >= 7 and preset.clockTime <= 17.2, `{name}: sun up`)
+				t.ok(preset.bloomIntensity <= 0.6 and preset.bloomThreshold >= 1.6, `{name}: bloom`)
+				t.ok(preset.haze <= 1.6 and preset.glare <= 0.4, `{name}: haze`)
+				t.ok(math.abs(preset.exposure) <= 0.5, `{name}: exposure`)
+			end
+			-- The capitals are far enough apart that their atmospheres never overlap.
+			local a, d = WorldLayout.Realms.Angel.platformCenter, WorldLayout.Realms.Devil.platformCenter
+			local gap = math.sqrt((a[1] - d[1]) ^ 2 + (a[2] - d[2]) ^ 2 + (a[3] - d[3]) ^ 2)
+			t.ok(gap >= 2 * ZoneAtmosphere.FULL_RADIUS * 0.5, "capitals apart")
+		end)
+	end)
 end

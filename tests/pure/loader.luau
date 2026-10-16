@@ -52,6 +52,11 @@ type Node = {
 }
 
 local nodeMeta = {}
+
+-- Extra globals for dev tools that run engine modules with @lune/roblox
+-- (tools/world). Pure tests leave this empty.
+local extraGlobals: { [string]: any } = {}
+local environmentFor: (proxy: any) -> { [string]: any }
 local cache: { [string]: any } = {}
 local loading: { [string]: boolean } = {}
 
@@ -159,11 +164,7 @@ function requireModule(proxy: any): any
 	loading[file] = true
 	local chunk = luau.load(luau.compile(fs.readFile(file)), {
 		debugName = file,
-		environment = {
-			script = proxy,
-			game = game,
-			require = requireModule,
-		},
+		environment = environmentFor(proxy),
 	})
 	local result = chunk()
 	loading[file] = nil
@@ -172,6 +173,14 @@ function requireModule(proxy: any): any
 	end
 	cache[file] = result
 	return result
+end
+
+function environmentFor(proxy: any): { [string]: any }
+	local env: { [string]: any } = { script = proxy, game = game, require = requireModule }
+	for name, value in extraGlobals do
+		env[name] = value
+	end
+	return env
 end
 
 -- Resolves "src/shared/Logic/XPTable" to its DataModel node and requires it.
@@ -192,4 +201,9 @@ local function load(fsPath: string): any
 	error(`[loader] {fsPath} is outside the mapped roots`, 2)
 end
 
-return load
+-- `load(path)` as before; `load.globals` adds globals for dev tools.
+return setmetatable({ globals = extraGlobals }, {
+	__call = function(_, fsPath: string): any
+		return load(fsPath)
+	end,
+})

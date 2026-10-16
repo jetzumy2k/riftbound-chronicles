@@ -18,6 +18,7 @@ local NetClient = require(Shared.Net.Client)
 -- Order matters: controllers listed earlier may be used by later ones.
 local CONTROLLER_ORDER = {
 	"NotificationController",
+	"AtmosphereController",
 	"PlayerDataController",
 	"HudController",
 	"RaceSelectController",

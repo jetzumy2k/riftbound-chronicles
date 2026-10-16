@@ -53,7 +53,7 @@ WorldLayout.Realms = table.freeze({
 		zone = "AngelCapital",
 		displayName = "Skyreach Citadel",
 		platformCenter = { 0, 150, -600 },
-		platformSize = { 220, 6, 220 },
+		platformSize = { 300, 6, 300 },
 		spawnPosition = { 0, 153.5, -600 },
 		spawnLookAt = { 0, 153.5, -700 },
 		baseColor = { 236, 232, 220 },
@@ -64,7 +64,7 @@ WorldLayout.Realms = table.freeze({
 		zone = "DevilCapital",
 		displayName = "Emberdeep Bastion",
 		platformCenter = { 0, 20, 600 },
-		platformSize = { 220, 6, 220 },
+		platformSize = { 300, 6, 300 },
 		spawnPosition = { 0, 23.5, 600 },
 		spawnLookAt = { 0, 23.5, 700 },
 		baseColor = { 46, 40, 44 },
@@ -77,13 +77,13 @@ WorldLayout.SafeZones = table.freeze({
 		id = "AngelCapital",
 		race = "Angel",
 		displayName = "Skyreach Citadel",
-		volume = { kind = "cylinder", center = { 0, 150, -600 }, radius = 90, halfHeight = 60 },
+		volume = { kind = "cylinder", center = { 0, 150, -600 }, radius = 110, halfHeight = 70 },
 	} :: SafeZone),
 	table.freeze({
 		id = "DevilCapital",
 		race = "Devil",
 		displayName = "Emberdeep Bastion",
-		volume = { kind = "cylinder", center = { 0, 20, 600 }, radius = 90, halfHeight = 60 },
+		volume = { kind = "cylinder", center = { 0, 20, 600 }, radius = 110, halfHeight = 70 },
 	} :: SafeZone),
 })
 
@@ -141,6 +141,89 @@ function WorldLayout.dummyPositions(realm: Realm): { { number } }
 		table.insert(positions, { center[1] + offset, top, lineZ })
 	end
 	return positions
+end
+
+--------------------------------------------------------------------------------
+-- City plan (Phase 16 capitals art, pulled forward; PLAN.md D-37)
+--------------------------------------------------------------------------------
+
+--[[
+	Placements are in the realm's *local* frame, in studs from the platform's
+	top centre: {right, up, forward}, where "forward" is the way the spawn
+	faces (toward the training yard). The same plan is used by both capitals;
+	each race builds it in its own style.
+]]
+export type Gate = {
+	id: string,
+	label: string,
+	-- Where it leads and when it opens (shown on the gate until then).
+	destination: string,
+	opensIn: string,
+	position: Vec,
+	-- Degrees around the vertical axis: 0 faces forward, 90 faces right.
+	facing: number,
+}
+
+WorldLayout.City = table.freeze({
+	-- Grand cathedral (Angels) / keep (Devils) behind the spawn.
+	landmark = table.freeze({ position = { 0, 0, -118 }, width = 76, depth = 44 }),
+	-- Towers at the platform corners.
+	towers = table.freeze({
+		{ 128, 0, 128 },
+		{ -128, 0, 128 },
+		{ 128, 0, -128 },
+		{ -128, 0, -128 },
+	}),
+	-- Lamps / braziers around the plaza ring.
+	lampRadius = 58,
+	lampCount = 8,
+	-- Colonnades along both sides.
+	colonnadeOffset = 138,
+	colonnadeColumns = 7,
+	gates = table.freeze({
+		table.freeze({
+			id = "DesertRift",
+			label = "Desert Rift",
+			destination = "DesertRift",
+			opensIn = "War zones update",
+			position = { -126, 0, 30 },
+			facing = 90,
+		} :: Gate),
+		table.freeze({
+			id = "JungleRift",
+			label = "Jungle Rift",
+			destination = "JungleRift",
+			opensIn = "War zones update",
+			position = { 126, 0, 30 },
+			facing = -90,
+		} :: Gate),
+		table.freeze({
+			id = "Dungeons",
+			label = "Rift Dungeons",
+			destination = "Dungeons",
+			opensIn = "Dungeons update",
+			position = { -64, 0, -126 },
+			facing = 0,
+		} :: Gate),
+	}),
+})
+
+-- Unit vectors {x, y, z} of a realm's local frame: right, forward.
+function WorldLayout.axes(realm: Realm): ({ number }, { number })
+	local dir = WorldLayout.yardDirection(realm)
+	return { -dir, 0, 0 }, { 0, 0, dir }
+end
+
+-- World position {x, y, z} of a local {right, up, forward} point on a realm.
+function WorldLayout.toWorld(realm: Realm, localPoint: Vec): { number }
+	local right, forward = WorldLayout.axes(realm)
+	local c = realm.platformCenter
+	local top = c[2] + realm.platformSize[2] / 2
+	return {
+		c[1] + right[1] * localPoint[1] + forward[1] * localPoint[3],
+		top + localPoint[2],
+		c[3] + right[3] * localPoint[1] + forward[3] * localPoint[3],
+	}
 end
 
 function WorldLayout.realmFor(race: string): Realm?
