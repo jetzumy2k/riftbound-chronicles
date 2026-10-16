@@ -213,7 +213,8 @@ C→S means an intent from client to server. S→C means a push from server to c
 | `PartyInvite` / `PartyKick` | C→S | Player (leader only; same realm, size, expiry checked server-side) | 9 (D-39) |
 | `PartyRespond` / `PartyLeave` | C→S | inviting Player + accept bool / — | 9 (D-39) |
 | `PartyState` / `PartyInvited` | S→C | {members [{userId, leader}], maxMembers} / {fromUserId, expiresIn} | 9 (D-39) |
-| `DungeonState` | S→C | {phase, dungeon, room, objective, progress, goal, roomIndex, roomCount, members, charges, countdown, xp, bossName, bossHp} | 9 |
+| `DungeonState` | S→C | {phase None/Inside, dungeon, room, roomIndex, roomCount, miniBoss, bossStatus, members, leader, bossName, bossHp} (D-42) | 9 |
+| *(war zone gate / return portal ProximityPrompts)* | server-side `Triggered` | Enter the Desert Rift / return home: no remote; PvPService checks reach, level, combat tag and dungeon state (T-15). `WarZone` player attribute (zone id) for the HUD | 12 |
 | `Telegraph` | S→C | {shape Circle/Cone/Ring, center, radius, inner?, angle?, facing?, duration} ground warning; hits are tested on the server | 9 |
 | `LootGranted` | S→C | {itemSummaries} | 10 |
 | `QuestAccept` / `QuestTurnIn` | C→S | QuestId | 11 |

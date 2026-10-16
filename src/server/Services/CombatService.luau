@@ -35,6 +35,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage.Shared
 local BasicAttacks = require(Shared.Definitions.BasicAttacks)
 local CombatMath = require(Shared.Logic.CombatMath)
+local PvPRules = require(Shared.Logic.PvPRules)
 local ComboMath = require(Shared.Logic.ComboMath)
 local StatFormulas = require(Shared.Logic.StatFormulas)
 local Log = require(Shared.Util.Log)
@@ -98,6 +99,8 @@ local CombatService = {
 	Defeated = Signal.new(),
 	-- (player) when a defeated/reset player should respawn at home (TravelService).
 	RespawnRequested = Signal.new(),
+	-- (entity, lastAttacker) a player left the game while combat-tagged.
+	CombatLogged = Signal.new(),
 }
 
 -- "Why didn't my attack do anything?" toasts: at most this often per player.
@@ -478,9 +481,19 @@ local function landHit(
 			return -- the target stepped out of the swing
 		end
 	end
+	-- D-16: against a lower-level player you fight at min(own, theirs + gap).
+	local attackStat, attackLevel = attacker.attack, attacker.level
+	if attacker.kind == "Player" and target.kind == "Player" then
+		local pvp = ConfigurationService:Get("PvP")
+		local effective = PvPRules.normalizedLevel(attacker.level, target.level, pvp.LevelGap)
+		if effective < attacker.level then
+			attackStat = StatFormulas.forLevel(effective).Attack
+			attackLevel = effective
+		end
+	end
 	local amount, crit = CombatMath.damage({
-		attack = attacker.attack,
-		attackerLevel = attacker.level,
+		attack = attackStat,
+		attackerLevel = attackLevel,
 		coefficient = step.coefficient,
 		critChancePct = attacker.critChancePct,
 		critMultiplier = attacker.critMultiplier,
@@ -636,6 +649,7 @@ function CombatService:Start()
 		if entity then
 			if inCombat(entity) and entity.lastAttacker then
 				log:Info("%s left while in combat", entity.name)
+				CombatService.CombatLogged:Fire(entity, entity.lastAttacker)
 			end
 			removeEntity(entity.model)
 		end
@@ -811,6 +825,12 @@ function CombatService:SpendFocus(player: Player, amount: number): boolean
 	end
 	entity.focus -= amount
 	return true
+end
+
+-- Whether the player is combat-tagged (hostile action within Combat.TagSeconds).
+function CombatService:IsInCombat(player: Player): boolean
+	local entity = entityByPlayer[player]
+	return entity ~= nil and inCombat(entity)
 end
 
 function CombatService:IsDefeated(player: Player): boolean

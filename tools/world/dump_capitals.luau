@@ -133,13 +133,13 @@ if only == "all" or only == "dungeon" then
 	map.Parent = root
 	-- Place every room's enemies as they spawn in a run.
 	for index, room in dungeon.rooms do
-		for _, spawn in room.spawns do
+		for _, spawn in room.camps do
 			local creature = CreatureBuilder.build(spawn.enemy, DungeonBuilder.spawnCFrame(dungeon, index, spawn.x, spawn.z))
 			creature.Parent = map
 		end
 	end
 	local parts = dumpParts(map)
-	out.Dungeon = { center = { 0, 0, -DungeonDefinitions.length(dungeon) / 2 }, parts = parts, count = #parts, half = 230 }
+	out.Dungeon = { center = { 0, 0, -DungeonDefinitions.length(dungeon) / 2 }, parts = parts, count = #parts, half = 400 }
 end
 if only == "all" or only == "creatures" then
 	local holder = roblox.Instance.new("Folder")

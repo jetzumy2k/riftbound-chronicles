@@ -288,20 +288,43 @@ local function setup(character: Model)
 	end
 	pending[character] = true
 	task.spawn(function()
-		local humanoid = character:WaitForChild("Humanoid", 10)
-		pending[character] = nil
+		-- With streaming, another player's body may not be loaded yet (they can
+		-- be far away when their character is created). Wait as long as it
+		-- takes; the periodic scan retries if the model unloads meanwhile.
+		local humanoid: Instance? = nil
+		while character.Parent ~= nil do
+			humanoid = character:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				break
+			end
+			task.wait(0.25)
+		end
 		if humanoid == nil or not humanoid:IsA("Humanoid") or character.Parent == nil then
+			pending[character] = nil
 			return
 		end
+		local isPlayer = Players:GetPlayerFromCharacter(character) ~= nil
 		local animator = humanoid:FindFirstChildOfClass("Animator")
-		if animator == nil then
-			animator = humanoid:WaitForChild("Animator", 3) :: Animator?
+		local deadline = os.clock() + 10
+		while animator == nil and isPlayer and character:IsDescendantOf(game) and os.clock() < deadline do
+			task.wait(0.2)
+			animator = humanoid:FindFirstChildOfClass("Animator")
 		end
 		if animator == nil then
+			if isPlayer then
+				-- Never add a second Animator to a player's character: the
+				-- scan will try again once theirs has loaded.
+				pending[character] = nil
+				return
+			end
 			-- Client-side Animator: plays locally only (NPCs).
 			local created = Instance.new("Animator")
 			created.Parent = humanoid
 			animator = created
+		end
+		pending[character] = nil
+		if not character:IsDescendantOf(game) then
+			return
 		end
 		local state: State = {
 			character = character,
@@ -430,7 +453,25 @@ function AnimationController.reset(character: Model)
 	end
 end
 
+local nextScanAt = 0
+
+-- Picks up characters that loaded (or reloaded) after their CharacterAdded:
+-- streaming can unload a far-away player's body and load it again later.
+local function scan()
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		if character and character.Parent ~= nil and states[character] == nil and not pending[character] then
+			setup(character)
+		end
+	end
+end
+
 local function step()
+	local now = os.clock()
+	if now >= nextScanAt then
+		nextScanAt = now + 0.5
+		scan()
+	end
 	local camera = Workspace.CurrentCamera
 	local origin = if camera then camera.CFrame.Position else Vector3.zero
 	for character, state in states do

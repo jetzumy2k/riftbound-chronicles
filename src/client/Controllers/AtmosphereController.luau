@@ -52,6 +52,10 @@ local function target(): ZoneAtmosphere.Preset
 	if WorldLayout.isInDungeonRegion(position.X) then
 		return ZoneAtmosphere.get("Dungeon")
 	end
+	local warZone = WorldLayout.warZoneAt(position.X, position.Z)
+	if warZone then
+		return ZoneAtmosphere.get(warZone.atmosphere)
+	end
 	local best: ZoneAtmosphere.Preset = ZoneAtmosphere.get("Neutral")
 	local bestWeight = 0
 	for race, realm in WorldLayout.Realms :: { [string]: WorldLayout.Realm } do

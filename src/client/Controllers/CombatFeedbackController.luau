@@ -216,7 +216,9 @@ local function onDamage(model: Model, payload: any)
 	showNumber(model, payload.amount or 0, crit, false)
 	hitFlash(model)
 	-- React, unless the target is mid-attack (never cancel its swing).
-	if not AnimationController.isAttacking(model) and model:GetAttribute("Defeated") ~= true then
+	if MobVisualController.isCreature(model) then
+		MobVisualController.hit(model)
+	elseif not AnimationController.isAttacking(model) and model:GetAttribute("Defeated") ~= true then
 		AnimationController.play(model, if heavy then "HitHeavy" else "HitLight")
 	end
 
@@ -256,7 +258,11 @@ local function onEvent(payload: any)
 	elseif kind == "Heal" then
 		showNumber(model, payload.amount or 0, payload.crit == true, true)
 	elseif kind == "Defeat" then
-		AnimationController.play(model, "Defeat")
+		if MobVisualController.isCreature(model) then
+			MobVisualController.defeat(model)
+		else
+			AnimationController.play(model, "Defeat")
+		end
 		-- Kneel first, then the light burst and fade.
 		task.delay(0.7, function()
 			defeatBurst(model)

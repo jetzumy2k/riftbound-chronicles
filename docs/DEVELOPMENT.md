@@ -170,17 +170,27 @@ Character animation is authored keyframe clips (`src/shared/Definitions/Animatio
 
 **Authoring tools** (`tools/anim`, not shipped): `lune run tools/anim/dump_clips > build/clips.json`, then `python tools/anim/generate_arms.py build/clips.json` (solves weapon arms into `AnimationArms.luau`) and `python tools/anim/render_clips.py build/clips.json build/clips` (stick-figure contact sheets for review). Needs Python with numpy, scipy, matplotlib.
 
-## Dungeon checks (Phase 9)
-Server Output: `mob AI ready (8 Hz)`, `dungeons ready (Rift Hollow, 6 slots)`, and per run `run … started in slot …` / `run … ended (…)`.
-1. **Training Grounds:** 5 Rift Sprites hover in each yard. They fight back weakly, give 20 EXP each and respawn after 8 s. Five of them take a new character to level 1.
-2. **Party:** "+ Party" (left, under the HP bar) lists players of your realm; Invite sends them an Accept/Decline popup at the top. The panel shows each member's name, level and health; ★ marks the leader, who can invite more (up to 4) and remove members (×). Leaving passes leadership on; a party of one dissolves.
-3. **Gate:** at level 0 the prompt says you need level 1. Solo players enter alone. In a party only the leader can open the dungeon; members standing near the gate come along, and the others (or anyone who left) can enter later through the gate and arrive next to the leader.
-4. **Run:** start landing (exit portal behind you) → Room 1 Rift Wolves → door opens → Crystal Gallery (2 beetles, 2 wolves, elite Stoneback ★) → Guardian's Sanctum. The compact tracker (top-right, tap the title to collapse) shows room n/3, the objective with a kill counter and the party/leader.
-5. **Mobs:** they notice you, chase, rear back before each bite or slam (dodge by stepping away), leash home and heal if you run far.
-6. **Boss:** health bar in the tracker. Red ground warnings: circle under a player (Slam), cone in front (Sweep), and below 25% HP a ring with a safe blue centre (Shockwave: stand close). At 60% it summons 2 wolves. Toasts announce the phases.
-7. **Defeat:** you respawn next to the party leader (or another living member if the leader is down). If the whole party falls, the run ends and everyone respawns in front of the dungeon gate, still a party; the leader can go straight back in.
-8. **Clear:** "Dungeon cleared! +250 EXP" once per run, then back outside after 45 s, through the exit portal, or with Leave.
-9. **Toasts** appear in a slim strip at the top centre, never over the character.
+## War zone checks (Phase 12: Desert Rift)
+Server Output: `Desert Rift built (… parts, terrain in … s)` and `war zones open (min level 1, Studio)`. Live servers need level 10.
+1. **Gate:** the "Desert Rift" gate on the left side of each capital is open. Holding its prompt takes you to **your realm's camp** (Angels at the north edge, Devils at the south). It refuses you while in combat or inside a dungeon run.
+2. **Camps:** a paved plateau with tents and banners in your realm's colours, lamps and a "Return Home" portal; the HUD shows SAFE ZONE. A shimmering ring marks each camp. You walk in and out of your own camp freely; if the other realm steps inside, the server moves them straight back out with a message (no spawn camping). "Return Home" is blocked while in combat.
+3. **The desert and the oasis:** dunes, mesas and rim cliffs; the HUD shows "⚔ WAR ZONE · PvP" and the lighting turns warm desert. The oasis in the middle (pool, palms, arches, market tents) is **open PvP ground** guarded by Sand Scarabs and Dune Stalkers.
+4. **PvP (Angel vs Devil, Test → 2 players):** fight anywhere outside the camps. Leaving your camp gives a short protection bubble. A higher-level attacker hits a lower-level player as if at most 5 levels above them.
+5. **Defeat:** non-graphic; you return to your own capital with no item or EXP loss. The winner sees "Victory over …" (not again for the same victim within 30 minutes).
+6. **Creatures:** packs at camps across the dunes and around the oasis; they respawn 30 s after falling.
+7. **Animations across players:** each player sees the other realm's attacks, idle and sprint animate even when they met far from where they spawned.
+
+## Dungeon checks (Phase 9, D-42)
+Server Output: `mob AI ready (8 Hz)` and `dungeons ready (Rift Hollow, one per realm)`; boss kills log `… defeated in the … dungeon; returns in …`.
+1. **Training Grounds:** 5 Rift Sprites in each yard; 20 EXP each; five take a new character to level 1.
+2. **Party:** "+ Party" (left, under the HP bar) invites players of your realm; Accept/Decline popup; ★ marks the leader, who can remove members (×).
+3. **Gate:** the Rift Dungeons gate (back of the capital) takes you to **your realm's** Rift Hollow (level 1+). Everyone of your realm shares it, so you may meet other players inside.
+4. **Map:** a large open ruin: Shattered Entry Hall → Crystal Gallery → Guardian's Sanctum, wide corridors, no doors. The tracker (top right) shows where you are, the mini boss and boss status, your party, and the boss's health while fighting it. Leave from the tracker or the exit portal at the entrance.
+5. **Respawns:** regular creatures come back about 45 s after falling. The **Stoneback Guardian** (mini boss, end of the Crystal Gallery) returns after 20 min and the **Rift Guardian** after 3 h; **in Studio** after 1 min and 3 min. Altars above their posts show "awake" or the countdown.
+6. **Creatures:** they amble around their posts when idle and look around, walk / gallop with matching leg motion, bank into turns, crouch before attacking and lunge, recoil when hit and collapse when defeated.
+7. **Boss:** red ground warnings (Slam circle, Sweep cone, Shockwave ring with a safe centre), wolves at 60%; if nobody is alive in its room for a few seconds it resets.
+8. **Rewards:** kill EXP shared with your party nearby; each mini-boss / boss kill also gives everyone who hit it a one-time bonus ("… defeated! +… bonus EXP").
+9. **Defeat:** you come back beside your party leader (or another party member) inside; if none is alive in there, outside the gate.
 
 ## Capital checks
 Server Output: `Skyreach Citadel built (… parts)` and `Emberdeep Bastion built (… parts)` (budget ≤ 1,000 each).

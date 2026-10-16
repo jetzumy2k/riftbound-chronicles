@@ -21,6 +21,7 @@ local FOLDER_NAME = "RC_World"
 
 local CombatService = require(script.Parent.CombatService)
 local CapitalBuilder = require(script.Parent.Parent.World.CapitalBuilder)
+local DesertBuilder = require(script.Parent.Parent.World.DesertBuilder)
 
 local NPC_FOLDER_NAME = "RC_Npcs"
 local DUMMY_COLOR = Color3.fromRGB(196, 168, 120)
@@ -32,6 +33,8 @@ local WorldService = {}
 local spawnByRace: { [string]: SpawnLocation } = {}
 -- Portal surfaces per race by gate id (dungeons / war zones hook in later).
 local gatesByRace: { [string]: { [string]: BasePart } } = {}
+-- War zone return portals by zone id, then race.
+local returnPortals: { [string]: { [string]: BasePart } } = {}
 
 local function v3(t: { number }): Vector3
 	return Vector3.new(t[1], t[2], t[3])
@@ -57,6 +60,12 @@ function WorldService:Init()
 		gatesByRace[realm.race] = built.gates
 		log:Info("%s built (%d parts)", realm.displayName, built.parts)
 	end
+
+	local desert = WorldLayout.WarZones.DesertRift
+	local started = os.clock()
+	local built = DesertBuilder.build(root, desert)
+	returnPortals[desert.id] = built.portals
+	log:Info("%s built (%d parts, terrain in %.1f s)", desert.name, built.parts, os.clock() - started)
 
 	root.Parent = Workspace
 	log:Info("capitals built")
@@ -162,6 +171,12 @@ end
 function WorldService:GetGate(race: string, gateId: string): BasePart?
 	local gates = gatesByRace[race]
 	return if gates then gates[gateId] else nil
+end
+
+-- The return portal surface in `race`'s base of war zone `zoneId`.
+function WorldService:GetReturnPortal(zoneId: string, race: string): BasePart?
+	local portals = returnPortals[zoneId]
+	return if portals then portals[race] else nil
 end
 
 -- Returns the fixed SpawnLocation for `race`.

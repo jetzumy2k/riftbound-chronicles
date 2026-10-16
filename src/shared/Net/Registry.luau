@@ -158,13 +158,13 @@ return function(S: any)
 			},
 		},
 
-		-- Server -> run members: run state for the dungeon tracker.
+		-- Server -> players inside a dungeon: tracker state (D-42).
 		DungeonState = {
 			direction = "ServerToClient",
 			kind = "Event",
 			args = {
 				S.struct({
-					phase = S.enum({ "None", "Rally", "Active", "Cleared", "Failed" }),
+					phase = S.enum({ "None", "Inside" }),
 					dungeon = S.optional(S.string(60)),
 					room = S.optional(S.string(60)),
 					objective = S.optional(S.string(120)),
@@ -176,6 +176,9 @@ return function(S: any)
 					maxMembers = S.optional(S.int(1, 50)),
 					countdown = S.optional(S.number(0, 600)),
 					leader = S.optional(S.string(60)),
+					-- "Stoneback Guardian: returns in 12m 05s" / ": awake".
+					miniBoss = S.optional(S.string(100)),
+					bossStatus = S.optional(S.string(100)),
 					charges = S.optional(S.int(0, 10)),
 					xp = S.optional(S.int(0)),
 					bossName = S.optional(S.string(60)),

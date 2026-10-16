@@ -1,18 +1,18 @@
 --!strict
 --[[
-	DungeonDefinitions — dungeon layouts, objectives and bosses
-	(CLAUDE.md §11, PLAN.md Phase 9).
+	DungeonDefinitions — dungeon layouts, creature camps and bosses
+	(CLAUDE.md §11, PLAN.md Phase 9, D-42).
 
-	A dungeon is a straight run of rooms joined by corridors, built along
-	the instance's -Z ("forward" = deeper). Each room:
-	  size        {width, height, depth} studs
-	  spawns      enemies placed in the room's local frame {x, z} (x right,
-	              z forward from the room's entry edge)
-	  objective   text shown in the tracker while the room is active
-	  checkpoint  defeated players with rejoin charges respawn at the entry
-	              of the latest room that is reached (D-20)
-	Clearing a room opens the door to the next. The last room holds the boss;
-	defeating it clears the dungeon.
+	Each realm has one persistent copy of a dungeon that every player of that
+	realm shares. A dungeon is a run of open rooms joined by corridors, built
+	along -Z ("deeper"). Each room:
+	  size   {width, height, depth} studs
+	  camps  creature groups in the room's frame {x, z} (x right, z forward
+	         from the room's entry edge), each with a respawn class:
+	           Mob       respawns Dungeon.MobRespawnSeconds after falling
+	           MiniBoss  respawns after Dungeon.MiniBossRespawnMinutes
+	           Boss      respawns after Dungeon.BossRespawnHours
+	  boss   the boss definition used by this room's Boss camp
 
 	Boss abilities are telegraphed on the ground before they land:
 	  Circle  {radius} at the targeted player's position
@@ -24,14 +24,15 @@
 	Display-safe data only. Pure module.
 ]]
 
-export type Spawn = { enemy: string, x: number, z: number }
+export type RespawnClass = "Mob" | "MiniBoss" | "Boss"
+
+export type Camp = { enemy: string, x: number, z: number, count: number, class: RespawnClass }
 
 export type Room = {
 	id: string,
 	name: string,
 	size: { number },
-	spawns: { Spawn },
-	objective: string,
+	camps: { Camp },
 	boss: string?,
 }
 
@@ -66,11 +67,13 @@ export type Dungeon = {
 	id: string,
 	name: string,
 	minLevel: number,
-	maxParty: number,
 	corridorLength: number,
+	corridorWidth: number,
 	rooms: { Room },
-	clearXp: number,
-	-- Atmosphere preset (ZoneAtmosphere) inside the instance.
+	-- One-time EXP for everyone who helped defeat a MiniBoss / Boss spawn.
+	miniBossBonusXp: number,
+	bossBonusXp: number,
+	-- Atmosphere preset (ZoneAtmosphere) inside the dungeon.
 	atmosphere: string,
 }
 
@@ -131,43 +134,41 @@ local dungeons: { [string]: Dungeon } = {
 		id = "RiftHollow",
 		name = "Rift Hollow",
 		minLevel = 1,
-		maxParty = 4,
-		corridorLength = 40,
-		clearXp = 250,
+		corridorLength = 60,
+		corridorWidth = 28,
+		miniBossBonusXp = 120,
+		bossBonusXp = 400,
 		atmosphere = "Dungeon",
 		rooms = {
 			{
 				id = "EntryHall",
 				name = "Shattered Entry Hall",
-				size = { 70, 34, 80 },
-				objective = "Defeat the Rift Wolves",
-				spawns = {
-					{ enemy = "RiftWolf", x = -14, z = 40 },
-					{ enemy = "RiftWolf", x = 14, z = 44 },
-					{ enemy = "RiftWolf", x = 0, z = 62 },
+				size = { 140, 46, 150 },
+				camps = {
+					{ enemy = "RiftWolf", x = -34, z = 45, count = 3, class = "Mob" },
+					{ enemy = "RiftWolf", x = 36, z = 70, count = 3, class = "Mob" },
+					{ enemy = "RiftWolf", x = -10, z = 112, count = 2, class = "Mob" },
 				},
 			},
 			{
 				id = "CrystalGallery",
 				name = "Crystal Gallery",
-				size = { 80, 40, 100 },
-				objective = "Clear the Crystal Gallery",
-				spawns = {
-					{ enemy = "CrystalBeetle", x = -20, z = 34 },
-					{ enemy = "CrystalBeetle", x = 20, z = 38 },
-					{ enemy = "RiftWolf", x = -8, z = 56 },
-					{ enemy = "RiftWolf", x = 10, z = 58 },
-					{ enemy = "StonebackGuardian", x = 0, z = 78 },
+				size = { 170, 54, 200 },
+				camps = {
+					{ enemy = "CrystalBeetle", x = -50, z = 45, count = 2, class = "Mob" },
+					{ enemy = "CrystalBeetle", x = 50, z = 60, count = 2, class = "Mob" },
+					{ enemy = "RiftWolf", x = -45, z = 120, count = 3, class = "Mob" },
+					{ enemy = "RiftWolf", x = 45, z = 130, count = 3, class = "Mob" },
+					{ enemy = "StonebackGuardian", x = 0, z = 170, count = 1, class = "MiniBoss" },
 				},
 			},
 			{
 				id = "GuardianSanctum",
 				name = "Guardian's Sanctum",
-				size = { 110, 56, 110 },
-				objective = "Defeat the Rift Guardian",
+				size = { 190, 72, 190 },
 				boss = "RiftGuardian",
-				spawns = {
-					{ enemy = "RiftGuardian", x = 0, z = 70 },
+				camps = {
+					{ enemy = "RiftGuardian", x = 0, z = 120, count = 1, class = "Boss" },
 				},
 			},
 		},
@@ -201,7 +202,7 @@ function DungeonDefinitions.boss(id: any): Boss?
 	return DungeonDefinitions.Bosses[id]
 end
 
--- Z offset (studs, along -Z from the instance origin) of each room's entry edge.
+-- Z offset (studs, along -Z from the dungeon origin) of each room's entry edge.
 function DungeonDefinitions.roomOffsets(dungeon: Dungeon): { number }
 	local offsets = {}
 	local z = 0
@@ -217,6 +218,17 @@ function DungeonDefinitions.length(dungeon: Dungeon): number
 	local offsets = DungeonDefinitions.roomOffsets(dungeon)
 	local last = dungeon.rooms[#dungeon.rooms]
 	return offsets[#offsets] + last.size[3]
+end
+
+-- Index of the room containing local depth `z` (studs from the origin,
+-- positive = deeper), or nil in a corridor / outside.
+function DungeonDefinitions.roomAt(dungeon: Dungeon, z: number): number?
+	for index, offset in DungeonDefinitions.roomOffsets(dungeon) do
+		if z >= offset and z <= offset + dungeon.rooms[index].size[3] then
+			return index
+		end
+	end
+	return nil
 end
 
 return table.freeze(DungeonDefinitions)

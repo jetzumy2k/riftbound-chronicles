@@ -78,26 +78,40 @@ return {
 	-- Phase 9 dungeons (PLAN.md D-20, D-32).
 	Dungeon = {
 		Enabled = true,
-		-- Concurrent dungeon instances per server (ARCHITECTURE.md §2).
-		MaxSlots = 6,
-		-- Party members within this distance of the gate enter with the leader.
-		GateJoinRadius = 80,
-		-- A disconnected member may rejoin the same run within this time.
-		DisconnectGraceSeconds = 120,
-		-- After the boss falls, members return home after this long.
-		ClearReturnSeconds = 45,
-		-- Enemy HP grows by this fraction per extra party member.
-		PartyHpPerExtraMember = 0.6,
+		-- D-42: one persistent dungeon per realm; creatures respawn on timers.
+		MobRespawnSeconds = 45,
+		MiniBossRespawnMinutes = 20,
+		BossRespawnHours = 3,
+		-- Studio play-tests only (RunService:IsStudio()): short boss timers.
+		StudioMiniBossRespawnSeconds = 60,
+		StudioBossRespawnSeconds = 180,
 		-- D-32: party members within this distance share kill EXP.
 		XpShareRadius = 150,
-		-- With no living member in the boss room this long, the boss resets.
-		WipeResetSeconds = 4,
+		-- With no living player in the boss room this long, an engaged boss resets.
+		WipeResetSeconds = 6,
 	},
 
 	-- Parties (D-39): leader invites, members accept.
 	Party = {
 		MaxMembers = 4,
 		InviteSeconds = 45,
+	},
+
+	-- War zones (Phase 12/13; PLAN.md D-16, SECURITY_MODEL T-15/T-17/T-18).
+	PvP = {
+		-- D-16: portal access (Quest 4 is added with the quest system, Phase 11).
+		MinLevel = 10,
+		-- Studio play-tests only (RunService:IsStudio()), so the zone can be
+		-- tested without grinding; live servers always use MinLevel.
+		StudioMinLevel = 1,
+		-- D-16: damage normalization against lower-level players.
+		LevelGap = 5,
+		PortalReach = 18,
+		-- T-18 victory credit rules.
+		RepeatVictimMinutes = 30,
+		DailyCreditCap = 50,
+		-- Field creature camps.
+		CampRespawnSeconds = 30,
 	},
 
 	-- Server mob AI (ARCHITECTURE.md §7: one scheduler, ≤ 10 Hz, sleep when idle).

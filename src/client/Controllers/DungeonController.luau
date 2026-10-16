@@ -7,9 +7,9 @@
 	area, away from the centre of the screen where the character and its
 	targets are:
 	  header   dungeon name (tap to collapse / expand) + Leave
-	  body     room n/N, objective with a kill counter, party and leader
-	  boss     name, health bar and percentage (boss room)
-	  cleared  reward and the return countdown
+	  body     where you are, the mini boss and boss status (awake or the
+	           time until they return), party and leader
+	  boss     name, health bar and percentage while a boss fight is on
 	Telegraph events draw boss ground warnings (Effects/TelegraphVfx).
 
 	Mobile: ≤ 250 px wide (scaled down on small screens), Leave ≥ 44 px
@@ -211,37 +211,36 @@ local function render(state: any)
 		return
 	end
 	lastState = state
-	local phase = state.phase
-	w.panel.Visible = phase == "Active" or phase == "Cleared"
+	w.panel.Visible = state.phase == "Inside"
 	if not w.panel.Visible then
 		return
 	end
 	fitToScreen(w)
 	w.title.Text = `⚔ {state.dungeon or "Dungeon"}  {if collapsed then "+" else "–"}`
 	w.body.Visible = not collapsed
-	w.bossFrame.Visible = false
 	w.leave.Text = "Leave"
-
-	local party = if state.leader and (state.members or 1) > 1
+	local where = if state.roomIndex
+		then `Room {state.roomIndex}/{state.roomCount or 1} · {state.room}`
+		else (state.room or "")
+	w.room.Text = where
+	-- Boss timers: "awake" or the countdown until they return.
+	local lines = {}
+	if state.miniBoss and state.miniBoss ~= "" then
+		table.insert(lines, `• {state.miniBoss}`)
+	end
+	if state.bossStatus and state.bossStatus ~= "" then
+		table.insert(lines, `• {state.bossStatus}`)
+	end
+	w.objective.Text = table.concat(lines, "\n")
+	w.detail.Text = if state.leader and (state.members or 1) > 1
 		then `Party {state.members} · Leader: {state.leader}`
 		else "Solo"
-	if phase == "Active" then
-		w.room.Text = `Room {state.roomIndex or 1}/{state.roomCount or 1} · {state.room or ""}`
-		local progress = if state.goal and state.goal > 0 then ` ({state.progress or 0}/{state.goal})` else ""
-		w.objective.Text = `• {state.objective or ""}{progress}`
-		w.detail.Text = party
-		if state.bossName and state.bossHp then
-			w.bossFrame.Visible = true
-			w.bossName.Text = state.bossName
-			local hp = math.clamp(state.bossHp, 0, 1)
-			w.bossFill.Size = UDim2.fromScale(hp, 1)
-			w.bossText.Text = `{math.ceil(hp * 100)}%`
-		end
-	else
-		w.room.Text = "★ Dungeon cleared!"
-		w.objective.Text = if state.xp then `Reward: +{state.xp} EXP` else "Well fought!"
-		w.detail.Text = `Back outside in {math.ceil(state.countdown or 0)}s, or use the portal.`
-		w.leave.Text = "Exit"
+	w.bossFrame.Visible = state.bossName ~= nil and state.bossHp ~= nil
+	if w.bossFrame.Visible then
+		w.bossName.Text = state.bossName
+		local hp = math.clamp(state.bossHp, 0, 1)
+		w.bossFill.Size = UDim2.fromScale(hp, 1)
+		w.bossText.Text = `{math.ceil(hp * 100)}%`
 	end
 end
 

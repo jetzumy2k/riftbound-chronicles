@@ -10,8 +10,7 @@
 
 	  Start          small landing with the exit portal (leave the dungeon)
 	  rooms[i]       floor, walls with pillars, candelabras, crystals
-	  corridors      between rooms, each closed by "Door_<i+1>" until room i
-	                 is cleared
+	  corridors      wide open passages between rooms (the map is open, D-42)
 	Markers (invisible, non-colliding, named parts):
 	  Checkpoint_<i> respawn / arrival point at room i's entry
 	  Room_<i>       room volume (boss-room presence checks)
@@ -24,6 +23,9 @@ local DungeonDefinitions = require(ReplicatedStorage.Shared.Definitions.DungeonD
 local Architecture = require(script.Parent.Architecture)
 
 local DungeonBuilder = {}
+
+-- Width of the openings between rooms and corridors (set per dungeon in build()).
+local opening = 28
 
 local A = Architecture
 
@@ -188,31 +190,40 @@ local function room(
 	for _, spec in walls do
 		local z, open = spec[1], spec[2]
 		if open then
-			local side = (w - 18) / 2
+			local side = (w - opening) / 2
+			local archHeight = 30
 			for _, s in { -1, 1 } do
 				A.part(
 					model,
 					Vector3.new(side, h, 3),
-					CFrame.new(s * (9 + side / 2), h / 2, z),
+					CFrame.new(s * (opening / 2 + side / 2), h / 2, z),
 					STONE,
 					Enum.Material.Slate
 				)
 			end
 			A.part(
 				model,
-				Vector3.new(18, h - 22, 3),
-				CFrame.new(0, 22 + (h - 22) / 2, z),
+				Vector3.new(opening, h - archHeight, 3),
+				CFrame.new(0, archHeight + (h - archHeight) / 2, z),
 				STONE,
 				Enum.Material.Slate
 			)
-			A.arch(model, CFrame.new(0, 0, z + (if z == z0 then -1.6 else 1.6)), 16, 22, 1, 2, STYLE)
+			A.arch(
+				model,
+				CFrame.new(0, 0, z + (if z == z0 then -1.6 else 1.6)),
+				opening - 2,
+				archHeight,
+				1,
+				2,
+				STYLE
+			)
 		else
 			A.part(model, Vector3.new(w, h, 3), CFrame.new(0, h / 2, z - 1.5), STONE, Enum.Material.Slate)
 		end
 	end
 	-- Rift crystals and rubble for storytelling.
 	local rng = Random.new(index * 17)
-	for i = 1, 3 do
+	for i = 1, math.max(3, math.floor(w * d / 3500)) do
 		local side = if i % 2 == 0 then 1 else -1
 		A.crystals(
 			model,
@@ -252,10 +263,10 @@ local function room(
 	model.Parent = parent
 end
 
-local function corridor(parent: Instance, index: number, z0: number, length: number)
+local function corridor(parent: Instance, index: number, z0: number, length: number, width: number)
 	local model = Instance.new("Model")
 	model.Name = `Corridor{index}`
-	local width, height = 18, 24
+	local height = 32
 	local center = CFrame.new(0, 0, z0 - length / 2)
 	A.part(model, Vector3.new(width, 2, length), center * CFrame.new(0, -1, 0), FLOOR, Enum.Material.Slate)
 	for _, side in { -1, 1 } do
@@ -275,16 +286,8 @@ local function corridor(parent: Instance, index: number, z0: number, length: num
 		Enum.Material.Slate
 	)
 	candelabra(model, CFrame.new(-(width / 2 - 2), 0, z0 - length / 2), true)
-	-- The sealed door into the next room (opened by DungeonService).
-	local door = A.part(
-		model,
-		Vector3.new(width, height, 1.2),
-		CFrame.new(0, height / 2, z0 - length + 1),
-		CRYSTAL,
-		Enum.Material.ForceField,
-		{ name = `Door_{index + 1}`, transparency = 0.35, shadow = false }
-	)
-	door.CanQuery = false
+	candelabra(model, CFrame.new(width / 2 - 2, 0, z0 - length / 4), false)
+	A.crystals(model, CFrame.new(width / 2 - 4, 0, z0 - length * 0.7), 6, CRYSTAL)
 	model.Parent = parent
 end
 
@@ -293,6 +296,7 @@ end
 	at the first room's entry edge, floor top y = 0).
 ]]
 function DungeonBuilder.build(dungeon: DungeonDefinitions.Dungeon): Model
+	opening = dungeon.corridorWidth
 	local model = Instance.new("Model")
 	model.Name = `Dungeon_{dungeon.id}`
 	local origin = marker(model, "Origin", Vector3.new(1, 1, 1), CFrame.new(0, 0.5, 0))
@@ -318,7 +322,7 @@ function DungeonBuilder.build(dungeon: DungeonDefinitions.Dungeon): Model
 		local z0 = -offsets[index]
 		room(model, index, def, z0, def.boss ~= nil, index == #dungeon.rooms)
 		if index < #dungeon.rooms then
-			corridor(model, index, z0 - def.size[3], dungeon.corridorLength)
+			corridor(model, index, z0 - def.size[3], dungeon.corridorLength, dungeon.corridorWidth)
 		end
 	end
 	return model

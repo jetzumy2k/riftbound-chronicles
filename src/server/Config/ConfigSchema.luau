@@ -56,11 +56,11 @@ return function(S: any)
 
 		Dungeon = S.struct({
 			Enabled = S.boolean(),
-			MaxSlots = S.int(1, 12),
-			GateJoinRadius = S.number(10, 500),
-			DisconnectGraceSeconds = S.number(0, 600),
-			ClearReturnSeconds = S.number(5, 600),
-			PartyHpPerExtraMember = S.number(0, 3),
+			MobRespawnSeconds = S.number(5, 3600),
+			MiniBossRespawnMinutes = S.number(1, 1440),
+			BossRespawnHours = S.number(0.1, 72),
+			StudioMiniBossRespawnSeconds = S.number(5, 3600),
+			StudioBossRespawnSeconds = S.number(5, 7200),
 			XpShareRadius = S.number(10, 1000),
 			WipeResetSeconds = S.number(1, 60),
 		}),
@@ -68,6 +68,16 @@ return function(S: any)
 		Party = S.struct({
 			MaxMembers = S.int(1, 8),
 			InviteSeconds = S.number(5, 600),
+		}),
+
+		PvP = S.struct({
+			MinLevel = S.int(0, 30),
+			StudioMinLevel = S.int(0, 30),
+			LevelGap = S.int(0, 30),
+			PortalReach = S.number(4, 60),
+			RepeatVictimMinutes = S.number(0, 1440),
+			DailyCreditCap = S.int(0, 1000),
+			CampRespawnSeconds = S.number(5, 600),
 		}),
 
 		Mobs = S.struct({

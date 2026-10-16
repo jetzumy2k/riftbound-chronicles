@@ -36,6 +36,7 @@ local levelText: TextLabel
 local xpText: TextLabel
 local fill: Frame
 local safeBadge: Frame
+local warBadge: Frame
 local protectedBadge: Frame
 local hpFill: Frame
 local hpText: TextLabel
@@ -201,6 +202,28 @@ local function build()
 		Parent = safeBadge,
 	})
 
+	-- War zone badge: open PvP here (outside the oasis safe zone).
+	warBadge = Kit.new("Frame", {
+		Name = "WarZone",
+		BackgroundColor3 = Color3.fromRGB(70, 18, 18),
+		BackgroundTransparency = 0.15,
+		Position = UDim2.fromOffset(10, 130),
+		Size = UDim2.fromOffset(170, 30),
+		Visible = false,
+		Parent = gui,
+	})
+	Kit.corner(warBadge, 15)
+	Kit.new("UIStroke", { Color = Color3.fromRGB(255, 110, 90), Thickness = 1.5, Parent = warBadge })
+	Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = "⚔  WAR ZONE · PvP",
+		TextSize = 13,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Color3.fromRGB(255, 190, 170),
+		Parent = warBadge,
+	})
+
 	-- Spawn / exit protection badge (text, not colour alone).
 	protectedBadge = Kit.new("Frame", {
 		Name = "Protected",
@@ -305,9 +328,12 @@ function HudController:Start()
 	bindCharacter(localPlayer.Character)
 
 	local function renderSafeZone()
-		safeBadge.Visible = localPlayer:GetAttribute("SafeZone") ~= nil
+		local safe = localPlayer:GetAttribute("SafeZone") ~= nil
+		safeBadge.Visible = safe
+		warBadge.Visible = not safe and localPlayer:GetAttribute("WarZone") ~= nil
 	end
 	localPlayer:GetAttributeChangedSignal("SafeZone"):Connect(renderSafeZone)
+	localPlayer:GetAttributeChangedSignal("WarZone"):Connect(renderSafeZone)
 	renderSafeZone()
 
 	render(PlayerDataController:Get())

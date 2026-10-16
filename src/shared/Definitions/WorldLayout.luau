@@ -85,6 +85,20 @@ WorldLayout.SafeZones = table.freeze({
 		displayName = "Emberdeep Bastion",
 		volume = { kind = "cylinder", center = { 0, 20, 600 }, radius = 110, halfHeight = 70 },
 	} :: SafeZone),
+	-- Phase 12: each realm's camp at opposite edges of the Desert Rift. The
+	-- oasis in the middle is open PvP ground.
+	table.freeze({
+		id = "DesertAngelCamp",
+		race = "Angel",
+		displayName = "Angel Camp",
+		volume = { kind = "cylinder", center = { -3200, 30, -360 }, radius = 40, halfHeight = 50 },
+	} :: SafeZone),
+	table.freeze({
+		id = "DesertDevilCamp",
+		race = "Devil",
+		displayName = "Devil Camp",
+		volume = { kind = "cylinder", center = { -3200, 30, 360 }, radius = 40, halfHeight = 50 },
+	} :: SafeZone),
 })
 
 -- Where the camera looks while a new player chooses a race.
@@ -248,6 +262,95 @@ function WorldLayout.toWorld(realm: Realm, localPoint: Vec): { number }
 		c[1] + right[1] * localPoint[1] + forward[1] * localPoint[3],
 		top + localPoint[2],
 		c[3] + right[3] * localPoint[1] + forward[3] * localPoint[3],
+	}
+end
+
+--------------------------------------------------------------------------------
+-- War zones (Phase 12/13; CLAUDE.md §13). Open PvP between the realms
+-- outside the central safe zone. Square regions far from the capitals.
+--------------------------------------------------------------------------------
+
+export type Camp = { enemy: string, x: number, z: number, count: number }
+
+-- A realm's base in a war zone: arrival point, return portal and safe zone,
+-- relative to the zone centre. Only that realm can pass its barrier.
+export type Base = { x: number, z: number, safeZone: string, radius: number }
+
+export type WarZone = {
+	id: string,
+	name: string,
+	-- Ground centre {x, y, z}: y is the oasis plaza surface.
+	center: Vec,
+	size: number,
+	-- Height of the camp plateaus above the centre's y.
+	baseHeight: number,
+	bases: { [string]: Base },
+	atmosphere: string,
+	camps: { Camp },
+}
+
+WorldLayout.WarZones = table.freeze({
+	DesertRift = table.freeze({
+		id = "DesertRift",
+		name = "Desert Rift",
+		center = table.freeze({ -3200, 24, 0 }),
+		size = 1000,
+		baseHeight = 6,
+		bases = table.freeze({
+			Angel = table.freeze({ x = 0, z = -360, safeZone = "DesertAngelCamp", radius = 40 } :: Base),
+			Devil = table.freeze({ x = 0, z = 360, safeZone = "DesertDevilCamp", radius = 40 } :: Base),
+		}),
+		atmosphere = "Desert",
+		camps = table.freeze({
+			-- Around the oasis: contested PvP ground with creatures (and, in
+			-- Phase 14, the PvP boss).
+			table.freeze({ enemy = "SandScarab", x = 48, z = 22, count = 2 }),
+			table.freeze({ enemy = "DuneStalker", x = -48, z = -22, count = 3 }),
+			table.freeze({ enemy = "DuneStalker", x = 190, z = 120, count = 3 }),
+			table.freeze({ enemy = "DuneStalker", x = -210, z = -150, count = 3 }),
+			table.freeze({ enemy = "DuneStalker", x = 60, z = -260, count = 3 }),
+			table.freeze({ enemy = "SandScarab", x = -240, z = 170, count = 2 }),
+			table.freeze({ enemy = "SandScarab", x = 260, z = -120, count = 2 }),
+			table.freeze({ enemy = "SandstoneGolem", x = -180, z = 270, count = 1 }),
+			table.freeze({ enemy = "SandstoneGolem", x = 300, z = 260, count = 1 }),
+		}),
+	} :: WarZone),
+})
+
+-- The war zone containing world point {x, z} (ignores height), or nil.
+function WorldLayout.warZoneAt(x: number, z: number): WarZone?
+	for _, zone in WorldLayout.WarZones :: { [string]: WarZone } do
+		local half = zone.size / 2
+		if math.abs(x - zone.center[1]) <= half and math.abs(z - zone.center[3]) <= half then
+			return zone
+		end
+	end
+	return nil
+end
+
+-- World position {x, y, z} of a point given relative to a war zone's centre.
+function WorldLayout.zonePoint(zone: WarZone, relative: Vec): { number }
+	return { zone.center[1] + relative[1], zone.center[2] + relative[2], zone.center[3] + relative[3] }
+end
+
+--[[
+	World position {x, y, z} in `race`'s base: `towardCentre` studs from the
+	base centre toward the zone centre (negative = away), `side` studs to the
+	side. On the camp plateau. nil if the zone has no base for that race.
+]]
+function WorldLayout.basePoint(zone: WarZone, race: string, towardCentre: number, side: number): { number }?
+	local base = zone.bases[race]
+	if base == nil then
+		return nil
+	end
+	local length = math.sqrt(base.x * base.x + base.z * base.z)
+	local ix, iz = if length > 0 then -base.x / length else 0, if length > 0 then -base.z / length else 1
+	-- Side direction: inward rotated 90 degrees.
+	local sx, sz = -iz, ix
+	return {
+		zone.center[1] + base.x + ix * towardCentre + sx * side,
+		zone.center[2] + zone.baseHeight,
+		zone.center[3] + base.z + iz * towardCentre + sz * side,
 	}
 end
 

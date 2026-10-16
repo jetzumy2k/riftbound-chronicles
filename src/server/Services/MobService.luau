@@ -38,6 +38,10 @@ local CreatureBuilder = require(script.Parent.Parent.World.CreatureBuilder)
 
 local NPC_FOLDER_NAME = "RC_Npcs"
 local MOVE_REFRESH_SECONDS = 0.3
+-- Idle wandering: radius around home and fraction of the run speed.
+local WANDER_RADIUS = 10
+local WANDER_SPEED = 0.35
+local wanderRng = Random.new()
 local CORPSE_SECONDS = 2.6
 
 local log = Log.new("MobService")
@@ -54,6 +58,9 @@ export type Mob = {
 	windupEndsAt: number,
 	target: Model?,
 	nextMoveAt: number,
+	-- Idle wandering around home.
+	nextWanderAt: number,
+	wandering: boolean,
 	lastMoveGoal: Vector3?,
 	-- Bosses: BossService holds the mob still while it telegraphs.
 	busyUntil: number,
@@ -135,6 +142,8 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 		windupEndsAt = 0,
 		target = nil,
 		nextMoveAt = 0,
+		nextWanderAt = os.clock() + math.random() * 4,
+		wandering = false,
 		lastMoveGoal = nil,
 		busyUntil = 0,
 		speedScale = 1,
@@ -221,6 +230,9 @@ end
 local function stepMob(mob: Mob, now: number)
 	local enemy = mob.enemy
 	mob.humanoid.WalkSpeed = enemy.moveSpeed * mob.speedScale
+	if mob.state ~= "Idle" then
+		mob.wandering = false
+	end
 	if now < mob.busyUntil then
 		mob.humanoid:Move(Vector3.zero)
 		return
@@ -281,6 +293,21 @@ local function stepMob(mob: Mob, now: number)
 				enemy.attackRange * 1.4 + 2,
 				enemy.elite
 			)
+		end
+	elseif action == "None" and state == "Idle" and not enemy.elite then
+		-- Idle creatures amble around their post instead of standing frozen.
+		if now >= mob.nextWanderAt then
+			mob.nextWanderAt = now + wanderRng:NextNumber(4, 9)
+			if wanderRng:NextNumber() < 0.65 then
+				local a = wanderRng:NextNumber(0, math.pi * 2)
+				local r = wanderRng:NextNumber(3, WANDER_RADIUS)
+				mob.wandering = true
+				mob.humanoid.WalkSpeed = enemy.moveSpeed * WANDER_SPEED
+				mob.humanoid:MoveTo(mob.home + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r))
+			end
+		end
+		if mob.wandering then
+			mob.humanoid.WalkSpeed = enemy.moveSpeed * WANDER_SPEED
 		end
 	elseif action == "MoveHome" then
 		moveTo(mob, mob.home, now)
@@ -370,6 +397,74 @@ local function onDefeated(entity: CombatService.Entity)
 end
 
 --------------------------------------------------------------------------------
+-- Camps: groups that respawn where they stood (war zone creatures)
+--------------------------------------------------------------------------------
+
+export type CampOptions = {
+	-- Seconds until respawn, asked each time the creature falls (so config
+	-- changes apply without a restart).
+	respawnSeconds: () -> number,
+	xpRecipients: ((mob: Mob) -> { Player })?,
+	-- Called after each (re)spawn, e.g. to attach a boss's ability loop.
+	onSpawn: ((mob: Mob) -> ())?,
+}
+
+-- One spot in a camp: its creature while alive, its respawn time while not.
+export type CampSlot = {
+	enemy: string,
+	at: CFrame,
+	owner: string,
+	options: CampOptions,
+	mob: Mob?,
+	respawnAt: number?,
+}
+local campSlots: { [Model]: CampSlot } = {}
+
+local function spawnCampSlot(slot: CampSlot)
+	slot.respawnAt = nil
+	local mob = MobService:Spawn(
+		slot.enemy,
+		slot.at,
+		{ owner = slot.owner, xpRecipients = slot.options.xpRecipients }
+	)
+	slot.mob = mob
+	if mob then
+		campSlots[mob.model] = slot
+		local onSpawn = slot.options.onSpawn
+		if onSpawn then
+			onSpawn(mob)
+		end
+	end
+end
+
+--[[
+	Spawns `count` of `enemyId` around `center` (a ground point); each one
+	respawns at its own spot after it falls. `groundAt(x, z)` gives the
+	ground height for each spot. Returns the camp's slots (for timers).
+]]
+function MobService:SpawnCamp(
+	enemyId: string,
+	center: Vector3,
+	count: number,
+	owner: string,
+	groundAt: (x: number, z: number) -> number,
+	options: CampOptions
+): { CampSlot }
+	local slots = {}
+	for i = 1, count do
+		local a = (i / count) * math.pi * 2
+		local r = if count == 1 then 0 else 7
+		local x, z = center.X + math.cos(a) * r, center.Z + math.sin(a) * r
+		local at = CFrame.new(x, groundAt(x, z), z) * CFrame.Angles(0, a + math.pi, 0)
+		local slot: CampSlot =
+			{ enemy = enemyId, at = at, owner = owner, options = options, mob = nil, respawnAt = nil }
+		table.insert(slots, slot)
+		spawnCampSlot(slot)
+	end
+	return slots
+end
+
+--------------------------------------------------------------------------------
 -- Training Grounds sprites
 --------------------------------------------------------------------------------
 
@@ -391,6 +486,20 @@ end
 function MobService:Init()
 	CombatService.Defeated:Connect(onDefeated)
 	MobService.MobDefeated:Connect(function(mob)
+		local slot = campSlots[mob.model]
+		if slot then
+			campSlots[mob.model] = nil
+			slot.mob = nil
+			local seconds = slot.options.respawnSeconds()
+			slot.respawnAt = os.clock() + seconds
+			task.delay(seconds, function()
+				-- Only if nothing respawned it meanwhile.
+				if slot.respawnAt ~= nil and slot.mob == nil then
+					spawnCampSlot(slot)
+				end
+			end)
+			return
+		end
 		if mob.owner ~= "training" then
 			return
 		end
