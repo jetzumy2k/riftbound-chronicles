@@ -54,6 +54,29 @@ return function(S: any)
 			SprintMinFocus = S.number(0, 1000),
 		}),
 
+		Dungeon = S.struct({
+			Enabled = S.boolean(),
+			MaxSlots = S.int(1, 12),
+			GateJoinRadius = S.number(10, 500),
+			DisconnectGraceSeconds = S.number(0, 600),
+			ClearReturnSeconds = S.number(5, 600),
+			PartyHpPerExtraMember = S.number(0, 3),
+			XpShareRadius = S.number(10, 1000),
+			WipeResetSeconds = S.number(1, 60),
+		}),
+
+		Party = S.struct({
+			MaxMembers = S.int(1, 8),
+			InviteSeconds = S.number(5, 600),
+		}),
+
+		Mobs = S.struct({
+			TickHz = S.int(1, 10),
+			SleepRadius = S.number(20, 1000),
+			TrainingSprites = S.int(0, 20),
+			TrainingRespawnSeconds = S.number(1, 300),
+		}),
+
 		AntiExploit = S.struct({
 			Mode = S.enum({ "Off", "Shadow", "Enforce" }),
 			SampleHz = S.int(2, 30),

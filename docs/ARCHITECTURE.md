@@ -202,15 +202,19 @@ C→S means an intent from client to server. S→C means a push from server to c
 | `SelectJob` | C→S | Job enum. One-shot; `ProfileLoaded` + `HasRace` states | 4 |
 | `BasicAttack` | C→S | optional target Model; server auto-targets otherwise. States: ProfileLoaded, HasJob, Alive | 6 |
 | `UseConsumable` | C→S | ItemDefId (stackable allowlist) | 6/7 |
-| `CombatEvent` | S→C | {kind: Damage/Heal/Defeat/Revive, target Model, amount?, crit?} to players within `Combat.RelevanceRadius` | 6 |
+| `CombatEvent` | S→C | {kind: Damage/Heal/Defeat/Revive/Attack/MobAttack, target Model, amount?, crit?, action?, step?, aim?, source?, heavy?, windup?} to players within `Combat.RelevanceRadius` | 6, 9 |
 | `EquipSkill` | C→S | SkillId, SlotIndex (1–4) | 5 |
 | `SkillCast` | C→S | SkillId, TargetRef? / AimDirection (unit vector) | 5 |
 | `EquipItem` / `UnequipItem` | C→S | ItemGuid / SlotEnum | 7 |
 | `LockItem` / `SalvageItems` | C→S | ItemGuid / {ItemGuid ≤ 20} | 7 |
 | `EnhanceItem` | C→S | ItemGuid, StoneType enum | 8 |
-| `PartyInvite` / `PartyRespond` / `PartyLeave` | C→S | UserId / bool / — | 9 |
-| `DungeonEnter` / `DungeonLeave` | C→S | DungeonId / — | 9 |
-| `DungeonState` | S→C | {runId, objective, progress} | 9 |
+| *(gate ProximityPrompt)* | server-side `Triggered` | Enter the dungeon (leader / solo) or rejoin your party's run: no remote; the server checks race, reach, level, leadership and party size | 9 |
+| `DungeonLeave` | C→S | — (no arguments; the server looks up the caller's own run) | 9 |
+| `PartyInvite` / `PartyKick` | C→S | Player (leader only; same realm, size, expiry checked server-side) | 9 (D-39) |
+| `PartyRespond` / `PartyLeave` | C→S | inviting Player + accept bool / — | 9 (D-39) |
+| `PartyState` / `PartyInvited` | S→C | {members [{userId, leader}], maxMembers} / {fromUserId, expiresIn} | 9 (D-39) |
+| `DungeonState` | S→C | {phase, dungeon, room, objective, progress, goal, roomIndex, roomCount, members, charges, countdown, xp, bossName, bossHp} | 9 |
+| `Telegraph` | S→C | {shape Circle/Cone/Ring, center, radius, inner?, angle?, facing?, duration} ground warning; hits are tested on the server | 9 |
 | `LootGranted` | S→C | {itemSummaries} | 10 |
 | `QuestAccept` / `QuestTurnIn` | C→S | QuestId | 11 |
 | `DialogueChoice` | C→S | DialogueNodeId, ChoiceIndex | 11 |

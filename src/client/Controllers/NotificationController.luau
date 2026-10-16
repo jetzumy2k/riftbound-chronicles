@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local DungeonDefinitions = require(Shared.Definitions.DungeonDefinitions)
 local Log = require(Shared.Util.Log)
 local NetClient = require(Shared.Net.Client)
 
@@ -22,9 +23,9 @@ local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 
-local MAX_TOASTS = 3
-local TOAST_SECONDS = 2.8
-local MAX_WIDTH = 480
+local MAX_TOASTS = 2
+local TOAST_SECONDS = 2.4
+local MAX_WIDTH = 420
 
 local STRINGS: { [string]: string } = {
 	["system.welcome"] = "Welcome to Riftbound Chronicles",
@@ -36,6 +37,33 @@ local STRINGS: { [string]: string } = {
 	["combat.blocked.lineOfSight"] = "No clear line of sight.",
 	["combat.blocked.noTarget"] = "No target in range. Face an enemy or tap one.",
 	["movement.noFocus"] = "Not enough Focus to sprint.",
+	["dungeon.full"] = "Too many players for this dungeon.",
+	["dungeon.level"] = "You need level {level} for this dungeon. Train on the Rift Sprites in the Training Grounds.",
+	["dungeon.busy"] = "All dungeon instances are busy. Try again in a moment.",
+	["dungeon.inRun"] = "You're already inside a dungeon.",
+	["dungeon.disabled"] = "Dungeons are closed for maintenance right now.",
+	["dungeon.leaderOnly"] = "Only your party leader can open the dungeon.",
+	["dungeon.partyEntered"] = "{name} entered Rift Hollow. Use the dungeon gate to join them.",
+	["dungeon.memberJoined"] = "{name} joined the run.",
+	["dungeon.roomCleared"] = "Room cleared! The way forward is open.",
+	["dungeon.respawnAlly"] = "Back on your feet beside your party.",
+	["dungeon.wiped"] = "Your whole party fell. Regroup at the gate and try again.",
+	["dungeon.cleared"] = "Dungeon cleared! +{xp} EXP",
+	["dungeon.bossReset"] = "The guardian recovers. Regroup and try again.",
+	["party.invite.sent"] = "Invite sent to {name}.",
+	["party.invite.self"] = "You can't invite yourself.",
+	["party.invite.unavailable"] = "That player can't join right now.",
+	["party.invite.notLeader"] = "Only the party leader can invite.",
+	["party.invite.otherRace"] = "You can only party with players of your realm.",
+	["party.invite.targetInParty"] = "That player is already in a party.",
+	["party.invite.full"] = "Your party is full.",
+	["party.invite.alreadyInvited"] = "You already invited that player.",
+	["party.invite.inDungeon"] = "You can't invite while the party is in a dungeon.",
+	["party.invite.expired"] = "That invite has expired.",
+	["party.invite.declined"] = "{name} declined your invite.",
+	["party.joined"] = "{name} joined the party.",
+	["party.nowLeader"] = "You are now the party leader.",
+	["party.removed"] = "You were removed from the party.",
 }
 
 local ICONS: { [string]: string } = {
@@ -45,6 +73,9 @@ local ICONS: { [string]: string } = {
 }
 
 local log = Log.new("Notification")
+
+local bossAnnouncement: (key: string) -> string?
+local withParams: (message: string, params: any) -> string
 
 local NotificationController = {}
 
@@ -58,15 +89,22 @@ local function build()
 		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
 		DisplayOrder = 20,
 	})
+	-- A thin strip at the top centre, clear of the character in the middle of
+	-- the screen; it grows downward only as far as its toasts need.
 	local holder = Kit.new("Frame", {
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 10),
-		Size = UDim2.new(1, -32, 1, -20),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.fromScale(0.5, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = gui,
 	})
-	Kit.new("UISizeConstraint", { MaxSize = Vector2.new(MAX_WIDTH, math.huge), Parent = holder })
-	Kit.list(holder, Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Center)
+	Kit.new(
+		"UISizeConstraint",
+		{ MinSize = Vector2.new(260, 0), MaxSize = Vector2.new(MAX_WIDTH, math.huge), Parent = holder }
+	)
+	local layout = Kit.list(holder, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center)
+	layout.VerticalAlignment = Enum.VerticalAlignment.Top
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
 	container = holder
 end
@@ -90,6 +128,27 @@ local function dismiss(toast: Frame)
 	end)
 end
 
+-- "boss.<id>.phase<n>" -> that phase's announcement (DungeonDefinitions).
+function bossAnnouncement(key: string): string?
+	local bossId, phase = string.match(key, "^boss%.(%w+)%.phase(%d+)$")
+	local boss = DungeonDefinitions.boss(bossId)
+	local def = boss and boss.phases[tonumber(phase) or 0]
+	return if def then def.announce else nil
+end
+
+-- Fills "{name}" placeholders from server params (plain text, no markup).
+function withParams(message: string, params: any): string
+	if type(params) ~= "table" then
+		return message
+	end
+	return (
+		string.gsub(message, "{(%w+)}", function(name)
+			local value = params[name]
+			return if type(value) == "string" then value else "?"
+		end)
+	)
+end
+
 local function show(kind: string, message: string)
 	local holder = container
 	if holder == nil then
@@ -107,18 +166,18 @@ local function show(kind: string, message: string)
 	end
 
 	local camera = Workspace.CurrentCamera
-	local textSize = if camera and camera.ViewportSize.Y < 500 then 14 else 16
+	local textSize = if camera and camera.ViewportSize.Y < 500 then 13 else 14
 	local toast = Kit.new("Frame", {
 		Name = "Toast",
 		BackgroundColor3 = Theme.Colors.Glass,
-		BackgroundTransparency = 0.1,
+		BackgroundTransparency = 0.25,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.fromScale(1, 0),
 		Active = false,
 		Parent = holder,
 	})
 	Kit.corner(toast, 12)
-	Kit.padding(toast, 10, 14)
+	Kit.padding(toast, 6, 12)
 	Kit.new("UIStroke", {
 		Color = if kind == "Warning" then Color3.fromRGB(255, 170, 90) else Theme.Colors.Gold,
 		Thickness = 1.5,
@@ -151,12 +210,12 @@ function NotificationController:Init()
 		if type(payload) ~= "table" or type(payload.textKey) ~= "string" then
 			return
 		end
-		local message = STRINGS[payload.textKey]
+		local message = STRINGS[payload.textKey] or bossAnnouncement(payload.textKey)
 		if message == nil then
 			log:Debug("no text for key %s", payload.textKey)
 			return
 		end
-		show(tostring(payload.kind), message)
+		show(tostring(payload.kind), withParams(message, payload.params))
 	end)
 end
 

@@ -85,6 +85,12 @@ export type Entity = {
 	lastAttacker: Entity?,
 	combo: ComboMath.State,
 	lastResetAt: number,
+	-- Damage dealt to this entity by each player (EXP credit for NPCs).
+	contributors: { [Player]: number },
+	-- NPCs: revive in place after defeat (training dummies) and regenerate
+	-- out of combat. Mobs turn both off; MobService owns their lifecycle.
+	autoRevive: boolean,
+	regen: boolean,
 }
 
 local CombatService = {
@@ -94,7 +100,8 @@ local CombatService = {
 	RespawnRequested = Signal.new(),
 }
 
-local BLOCKED_NOTICE_SECONDS = 1.5
+-- "Why didn't my attack do anything?" toasts: at most this often per player.
+local BLOCKED_NOTICE_SECONDS = 5
 
 -- Player-facing reasons an attack did nothing (client maps keys to text).
 local BLOCK_TEXT_KEYS: { [string]: string } = {
@@ -223,6 +230,9 @@ local function newEntity(
 		lastAttacker = nil,
 		combo = ComboMath.new(),
 		lastResetAt = -math.huge,
+		contributors = {},
+		autoRevive = true,
+		regen = true,
 	}
 end
 
@@ -252,12 +262,13 @@ function defeat(entity: Entity, attacker: Entity?, reason: string)
 	log:Info("%s defeated by %s (%s)", entity.name, if attacker then attacker.name else "nothing", reason)
 	CombatService.Defeated:Fire(entity, attacker, reason)
 
-	if entity.kind == "Npc" then
+	if entity.kind == "Npc" and entity.autoRevive then
 		task.delay(NPC_RESET_SECONDS, function()
 			if entitiesByModel[entity.model] == entity then
 				entity.defeated = false
 				entity.hp = entity.maxHp
 				entity.lastAttacker = nil
+				entity.contributors = {}
 				mirror(entity)
 				broadcast(entity, { kind = "Revive", target = entity.model })
 			end
@@ -273,6 +284,10 @@ local function applyDamage(target: Entity, amount: number, attacker: Entity, cri
 	target.lastHostileAt = t
 	target.lastAttacker = attacker
 	attacker.lastHostileAt = t
+	local credited = attacker.player
+	if credited then
+		target.contributors[credited] = (target.contributors[credited] or 0) + amount
+	end
 	mirror(target)
 	broadcast(target, {
 		kind = "Damage",
@@ -558,7 +573,7 @@ local function tick(dt: number)
 		end
 		local before = entity.hp
 		if entity.kind == "Npc" then
-			if t - entity.lastHostileAt > NPC_RESET_SECONDS then
+			if entity.regen and t - entity.lastHostileAt > NPC_RESET_SECONDS then
 				entity.hp = entity.maxHp
 			end
 		elseif inSafeZone(entity) then
@@ -643,10 +658,16 @@ export type NpcSpec = {
 	name: string,
 	level: number,
 	maxHp: number,
+	-- Multipliers on the level's base Attack / Defense (default 1).
+	attackScale: number?,
+	defenseScale: number?,
+	-- Default true (training dummies). Mobs pass false: MobService owns them.
+	autoRevive: boolean?,
+	regen: boolean?,
 }
 
 --[[
-	Registers a server-owned NPC (training dummy now, mobs in Phase 9).
+	Registers a server-owned NPC (training dummies, mobs, bosses).
 	The model must have a Humanoid and a HumanoidRootPart.
 ]]
 function CombatService:RegisterNpc(model: Model, spec: NpcSpec): boolean
@@ -659,10 +680,118 @@ function CombatService:RegisterNpc(model: Model, spec: NpcSpec): boolean
 	applyStats(entity, StatFormulas.forLevel(spec.level), spec.level, false)
 	entity.maxHp = spec.maxHp
 	entity.hp = spec.maxHp
+	entity.attack *= spec.attackScale or 1
+	entity.defense *= spec.defenseScale or 1
+	entity.autoRevive = spec.autoRevive ~= false
+	entity.regen = spec.regen ~= false
 	entitiesByModel[model] = entity
 	humanoid.BreakJointsOnDeath = false
 	mirror(entity)
 	return true
+end
+
+-- Forgets an NPC (despawned mob). Its model is the caller's to destroy.
+function CombatService:UnregisterNpc(model: Model)
+	local entity = entitiesByModel[model]
+	if entity and entity.kind == "Npc" then
+		entitiesByModel[model] = nil
+	end
+end
+
+-- Full HP and no credit (a mob that leashed home, a boss reset after a wipe).
+function CombatService:RestoreNpc(model: Model)
+	local entity = entitiesByModel[model]
+	if entity == nil or entity.kind ~= "Npc" or entity.defeated then
+		return
+	end
+	entity.hp = entity.maxHp
+	entity.contributors = {}
+	entity.lastAttacker = nil
+	mirror(entity)
+end
+
+-- Players who damaged this entity, with the damage each dealt.
+function CombatService:GetContributors(model: Model): { [Player]: number }
+	local entity = entitiesByModel[model]
+	return if entity then table.clone(entity.contributors) else {}
+end
+
+-- Whether `attacker` may harm `target` right now (safe zones, protection, races).
+function CombatService:CanHarm(attackerModel: Model, targetModel: Model): boolean
+	local attacker = entitiesByModel[attackerModel]
+	local target = entitiesByModel[targetModel]
+	if attacker == nil or target == nil then
+		return false
+	end
+	return (CombatMath.canHarm(harmFacts(attacker, target)))
+end
+
+--[[
+	An NPC's attack lands on `targetModel` (server-internal; MobService /
+	DungeonService). Re-validates harm rules and, if `range` is given, reach.
+	Returns true if damage was dealt.
+]]
+function CombatService:NpcStrike(
+	attackerModel: Model,
+	targetModel: Model,
+	coefficient: number,
+	range: number?,
+	heavy: boolean?
+): boolean
+	local attacker = entitiesByModel[attackerModel]
+	local target = entitiesByModel[targetModel]
+	if attacker == nil or target == nil or attacker.kind ~= "Npc" then
+		return false
+	end
+	if not CombatMath.canHarm(harmFacts(attacker, target)) then
+		return false
+	end
+	local config = combatConfig()
+	if range then
+		local distance = (target.root.Position - attacker.root.Position).Magnitude
+		if distance > range + config.RangeToleranceStuds then
+			return false
+		end
+	end
+	local amount, crit = CombatMath.damage({
+		attack = attacker.attack,
+		attackerLevel = attacker.level,
+		coefficient = coefficient,
+		critChancePct = attacker.critChancePct,
+		critMultiplier = attacker.critMultiplier,
+		roll = rng:NextNumber(),
+		defense = target.defense,
+	}, config)
+	applyDamage(target, amount, attacker, crit, heavy)
+	return true
+end
+
+-- Sends a combat feedback event to players near `model` (display only).
+function CombatService:Broadcast(model: Model, payload: { [string]: any })
+	local entity = entitiesByModel[model]
+	if entity then
+		broadcast(entity, payload)
+	end
+end
+
+-- Alive player entities (mob targeting).
+function CombatService:LivePlayers(): { Entity }
+	local out = {}
+	for _, entity in entityByPlayer do
+		if not entity.defeated and entity.root.Parent then
+			table.insert(out, entity)
+		end
+	end
+	return out
+end
+
+-- HP fraction 0..1 of any entity (1 if unknown).
+function CombatService:HpFraction(model: Model): number
+	local entity = entitiesByModel[model]
+	if entity == nil or entity.maxHp <= 0 then
+		return 1
+	end
+	return entity.hp / entity.maxHp
 end
 
 -- Current Focus of a player's combat entity (0 if none).

@@ -75,6 +75,40 @@ return {
 		SprintMinFocus = 10,
 	},
 
+	-- Phase 9 dungeons (PLAN.md D-20, D-32).
+	Dungeon = {
+		Enabled = true,
+		-- Concurrent dungeon instances per server (ARCHITECTURE.md §2).
+		MaxSlots = 6,
+		-- Party members within this distance of the gate enter with the leader.
+		GateJoinRadius = 80,
+		-- A disconnected member may rejoin the same run within this time.
+		DisconnectGraceSeconds = 120,
+		-- After the boss falls, members return home after this long.
+		ClearReturnSeconds = 45,
+		-- Enemy HP grows by this fraction per extra party member.
+		PartyHpPerExtraMember = 0.6,
+		-- D-32: party members within this distance share kill EXP.
+		XpShareRadius = 150,
+		-- With no living member in the boss room this long, the boss resets.
+		WipeResetSeconds = 4,
+	},
+
+	-- Parties (D-39): leader invites, members accept.
+	Party = {
+		MaxMembers = 4,
+		InviteSeconds = 45,
+	},
+
+	-- Server mob AI (ARCHITECTURE.md §7: one scheduler, ≤ 10 Hz, sleep when idle).
+	Mobs = {
+		TickHz = 8,
+		SleepRadius = 150,
+		-- Training Grounds sprites per capital, and their respawn delay.
+		TrainingSprites = 5,
+		TrainingRespawnSeconds = 8,
+	},
+
 	-- SECURITY_MODEL §5A.2 movement validation. Shadow = log only (Phase 6).
 	AntiExploit = {
 		Mode = "Shadow",

@@ -179,6 +179,15 @@ return function(t)
 				-- Animation pass review: enum-only intent; the server sets the
 				-- speed (validator-safe) and drains Focus for sprint.
 				SetMovementMode = true,
+				-- Phase 9 review: no arguments; the server looks up the caller's
+				-- own rally/run, so nobody can remove another player.
+				DungeonLeave = true,
+				-- Party review (D-39): Player targets / boolean only; the server
+				-- checks leadership, race, size, pending invite and expiry.
+				PartyInvite = true,
+				PartyRespond = true,
+				PartyLeave = true,
+				PartyKick = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

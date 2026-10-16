@@ -37,6 +37,7 @@ local specs = {
 	{ "movement_check", require("./specs/movement_check.spec") },
 	{ "animation_clips", require("./specs/animation_clips.spec") },
 	{ "combo_math", require("./specs/combo_math.spec") },
+	{ "dungeon", require("./specs/dungeon.spec") },
 	{ "structure", require("./specs/structure.spec") },
 }
 

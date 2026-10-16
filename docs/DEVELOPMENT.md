@@ -170,6 +170,18 @@ Character animation is authored keyframe clips (`src/shared/Definitions/Animatio
 
 **Authoring tools** (`tools/anim`, not shipped): `lune run tools/anim/dump_clips > build/clips.json`, then `python tools/anim/generate_arms.py build/clips.json` (solves weapon arms into `AnimationArms.luau`) and `python tools/anim/render_clips.py build/clips.json build/clips` (stick-figure contact sheets for review). Needs Python with numpy, scipy, matplotlib.
 
+## Dungeon checks (Phase 9)
+Server Output: `mob AI ready (8 Hz)`, `dungeons ready (Rift Hollow, 6 slots)`, and per run `run … started in slot …` / `run … ended (…)`.
+1. **Training Grounds:** 5 Rift Sprites hover in each yard. They fight back weakly, give 20 EXP each and respawn after 8 s. Five of them take a new character to level 1.
+2. **Party:** "+ Party" (left, under the HP bar) lists players of your realm; Invite sends them an Accept/Decline popup at the top. The panel shows each member's name, level and health; ★ marks the leader, who can invite more (up to 4) and remove members (×). Leaving passes leadership on; a party of one dissolves.
+3. **Gate:** at level 0 the prompt says you need level 1. Solo players enter alone. In a party only the leader can open the dungeon; members standing near the gate come along, and the others (or anyone who left) can enter later through the gate and arrive next to the leader.
+4. **Run:** start landing (exit portal behind you) → Room 1 Rift Wolves → door opens → Crystal Gallery (2 beetles, 2 wolves, elite Stoneback ★) → Guardian's Sanctum. The compact tracker (top-right, tap the title to collapse) shows room n/3, the objective with a kill counter and the party/leader.
+5. **Mobs:** they notice you, chase, rear back before each bite or slam (dodge by stepping away), leash home and heal if you run far.
+6. **Boss:** health bar in the tracker. Red ground warnings: circle under a player (Slam), cone in front (Sweep), and below 25% HP a ring with a safe blue centre (Shockwave: stand close). At 60% it summons 2 wolves. Toasts announce the phases.
+7. **Defeat:** you respawn next to the party leader (or another living member if the leader is down). If the whole party falls, the run ends and everyone respawns in front of the dungeon gate, still a party; the leader can go straight back in.
+8. **Clear:** "Dungeon cleared! +250 EXP" once per run, then back outside after 45 s, through the exit portal, or with Leave.
+9. **Toasts** appear in a slim strip at the top centre, never over the character.
+
 ## Capital checks
 Server Output: `Skyreach Citadel built (… parts)` and `Emberdeep Bastion built (… parts)` (budget ≤ 1,000 each).
 1. **Skyreach Citadel (Angels):** bright sky and golden bloom; white-gold cathedral with twin bell towers, rose window and a floating gold ring behind the spawn; spired corner towers; colonnades with blue banners; gold lamps; the city floats on a rock island over clouds, with floating islets.

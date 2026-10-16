@@ -28,7 +28,10 @@ local CONTROLLER_ORDER = {
 	"CharacterMotionController",
 	"MovementModeController",
 	"CombatController",
+	"MobVisualController",
 	"CombatFeedbackController",
+	"DungeonController",
+	"PartyController",
 }
 
 Log.setLevel(if RunService:IsStudio() then "Debug" else "Info")

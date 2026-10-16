@@ -282,7 +282,8 @@ local function updateState(state: State)
 end
 
 local function setup(character: Model)
-	if states[character] or pending[character] then
+	-- Creatures animate their own rigs (MobVisualController).
+	if states[character] or pending[character] or character:GetAttribute("RC_Body") ~= nil then
 		return
 	end
 	pending[character] = true

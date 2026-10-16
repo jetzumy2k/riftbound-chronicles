@@ -49,6 +49,9 @@ local function target(): ZoneAtmosphere.Preset
 		return ZoneAtmosphere.get("Neutral")
 	end
 	local position = camera.Focus.Position
+	if WorldLayout.isInDungeonRegion(position.X) then
+		return ZoneAtmosphere.get("Dungeon")
+	end
 	local best: ZoneAtmosphere.Preset = ZoneAtmosphere.get("Neutral")
 	local bestWeight = 0
 	for race, realm in WorldLayout.Realms :: { [string]: WorldLayout.Realm } do

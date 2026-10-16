@@ -85,6 +85,123 @@ return function(S: any)
 			states = { "ProfileLoaded", "Alive" },
 		},
 
+		-- Leave the dungeon rally or run (Phase 9). No arguments: the server
+		-- knows which rally/run the player is in. Entering uses the gate's
+		-- ProximityPrompt (server-side Triggered), so it needs no remote.
+		DungeonLeave = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = {},
+			rate = { capacity = 3, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- Parties (D-39). Intents only; PartyService checks leadership, race,
+		-- party size and pending invites. Targets are Player instances.
+		PartyInvite = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.instance("Player") },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		PartyRespond = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.instance("Player"), S.boolean() },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		PartyLeave = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = {},
+			rate = { capacity = 3, refillPerSecond = 0.3 },
+			states = { "ProfileLoaded" },
+		},
+		PartyKick = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.instance("Player") },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- Server -> party members: the party roster (display only).
+		PartyState = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					members = S.array(
+						S.struct({
+							-- Any integer: Studio test players have negative ids.
+							userId = S.int(),
+							leader = S.boolean(),
+						}),
+						8
+					),
+					maxMembers = S.int(1, 8),
+				}),
+			},
+		},
+
+		-- Server -> invited player: someone invites you (Accept / Decline).
+		PartyInvited = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					fromUserId = S.int(),
+					expiresIn = S.number(0, 300),
+				}),
+			},
+		},
+
+		-- Server -> run members: run state for the dungeon tracker.
+		DungeonState = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					phase = S.enum({ "None", "Rally", "Active", "Cleared", "Failed" }),
+					dungeon = S.optional(S.string(60)),
+					room = S.optional(S.string(60)),
+					objective = S.optional(S.string(120)),
+					progress = S.optional(S.int(0, 1000)),
+					goal = S.optional(S.int(0, 1000)),
+					roomIndex = S.optional(S.int(1, 50)),
+					roomCount = S.optional(S.int(1, 50)),
+					members = S.optional(S.int(0, 50)),
+					maxMembers = S.optional(S.int(1, 50)),
+					countdown = S.optional(S.number(0, 600)),
+					leader = S.optional(S.string(60)),
+					charges = S.optional(S.int(0, 10)),
+					xp = S.optional(S.int(0)),
+					bossName = S.optional(S.string(60)),
+					bossHp = S.optional(S.number(0, 1)),
+				}),
+			},
+		},
+
+		-- Server -> nearby clients: ground warning for a telegraphed attack
+		-- (display only; the server tests positions when it lands).
+		Telegraph = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					shape = S.enum({ "Circle", "Cone", "Ring" }),
+					center = S.vector3(),
+					radius = S.number(0, 200),
+					inner = S.optional(S.number(0, 200)),
+					angle = S.optional(S.number(0, 360)),
+					facing = S.optional(S.vector3()),
+					duration = S.number(0, 5),
+				}),
+			},
+		},
+
 		-- Server -> nearby clients: combat feedback for display only
 		-- (damage numbers, hit flash, non-graphic defeat effect).
 		CombatEvent = {
@@ -94,7 +211,7 @@ return function(S: any)
 				S.struct({
 					-- "Attack": `target` is the attacker, `action` the AnimationClips
 					-- clip every nearby client plays on it, `step` its combo step.
-					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive", "Attack" }),
+					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive", "Attack", "MobAttack" }),
 					target = S.instance("Model"),
 					amount = S.optional(S.int(0)),
 					crit = S.optional(S.boolean()),
@@ -105,6 +222,8 @@ return function(S: any)
 					-- "Damage": who dealt it, and whether it was a finisher.
 					source = S.optional(S.instance("Model")),
 					heavy = S.optional(S.boolean()),
+					-- "MobAttack": seconds until the creature's hit lands.
+					windup = S.optional(S.number(0, 5)),
 				}),
 			},
 		},

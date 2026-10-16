@@ -26,4 +26,8 @@ return {
 	{ name = "MovementService", layer = 4 },
 	{ name = "WorldService", layer = 5 },
 	{ name = "TravelService", layer = 5 },
+	{ name = "MobService", layer = 5 },
+	{ name = "BossService", layer = 5 },
+	{ name = "PartyService", layer = 5 },
+	{ name = "DungeonService", layer = 5 },
 }

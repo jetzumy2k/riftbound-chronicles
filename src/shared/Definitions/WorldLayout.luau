@@ -208,6 +208,31 @@ WorldLayout.City = table.freeze({
 	}),
 })
 
+--[[
+	World position {x, y, z} `distance` studs in front of gate `gateId` on
+	the ground, and the gate's facing {x, y, z} (unit). nil if no such gate.
+]]
+function WorldLayout.gateFront(realm: Realm, gateId: string, distance: number): ({ number }?, { number }?)
+	for _, gate in WorldLayout.City.gates do
+		if gate.id == gateId then
+			local a = math.rad(gate.facing)
+			local p = gate.position
+			local point = WorldLayout.toWorld(
+				realm,
+				{ p[1] + math.sin(a) * distance, 0, p[3] + math.cos(a) * distance }
+			)
+			local right, forward = WorldLayout.axes(realm)
+			local facing = {
+				forward[1] * math.cos(a) + right[1] * math.sin(a),
+				0,
+				forward[3] * math.cos(a) + right[3] * math.sin(a),
+			}
+			return point, facing
+		end
+	end
+	return nil, nil
+end
+
 -- Unit vectors {x, y, z} of a realm's local frame: right, forward.
 function WorldLayout.axes(realm: Realm): ({ number }, { number })
 	local dir = WorldLayout.yardDirection(realm)
@@ -224,6 +249,30 @@ function WorldLayout.toWorld(realm: Realm, localPoint: Vec): { number }
 		top + localPoint[2],
 		c[3] + right[3] * localPoint[1] + forward[3] * localPoint[3],
 	}
+end
+
+--------------------------------------------------------------------------------
+-- Dungeon instance slots (Phase 9; ARCHITECTURE.md §2: reserved, spatially
+-- isolated regions far from the main world, ≥ 2,000 studs apart; above
+-- ground so nothing falls below Workspace.FallenPartsDestroyHeight).
+--------------------------------------------------------------------------------
+
+WorldLayout.DungeonSlots = table.freeze({
+	origin = table.freeze({ 8000, 600, 0 }),
+	spacing = 2500,
+	maxSlots = 12,
+	-- Anything with x beyond this is inside a dungeon slot.
+	regionMinX = 7000,
+})
+
+-- Origin {x, y, z} of dungeon slot `index` (1-based).
+function WorldLayout.dungeonSlotOrigin(index: number): { number }
+	local slots = WorldLayout.DungeonSlots
+	return { slots.origin[1] + (index - 1) * slots.spacing, slots.origin[2], slots.origin[3] }
+end
+
+function WorldLayout.isInDungeonRegion(x: number): boolean
+	return x >= WorldLayout.DungeonSlots.regionMinX
 end
 
 function WorldLayout.realmFor(race: string): Realm?

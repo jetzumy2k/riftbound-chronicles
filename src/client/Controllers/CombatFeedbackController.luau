@@ -23,6 +23,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local NetClient = require(Shared.Net.Client)
 
 local AnimationController = require(script.Parent.AnimationController)
+local MobVisualController = require(script.Parent.MobVisualController)
 local CharacterMotionController = require(script.Parent.CharacterMotionController)
 local CombatVfx = require(script.Parent.Parent.Effects.CombatVfx)
 local CameraShake = require(script.Parent.Parent.Effects.CameraShake)
@@ -248,6 +249,8 @@ local function onEvent(payload: any)
 	local kind = payload.kind
 	if kind == "Attack" then
 		onAttack(model, payload.action, payload.aim)
+	elseif kind == "MobAttack" then
+		MobVisualController.attack(model, if type(payload.windup) == "number" then payload.windup else 0.5)
 	elseif kind == "Damage" then
 		onDamage(model, payload)
 	elseif kind == "Heal" then

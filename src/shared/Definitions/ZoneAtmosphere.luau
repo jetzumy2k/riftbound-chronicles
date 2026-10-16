@@ -9,6 +9,7 @@
 	  Angel    clear afternoon sky, light blue haze, gentle bloom (white
 	           marble washes out under strong exposure / bloom)
 	  Devil    low ember-red sun, warm haze, readable dark stone
+	  Dungeon  inside dungeon instances
 ]]
 
 export type Preset = {
@@ -89,6 +90,25 @@ ZoneAtmosphere.Presets = table.freeze({
 		contrast = 0.1,
 		bloomIntensity = 0.55,
 		bloomThreshold = 1.8,
+	} :: Preset),
+	-- Inside dungeon instances: cool stone, warm candle glow, readable.
+	Dungeon = table.freeze({
+		clockTime = 15,
+		brightness = 1.4,
+		ambient = { 128, 122, 138 },
+		outdoorAmbient = { 120, 120, 140 },
+		colorShiftTop = { 255, 214, 170 },
+		exposure = 0.2,
+		density = 0.36,
+		haze = 0.8,
+		glare = 0.1,
+		atmosphereColor = { 120, 132, 165 },
+		decay = { 60, 64, 92 },
+		tint = { 248, 244, 255 },
+		saturation = 0.1,
+		contrast = 0.12,
+		bloomIntensity = 0.45,
+		bloomThreshold = 1.7,
 	} :: Preset),
 })
 
