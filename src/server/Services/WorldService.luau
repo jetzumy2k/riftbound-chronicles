@@ -22,6 +22,7 @@ local FOLDER_NAME = "RC_World"
 local CombatService = require(script.Parent.CombatService)
 local CapitalBuilder = require(script.Parent.Parent.World.CapitalBuilder)
 local DesertBuilder = require(script.Parent.Parent.World.DesertBuilder)
+local JungleBuilder = require(script.Parent.Parent.World.JungleBuilder)
 
 local NPC_FOLDER_NAME = "RC_Npcs"
 local DUMMY_COLOR = Color3.fromRGB(196, 168, 120)
@@ -61,11 +62,19 @@ function WorldService:Init()
 		log:Info("%s built (%d parts)", realm.displayName, built.parts)
 	end
 
-	local desert = WorldLayout.WarZones.DesertRift
-	local started = os.clock()
-	local built = DesertBuilder.build(root, desert)
-	returnPortals[desert.id] = built.portals
-	log:Info("%s built (%d parts, terrain in %.1f s)", desert.name, built.parts, os.clock() - started)
+	for _, zone in WorldLayout.WarZones :: { [string]: WorldLayout.WarZone } do
+		local started = os.clock()
+		local portals: { [string]: BasePart }, parts: number
+		if zone.terrain == "Jungle" then
+			local built = JungleBuilder.build(root, zone)
+			portals, parts = built.portals, built.parts
+		else
+			local built = DesertBuilder.build(root, zone)
+			portals, parts = built.portals, built.parts
+		end
+		returnPortals[zone.id] = portals
+		log:Info("%s built (%d parts, in %.1f s)", zone.name, parts, os.clock() - started)
+	end
 
 	root.Parent = Workspace
 	log:Info("capitals built")

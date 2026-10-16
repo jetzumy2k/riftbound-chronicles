@@ -1,18 +1,19 @@
 --!strict
 --[[
-	PvPService (Layer 5) — war zone access and PvP records (Phase 12;
+	PvPService (Layer 5) — war zone access and PvP records (Phases 12-13;
 	CLAUDE.md §13-§14, PLAN.md D-16, SECURITY_MODEL T-15, T-17, T-18).
 
 	Portals (ProximityPrompts resolved on the server; no remote):
-	  - The capital "Desert Rift" gate takes you to the oasis. It checks
+	  - The capital "Desert Rift" / "Jungle Rift" gates take you to your
+	    realm's camp in that zone (D-41, D-43). They check
 	    reach, level (D-16; Studio uses PvP.StudioMinLevel), not being
 	    combat-tagged, and not being inside a dungeon run.
 	  - Each realm arrives in its own camp (opposite edges); the camp's
 	    "Return Home" portal sends you to your capital, never while
 	    combat-tagged. The 4 Hz sweep moves anyone of the other realm who
 	    steps inside a camp back out past its ring (T-17 anti-spawn-camping);
-	    the camp's own realm moves freely. The oasis between is open PvP
-	    ground.
+	    the camp's own realm moves freely. Everything between (the Desert
+	    oasis, the Jungle waterfall pool) is open PvP ground.
 	Zone state:
 	  - A 4 Hz sweep publishes the "WarZone" player attribute (zone id or
 	    nil) for the HUD badge and the music/lighting.
@@ -33,7 +34,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
-local DesertTerrain = require(Shared.Logic.DesertTerrain)
+local WarZoneTerrain = require(Shared.Logic.WarZoneTerrain)
 local PvPRules = require(Shared.Logic.PvPRules)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
@@ -270,8 +271,7 @@ local function pushOutOfCamp(
 		away = Vector3.new(zone.center[1] - c.X, 0, zone.center[3] - c.Z)
 	end
 	local target = c + away.Unit * (base.radius + 8)
-	local ground = zone.center[2]
-		+ DesertTerrain.sample(target.X - zone.center[1], target.Z - zone.center[3], zone.size)
+	local ground = WarZoneTerrain.groundY(zone, target.X, target.Z)
 	local position = Vector3.new(target.X, ground + 4, target.Z)
 	local character = player.Character
 	if character then
@@ -337,8 +337,7 @@ function PvPService:Start()
 		-- Field creature camps.
 		local c = zone.center
 		local function groundAt(x: number, z: number): number
-			local height = DesertTerrain.sample(x - c[1], z - c[3], zone.size)
-			return c[2] + height
+			return WarZoneTerrain.groundY(zone, x, z)
 		end
 		for _, camp in zone.camps do
 			MobService:SpawnCamp(

@@ -20,18 +20,19 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local DesertTerrain = require(Shared.Logic.DesertTerrain)
+local WarZoneTerrain = require(Shared.Logic.WarZoneTerrain)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Architecture = require(script.Parent.Architecture)
+local TerrainWriter = require(script.Parent.TerrainWriter)
+local WarZoneKit = require(script.Parent.WarZoneKit)
+local Flora = require(script.Parent.Flora)
 
 local DesertBuilder = {}
 
 local A = Architecture
-local VOXEL = 4
-local CHUNK = 32 -- columns per side per WriteVoxels call
 
 local SANDSTONE = Color3.fromRGB(214, 176, 124)
 local SANDSTONE_DARK = Color3.fromRGB(170, 132, 88)
@@ -68,128 +69,14 @@ local MATERIALS: { [string]: Enum.Material } = {
 	Ground = Enum.Material.Ground,
 }
 
---------------------------------------------------------------------------------
--- Terrain
---------------------------------------------------------------------------------
-
-local function writeTerrain(zone: WorldLayout.WarZone)
-	local terrain = Workspace.Terrain
-	local c = zone.center
-	local half = zone.size / 2
-	local x0 = math.floor((c[1] - half) / VOXEL) * VOXEL
-	local z0 = math.floor((c[3] - half) / VOXEL) * VOXEL
-	local columns = math.ceil(zone.size / VOXEL)
-	local yBottom = math.floor((c[2] - DesertTerrain.POOL_DEPTH - 12) / VOXEL) * VOXEL
-	local yTop = math.ceil((c[2] + DesertTerrain.RIM_HEIGHT + 16) / VOXEL) * VOXEL
-	local layers = (yTop - yBottom) // VOXEL
-	local water = c[2] + DesertTerrain.WATER_LEVEL
-
-	for ci = 0, columns - 1, CHUNK do
-		for ck = 0, columns - 1, CHUNK do
-			local nx = math.min(CHUNK, columns - ci)
-			local nz = math.min(CHUNK, columns - ck)
-			local materials = table.create(nx)
-			local occupancy = table.create(nx)
-			for i = 1, nx do
-				local mi = table.create(layers)
-				local oi = table.create(layers)
-				for j = 1, layers do
-					mi[j] = table.create(nz, Enum.Material.Air)
-					oi[j] = table.create(nz, 0)
-				end
-				materials[i] = mi
-				occupancy[i] = oi
-				local wx = x0 + (ci + i - 0.5) * VOXEL
-				for k = 1, nz do
-					local wz = z0 + (ck + k - 0.5) * VOXEL
-					local height, materialName = DesertTerrain.sample(wx - c[1], wz - c[3], zone.size)
-					local surface = c[2] + height
-					local top = MATERIALS[materialName]
-					for j = 1, layers do
-						local yb = yBottom + (j - 1) * VOXEL
-						local fill = math.clamp((surface - yb) / VOXEL, 0, 1)
-						if fill > 0 then
-							oi[j][k] = fill
-							-- Sand over sandstone bedrock.
-							mi[j][k] = if surface - yb < VOXEL * 2.5 then top else Enum.Material.Sandstone
-						elseif yb < water then
-							oi[j][k] = math.clamp((water - yb) / VOXEL, 0, 1)
-							mi[j][k] = Enum.Material.Water
-						end
-					end
-				end
-			end
-			local region = Region3.new(
-				Vector3.new(x0 + ci * VOXEL, yBottom, z0 + ck * VOXEL),
-				Vector3.new(x0 + (ci + nx) * VOXEL, yBottom + layers * VOXEL, z0 + (ck + nz) * VOXEL)
-			)
-			terrain:WriteVoxels(region, VOXEL, materials, occupancy)
-		end
-	end
-end
-
 -- Ground height (world Y) at a point relative to the zone centre.
 local function groundY(zone: WorldLayout.WarZone, x: number, z: number): number
-	local height = DesertTerrain.sample(x, z, zone.size)
-	return zone.center[2] + height
+	return WarZoneTerrain.groundY(zone, zone.center[1] + x, zone.center[3] + z)
 end
 
 --------------------------------------------------------------------------------
 -- Props
 --------------------------------------------------------------------------------
-
-local function palm(parent: Instance, base: CFrame, height: number, seed: number)
-	local rng = Random.new(seed)
-	local lean = math.rad(rng:NextNumber(6, 16))
-	local turn = rng:NextNumber(0, math.pi * 2)
-	local segments = 6
-	local cf = base * CFrame.Angles(0, turn, 0)
-	local trunk = Color3.fromRGB(122, 92, 60)
-	for i = 0, segments - 1 do
-		local length = height / segments
-		cf = cf * CFrame.Angles(lean / segments * 1.6, 0, 0)
-		local radius = 0.9 - i * 0.08
-		A.cylinder(
-			parent,
-			radius,
-			length + 0.3,
-			cf,
-			if i % 2 == 0 then trunk else trunk:Lerp(Color3.new(0, 0, 0), 0.15),
-			Enum.Material.Wood,
-			{ decor = i > 0 }
-		)
-		cf = cf * CFrame.new(0, length, 0)
-	end
-	local frond = Color3.fromRGB(64, 132, 54)
-	for i = 0, 7 do
-		local a = i / 8 * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
-		local leaf = A.part(
-			parent,
-			Vector3.new(1.4, 0.25, 9),
-			cf
-				* CFrame.Angles(0, a, 0)
-				* CFrame.Angles(math.rad(-28 - rng:NextNumber(0, 18)), 0, 0)
-				* CFrame.new(0, 0, -4.2),
-			frond:Lerp(Color3.fromRGB(150, 170, 60), rng:NextNumber(0, 0.4)),
-			Enum.Material.Grass,
-			{ decor = true }
-		)
-		local mesh = Instance.new("SpecialMesh")
-		mesh.MeshType = Enum.MeshType.Sphere
-		mesh.Parent = leaf
-	end
-	for i = 0, 2 do
-		local a = i / 3 * math.pi * 2
-		A.part(
-			parent,
-			Vector3.new(0.8, 0.8, 0.8),
-			cf * CFrame.Angles(0, a, 0) * CFrame.new(0, -0.6, -0.7),
-			Color3.fromRGB(96, 70, 40),
-			Enum.Material.Wood,
-			{ decor = true, shape = Enum.PartType.Ball }
-		)
-	end
-end
 
 local function tent(parent: Instance, cf: CFrame, width: number, depth: number, color: Color3)
 	local height = width * 0.55
@@ -302,7 +189,7 @@ local function oasis(model: Model, zone: WorldLayout.WarZone)
 		if math.abs(x) < 10 and (z > 20 or z < -30) then
 			continue -- keep the arrival point and the portal path clear
 		end
-		palm(model, CFrame.new(c[1] + x, groundY(zone, x, z) - 0.5, c[3] + z), 16 + (i % 4) * 3, i)
+		Flora.palm(model, CFrame.new(c[1] + x, groundY(zone, x, z) - 0.5, c[3] + z), 16 + (i % 4) * 3, i)
 	end
 	-- A little island with a rift crystal in the pool.
 	A.cylinder(model, 5, 3, centre * CFrame.new(0, -4, 0), SANDSTONE_DARK, Enum.Material.Sandstone)
@@ -323,71 +210,6 @@ local function oasis(model: Model, zone: WorldLayout.WarZone)
 		local r = DesertTerrain.PLAZA_RADIUS - 14
 		brazier(model, CFrame.new(c[1] + math.sin(a) * r, c[2], c[3] + math.cos(a) * r))
 	end
-end
-
--- A realm's base: plateau camp, return portal and the realm-only barrier.
-local function base(model: Model, zone: WorldLayout.WarZone, race: string): BasePart?
-	local def = zone.bases[race]
-	local style = (Architecture.Styles :: any)[race] :: Architecture.Style
-	local centre = WorldLayout.basePoint(zone, race, 0, 0)
-	local inward = WorldLayout.basePoint(zone, race, 10, 0)
-	if def == nil or style == nil or centre == nil or inward == nil then
-		return nil
-	end
-	local camp = Instance.new("Model")
-	camp.Name = `{race}Camp`
-	local c = Vector3.new(centre[1], centre[2], centre[3])
-	local facing = CFrame.lookAt(c, Vector3.new(inward[1], centre[2], inward[3]))
-	-- Paved floor with the realm's trim ring.
-	A.disc(camp, def.radius - 2, 0.4, facing, style.stone, style.stoneMaterial, { decor = true })
-	A.ring(camp, def.radius - 4, 1, 0.5, 40, facing, style.trim, style.trimMaterial, { decor = true })
-	-- Return portal at the back, facing the desert.
-	local portal =
-		A.portalGate(camp, facing * CFrame.new(0, 0, def.radius - 14) * CFrame.Angles(0, math.pi, 0), {
-			label = "Return Home",
-			opensIn = "",
-			active = true,
-		}, style)
-	-- Tents and banners along both sides, braziers / lamps at the entrance.
-	for i, side in { -1, 1, -1, 1 } do
-		local back = if i <= 2 then 6 else 20
-		tent(
-			camp,
-			facing * CFrame.new(side * 22, 0, back) * CFrame.Angles(0, side * math.pi / 2, 0),
-			9,
-			8,
-			if i % 2 == 0 then style.cloth else style.trim:Lerp(style.stone, 0.4)
-		)
-	end
-	for _, side in { -1, 1 } do
-		A.cylinder(camp, 0.35, 16, facing * CFrame.new(side * 14, 0, -16), style.trim, style.trimMaterial)
-		A.banner(camp, facing * CFrame.new(side * 14, 15, -16), 5, 10, style)
-		A.lamp(camp, facing * CFrame.new(side * 9, 0, -def.radius + 8), style)
-	end
-	-- Barrier ring: a shimmering marker only. Nothing collides with it; the
-	-- server keeps the other realm out (PvPService), so nobody can ever be
-	-- trapped inside their own camp.
-	local segments = 32
-	local radius = def.radius + 1
-	local chord = 2 * radius * math.sin(math.pi / segments) + 0.2
-	for i = 0, segments - 1 do
-		local a = (i + 0.5) / segments * math.pi * 2
-		local wall = Instance.new("Part")
-		wall.Name = "RealmBarrier"
-		wall.Anchored = true
-		wall.Size = Vector3.new(chord, 16, 1)
-		wall.CFrame = CFrame.new(c) * CFrame.Angles(0, -a, 0) * CFrame.new(0, 8, -radius)
-		wall.Material = Enum.Material.ForceField
-		wall.Color = style.glow
-		wall.Transparency = 0.55
-		wall.CastShadow = false
-		wall.CanCollide = false
-		wall.CanQuery = false
-		wall.CanTouch = false
-		wall.Parent = camp
-	end
-	camp.Parent = model
-	return portal
 end
 
 local function camps(model: Model, zone: WorldLayout.WarZone)
@@ -415,39 +237,24 @@ local function camps(model: Model, zone: WorldLayout.WarZone)
 	end
 end
 
-local function bounds(model: Model, zone: WorldLayout.WarZone)
-	local c = zone.center
-	local inner = zone.size / 2 - DesertTerrain.RIM_WIDTH * 0.45
-	for _, spec in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
-		local wall = A.part(
-			model,
-			Vector3.new(if spec[1] ~= 0 then 4 else inner * 2, 400, if spec[2] ~= 0 then 4 else inner * 2),
-			CFrame.new(c[1] + spec[1] * inner, c[2] + 150, c[3] + spec[2] * inner),
-			Color3.new(1, 1, 1),
-			Enum.Material.SmoothPlastic,
-			{ transparency = 1, shadow = false }
-		)
-		wall.Name = "Boundary"
-		wall.CanQuery = false
-	end
-end
-
 export type Built = { portals: { [string]: BasePart }, parts: number }
 
 function DesertBuilder.build(root: Instance, zone: WorldLayout.WarZone): Built
-	writeTerrain(zone)
+	TerrainWriter.write(zone, MATERIALS, Enum.Material.Sandstone)
 	local model = Instance.new("Model")
 	model.Name = zone.id
 	oasis(model, zone)
 	local portals: { [string]: BasePart } = {}
 	for race in zone.bases do
-		local portal = base(model, zone, race)
+		local portal = WarZoneKit.camp(model, zone, race, function(parent, cf, index, style)
+			tent(parent, cf, 9, 8, if index % 2 == 0 then style.cloth else style.trim:Lerp(style.stone, 0.4))
+		end)
 		if portal then
 			portals[race] = portal
 		end
 	end
 	camps(model, zone)
-	bounds(model, zone)
+	WarZoneKit.bounds(model, zone, DesertTerrain.RIM_WIDTH)
 	model.Parent = root
 	local parts = 0
 	for _, d in model:GetDescendants() do

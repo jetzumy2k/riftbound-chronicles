@@ -99,6 +99,20 @@ WorldLayout.SafeZones = table.freeze({
 		displayName = "Devil Camp",
 		volume = { kind = "cylinder", center = { -3200, 30, 360 }, radius = 40, halfHeight = 50 },
 	} :: SafeZone),
+	-- Phase 13: the same for the Jungle Rift; the waterfall pool between is
+	-- open PvP ground.
+	table.freeze({
+		id = "JungleAngelCamp",
+		race = "Angel",
+		displayName = "Angel Camp",
+		volume = { kind = "cylinder", center = { 3200, 32, -360 }, radius = 40, halfHeight = 50 },
+	} :: SafeZone),
+	table.freeze({
+		id = "JungleDevilCamp",
+		race = "Devil",
+		displayName = "Devil Camp",
+		volume = { kind = "cylinder", center = { 3200, 32, 360 }, radius = 40, halfHeight = 50 },
+	} :: SafeZone),
 })
 
 -- Where the camera looks while a new player chooses a race.
@@ -266,8 +280,10 @@ function WorldLayout.toWorld(realm: Realm, localPoint: Vec): { number }
 end
 
 --------------------------------------------------------------------------------
--- War zones (Phase 12/13; CLAUDE.md §13). Open PvP between the realms
--- outside the central safe zone. Square regions far from the capitals.
+-- War zones (Phase 12/13; CLAUDE.md §13, PLAN.md D-41/D-43). Open PvP
+-- between the realms everywhere except each realm's own camp at opposite
+-- edges. Square regions far from the capitals; `terrain` picks the
+-- heightmap (Logic/WarZoneTerrain).
 --------------------------------------------------------------------------------
 
 export type Camp = { enemy: string, x: number, z: number, count: number }
@@ -285,6 +301,8 @@ export type WarZone = {
 	-- Height of the camp plateaus above the centre's y.
 	baseHeight: number,
 	bases: { [string]: Base },
+	-- "Desert" | "Jungle" (Logic/WarZoneTerrain).
+	terrain: string,
 	atmosphere: string,
 	camps: { Camp },
 }
@@ -300,6 +318,7 @@ WorldLayout.WarZones = table.freeze({
 			Angel = table.freeze({ x = 0, z = -360, safeZone = "DesertAngelCamp", radius = 40 } :: Base),
 			Devil = table.freeze({ x = 0, z = 360, safeZone = "DesertDevilCamp", radius = 40 } :: Base),
 		}),
+		terrain = "Desert",
 		atmosphere = "Desert",
 		camps = table.freeze({
 			-- Around the oasis: contested PvP ground with creatures (and, in
@@ -313,6 +332,34 @@ WorldLayout.WarZones = table.freeze({
 			table.freeze({ enemy = "SandScarab", x = 260, z = -120, count = 2 }),
 			table.freeze({ enemy = "SandstoneGolem", x = -180, z = 270, count = 1 }),
 			table.freeze({ enemy = "SandstoneGolem", x = 300, z = 260, count = 1 }),
+		}),
+	} :: WarZone),
+	JungleRift = table.freeze({
+		id = "JungleRift",
+		name = "Jungle Rift",
+		center = table.freeze({ 3200, 24, 0 }),
+		size = 1000,
+		baseHeight = 8,
+		bases = table.freeze({
+			Angel = table.freeze({ x = 0, z = -360, safeZone = "JungleAngelCamp", radius = 40 } :: Base),
+			Devil = table.freeze({ x = 0, z = 360, safeZone = "JungleDevilCamp", radius = 40 } :: Base),
+		}),
+		terrain = "Jungle",
+		atmosphere = "Jungle",
+		camps = table.freeze({
+			-- The plaza around the waterfall pool: contested ground.
+			table.freeze({ enemy = "Thorncrawler", x = 10, z = -50, count = 2 }),
+			table.freeze({ enemy = "JungleProwler", x = 10, z = 50, count = 3 }),
+			-- The jungle floor between the camps and the river.
+			table.freeze({ enemy = "JungleProwler", x = 200, z = -90, count = 3 }),
+			table.freeze({ enemy = "JungleProwler", x = -200, z = 200, count = 3 }),
+			table.freeze({ enemy = "Thorncrawler", x = 300, z = 100, count = 2 }),
+			table.freeze({ enemy = "Thorncrawler", x = -120, z = -200, count = 2 }),
+			table.freeze({ enemy = "MossbackGolem", x = 320, z = -200, count = 1 }),
+			table.freeze({ enemy = "MossbackGolem", x = 120, z = 170, count = 1 }),
+			-- Up on the highland above the falls.
+			table.freeze({ enemy = "JungleProwler", x = -250, z = -60, count = 3 }),
+			table.freeze({ enemy = "MossbackGolem", x = -280, z = 70, count = 1 }),
 		}),
 	} :: WarZone),
 })

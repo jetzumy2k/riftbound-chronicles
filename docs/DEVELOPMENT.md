@@ -180,6 +180,15 @@ Server Output: `Desert Rift built (… parts, terrain in … s)` and `war zones 
 6. **Creatures:** packs at camps across the dunes and around the oasis; they respawn 30 s after falling.
 7. **Animations across players:** each player sees the other realm's attacks, idle and sprint animate even when they met far from where they spawned.
 
+## War zone checks (Phase 13: Jungle Rift, D-43)
+Server Output: `Jungle Rift built (… parts, in … s)`. Everything from the Desert checks applies here too (camps, PvP, defeat, credit rules).
+1. **Gate:** the "Jungle Rift" gate on the right side of each capital is open and takes you to **your realm's camp** (Angels north edge, Devils south): stilt huts with thatched roofs, banners, lamps, "Return Home" portal; HUD shows SAFE ZONE.
+2. **The jungle:** humid green lighting and haze; rolling ground with dense rainforest trees, palms, ferns and bushes; mossy rock outcrops; rock cliffs at the edges (invisible walls stop you on them).
+3. **The waterfall:** in the middle, the river pours over a tall cliff into a deep pool: translucent layered water, white streaks, falling spray and mist, foam and boulders; vines hang down the cliff. The plaza around the pool (flagstone walk, ruined columns and arches, braziers, a glowing crystal islet, lily pads) is **open PvP ground** with Thorncrawlers and Jungle Prowlers.
+4. **River and bridges:** the river leaves the pool eastward (stone bridge beside the plaza, two rope bridges further east). Up on the highland west of the falls (climb the gentle north or south slopes) the upper river has a stone and a rope bridge, and starts at a small spring cascade by the west rim. You can also swim.
+5. **Creatures:** Jungle Prowlers, Thorncrawlers and Mossback Golems (elite) at overgrown shrines; they respawn 30 s after falling.
+6. **Performance:** walk the whole zone on a low graphics level / mobile emulation; report any hitching near the waterfall or in the forest.
+
 ## Dungeon checks (Phase 9, D-42)
 Server Output: `mob AI ready (8 Hz)` and `dungeons ready (Rift Hollow, one per realm)`; boss kills log `… defeated in the … dungeon; returns in …`.
 1. **Training Grounds:** 5 Rift Sprites in each yard; 20 EXP each; five take a new character to level 1.

@@ -10,6 +10,7 @@
 	           marble washes out under strong exposure / bloom)
 	  Devil    low ember-red sun, warm haze, readable dark stone
 	  Desert   the Desert Rift war zone
+	  Jungle   the Jungle Rift war zone
 	  Dungeon  inside dungeon instances
 ]]
 
@@ -110,6 +111,25 @@ ZoneAtmosphere.Presets = table.freeze({
 		contrast = 0.1,
 		bloomIntensity = 0.35,
 		bloomThreshold = 2.0,
+	} :: Preset),
+	-- War zone: humid jungle morning, green-gold haze, soft sun shafts.
+	Jungle = table.freeze({
+		clockTime = 10.5,
+		brightness = 2.2,
+		ambient = { 112, 128, 108 },
+		outdoorAmbient = { 136, 156, 128 },
+		colorShiftTop = { 255, 236, 190 },
+		exposure = 0,
+		density = 0.38,
+		haze = 1.6,
+		glare = 0.2,
+		atmosphereColor = { 196, 220, 180 },
+		decay = { 92, 128, 96 },
+		tint = { 246, 255, 240 },
+		saturation = 0.18,
+		contrast = 0.08,
+		bloomIntensity = 0.4,
+		bloomThreshold = 1.9,
 	} :: Preset),
 	-- Inside dungeon instances: cool stone, warm candle glow, readable.
 	Dungeon = table.freeze({
