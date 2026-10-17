@@ -38,12 +38,25 @@ return function(S: any)
 			ExitBubbleSeconds = S.number(0, 10),
 			RegenDelaySeconds = S.number(0, 60),
 			SafeZoneRegenPctPerSecond = S.number(0, 100),
+			RestRegenPctPerSecond = S.number(0, 20),
+			RestCreatureRadius = S.number(0, 200),
 			FocusMax = S.int(10, 1000),
 			FocusRegenPerSecond = S.number(0, 200),
 			RangeToleranceStuds = S.number(0, 20),
 			MaxPingCompensationSeconds = S.number(0, 1),
 			ResetCooldownSeconds = S.number(0, 300),
 			RelevanceRadius = S.number(20, 1000),
+		}),
+
+		Skills = S.struct({
+			GlobalCooldownSeconds = S.number(0, 5),
+			CooldownSlackSeconds = S.number(0, 1),
+			PvPControlScale = S.number(0, 1),
+			ControlImmunitySeconds = S.number(0, 10),
+			MaxAreaTargets = S.int(1, 50),
+			StudioUnlockAll = S.boolean(),
+			StudioBonusPoints = S.int(0, 200),
+			ResetNeedsSafeZone = S.boolean(),
 		}),
 
 		Movement = S.struct({
@@ -58,8 +71,10 @@ return function(S: any)
 			Enabled = S.boolean(),
 			MobRespawnSeconds = S.number(5, 3600),
 			MiniBossRespawnMinutes = S.number(1, 1440),
+			FloorBossRespawnMinutes = S.number(1, 1440),
 			BossRespawnHours = S.number(0.1, 72),
 			StudioMiniBossRespawnSeconds = S.number(5, 3600),
+			StudioFloorBossRespawnSeconds = S.number(5, 7200),
 			StudioBossRespawnSeconds = S.number(5, 7200),
 			XpShareRadius = S.number(10, 1000),
 			WipeResetSeconds = S.number(1, 60),
@@ -68,6 +83,7 @@ return function(S: any)
 		Party = S.struct({
 			MaxMembers = S.int(1, 8),
 			InviteSeconds = S.number(5, 600),
+			UnionMaxParties = S.int(2, 8),
 		}),
 
 		PvP = S.struct({
@@ -78,6 +94,8 @@ return function(S: any)
 			RepeatVictimMinutes = S.number(0, 1440),
 			DailyCreditCap = S.int(0, 1000),
 			CampRespawnSeconds = S.number(5, 600),
+			BossRespawnMinutes = S.number(1, 1440),
+			StudioBossRespawnSeconds = S.number(5, 7200),
 		}),
 
 		Mobs = S.struct({

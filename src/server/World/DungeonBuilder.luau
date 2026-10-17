@@ -1,20 +1,26 @@
 --!strict
 --[[
-	DungeonBuilder — builds a dungeon map from DungeonDefinitions
-	(Phase 9; style per the "Dungeon Example" concept: a ruined gothic hall,
-	candlelight, rift crystals, a stone sanctum for the guardian).
+	DungeonBuilder — builds a dungeon's floors from DungeonDefinitions
+	(Phase 9, D-42, D-47; style per the "Dungeon Example" concept: ruined
+	gothic halls, candlelight, rift crystals, a stone sanctum per boss).
 
-	The map is built once as a template (DungeonService keeps it in
-	ServerStorage) and cloned per run. Layout, in the template's frame
-	(origin = entry edge of the first room, floor top at y = 0, deeper = -Z):
+	Built once per realm copy. In the copy's frame: origin = floor 1's
+	landing entry, floor top at y = 0, x right, deeper = -Z. Floor f sits
+	`offsetX` to the right. Each floor is themed:
+	  Crystal  grey stone, blue rift crystals, candlelight     (floor 1)
+	  Ember    basalt, glowing lava seams, orange fire          (floor 2)
+	  Frost    pale ice-stone, icicles, cold blue light         (floor 3)
+	  Void     violet-black stone, Nullborn crystals            (floor 4)
 
-	  Start          small landing with the exit portal (leave the dungeon)
-	  rooms[i]       floor, walls with pillars, candelabras, crystals
-	  corridors      wide open passages between rooms (the map is open, D-42)
-	Markers (invisible, non-colliding, named parts):
-	  Checkpoint_<i> respawn / arrival point at room i's entry
-	  Room_<i>       room volume (boss-room presence checks)
-	  Exit           exit portal surface (ProximityPrompt added by DungeonService)
+	Rooms are rectangles with door openings in their walls; passages join
+	them (roofed corridors). Markers (invisible, non-colliding, named):
+	  Floor_<f>          the floor's Model
+	  Room_<f>_<i>       room volume
+	  Arrival_<f>        where players arrive on floor f
+	  Leave_<f>          portal surface: leave the dungeon
+	  Up_<f>             portal surface: back to floor f-1 (floors 2-4)
+	  Down_<f>           portal surface: down to floor f+1 (in the lair)
+	(ProximityPrompts are added by DungeonService.)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,39 +28,104 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DungeonDefinitions = require(ReplicatedStorage.Shared.Definitions.DungeonDefinitions)
 local Architecture = require(script.Parent.Architecture)
 
-local DungeonBuilder = {}
-
--- Width of the openings between rooms and corridors (set per dungeon in build()).
-local opening = 28
-
 local A = Architecture
 
-local STONE = Color3.fromRGB(122, 116, 112)
-local STONE_DARK = Color3.fromRGB(84, 80, 82)
-local FLOOR = Color3.fromRGB(104, 98, 96)
-local TRIM = Color3.fromRGB(186, 150, 92)
-local CRYSTAL = Color3.fromRGB(110, 200, 255)
-local FLAME = Color3.fromRGB(255, 190, 110)
+local DungeonBuilder = {}
 
--- A stone style for the shared kit pieces (arches, columns, stairs).
-local STYLE: Architecture.Style = {
-	race = "Dungeon",
-	stone = STONE,
-	stoneMaterial = Enum.Material.Slate,
-	stoneDark = STONE_DARK,
-	trim = TRIM,
-	trimMaterial = Enum.Material.Metal,
-	roof = STONE_DARK,
-	roofMaterial = Enum.Material.Slate,
-	glow = CRYSTAL,
-	window = CRYSTAL,
-	cloth = Color3.fromRGB(70, 60, 92),
-	light = FLAME,
-	towerTop = "spire",
+type Floor = DungeonDefinitions.Floor
+type Room = DungeonDefinitions.Room
+
+type Theme = {
+	stone: Color3,
+	stoneDark: Color3,
+	floor: Color3,
+	material: Enum.Material,
+	trim: Color3,
+	glow: Color3,
+	flame: Color3,
+	style: Architecture.Style,
 }
 
+local function theme(
+	stone: Color3,
+	stoneDark: Color3,
+	floor: Color3,
+	material: Enum.Material,
+	glow: Color3,
+	flame: Color3
+): Theme
+	local trim = Color3.fromRGB(186, 150, 92)
+	return {
+		stone = stone,
+		stoneDark = stoneDark,
+		floor = floor,
+		material = material,
+		trim = trim,
+		glow = glow,
+		flame = flame,
+		style = {
+			race = "Dungeon",
+			stone = stone,
+			stoneMaterial = material,
+			stoneDark = stoneDark,
+			trim = trim,
+			trimMaterial = Enum.Material.Metal,
+			roof = stoneDark,
+			roofMaterial = material,
+			glow = glow,
+			window = glow,
+			cloth = Color3.fromRGB(70, 60, 92),
+			light = flame,
+			towerTop = "spire",
+		},
+	}
+end
+
+local THEMES: { [string]: Theme } = {
+	Crystal = theme(
+		Color3.fromRGB(122, 116, 112),
+		Color3.fromRGB(84, 80, 82),
+		Color3.fromRGB(104, 98, 96),
+		Enum.Material.Slate,
+		Color3.fromRGB(110, 200, 255),
+		Color3.fromRGB(255, 190, 110)
+	),
+	Ember = theme(
+		Color3.fromRGB(78, 64, 60),
+		Color3.fromRGB(46, 38, 38),
+		Color3.fromRGB(64, 52, 50),
+		Enum.Material.Basalt,
+		Color3.fromRGB(255, 120, 40),
+		Color3.fromRGB(255, 150, 70)
+	),
+	Frost = theme(
+		Color3.fromRGB(170, 184, 200),
+		Color3.fromRGB(110, 124, 146),
+		Color3.fromRGB(150, 164, 182),
+		Enum.Material.Slate,
+		Color3.fromRGB(140, 220, 255),
+		Color3.fromRGB(200, 236, 255)
+	),
+	Void = theme(
+		Color3.fromRGB(64, 56, 80),
+		Color3.fromRGB(38, 32, 50),
+		Color3.fromRGB(52, 46, 64),
+		Enum.Material.Slate,
+		Color3.fromRGB(180, 110, 255),
+		Color3.fromRGB(220, 170, 255)
+	),
+}
+
+local WALL = 3
+local DOOR_HEIGHT = 26
+
+-- Floor-frame (x, z) to the copy frame (deeper = -Z).
+local function at(floor: Floor, x: number, y: number, z: number): CFrame
+	return CFrame.new(floor.offsetX + x, y, -z)
+end
+
 local function marker(parent: Instance, name: string, size: Vector3, cf: CFrame): Part
-	local part = A.part(
+	return A.part(
 		parent,
 		size,
 		cf,
@@ -62,51 +133,45 @@ local function marker(parent: Instance, name: string, size: Vector3, cf: CFrame)
 		Enum.Material.SmoothPlastic,
 		{ name = name, decor = true, transparency = 1 }
 	)
-	return part
 end
 
-local function candelabra(parent: Instance, cf: CFrame, light: boolean)
-	A.cylinder(parent, 0.5, 6, cf, TRIM, Enum.Material.Metal)
+local function light(parent: Instance, color: Color3, range: number, brightness: number)
+	local point = Instance.new("PointLight")
+	point.Color = color
+	point.Range = range
+	point.Brightness = brightness
+	point.Shadows = false
+	point.Parent = parent
+end
+
+local function candelabra(parent: Instance, cf: CFrame, t: Theme, lit: boolean)
+	A.cylinder(parent, 0.5, 6, cf, t.trim, Enum.Material.Metal)
 	A.part(
 		parent,
 		Vector3.new(3, 0.4, 0.4),
 		cf * CFrame.new(0, 6, 0),
-		TRIM,
+		t.trim,
 		Enum.Material.Metal,
 		{ decor = true }
 	)
 	for _, x in { -1.3, 0, 1.3 } do
-		A.cylinder(
-			parent,
-			0.22,
-			1,
-			cf * CFrame.new(x, 6.2, 0),
-			Color3.fromRGB(240, 232, 214),
-			Enum.Material.SmoothPlastic,
-			{ decor = true }
-		)
 		local flame = A.part(
 			parent,
 			Vector3.new(0.3, 0.5, 0.3),
-			cf * CFrame.new(x, 7.5, 0),
-			FLAME,
+			cf * CFrame.new(x, 7, 0),
+			t.flame,
 			Enum.Material.Neon,
 			{ decor = true, shape = Enum.PartType.Ball }
 		)
-		if light and x == 0 then
-			local point = Instance.new("PointLight")
-			point.Color = FLAME
-			point.Range = 26
-			point.Brightness = 1.6
-			point.Shadows = false
-			point.Parent = flame
+		if lit and x == 0 then
+			light(flame, t.flame, 28, 1.6)
 		end
 	end
 end
 
-local function rubble(parent: Instance, cf: CFrame, seed: number)
+local function rubble(parent: Instance, cf: CFrame, t: Theme, seed: number)
 	local rng = Random.new(seed)
-	for _ = 1, 4 do
+	for _ = 1, 3 do
 		local s = rng:NextNumber(1, 2.6)
 		A.part(
 			parent,
@@ -114,230 +179,322 @@ local function rubble(parent: Instance, cf: CFrame, seed: number)
 			cf
 				* CFrame.new(rng:NextNumber(-3, 3), s * 0.3, rng:NextNumber(-3, 3))
 				* CFrame.Angles(rng:NextNumber(-0.4, 0.4), rng:NextNumber(0, 3), rng:NextNumber(-0.4, 0.4)),
-			STONE_DARK,
-			Enum.Material.Slate
+			t.stoneDark,
+			t.material
 		)
 	end
 end
 
-local function room(
-	parent: Instance,
-	index: number,
-	def: DungeonDefinitions.Room,
-	z0: number,
-	isBoss: boolean,
-	lastRoom: boolean
-)
-	local model = Instance.new("Model")
-	model.Name = `Room{index}_{def.id}`
-	local w, h, d = def.size[1], def.size[2], def.size[3]
-	local center = CFrame.new(0, 0, z0 - d / 2)
-	-- Floor with a darker border and slab lines.
-	A.part(model, Vector3.new(w, 2, d), center * CFrame.new(0, -1, 0), FLOOR, Enum.Material.Slate)
-	for i = 1, math.floor(d / 12) do
+-- Theme accents: lava seams (Ember), icicles (Frost), crystals otherwise.
+local function accent(parent: Instance, cf: CFrame, t: Theme, kind: string, seed: number)
+	local rng = Random.new(seed)
+	if kind == "Ember" then
 		A.part(
-			model,
-			Vector3.new(w - 4, 0.12, 0.5),
-			CFrame.new(0, 0.06, z0 - i * 12),
-			STONE_DARK,
-			Enum.Material.Slate,
+			parent,
+			Vector3.new(rng:NextNumber(6, 12), 0.2, rng:NextNumber(1.2, 2.4)),
+			cf * CFrame.new(0, 0.1, 0) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
+			t.glow,
+			Enum.Material.Neon,
 			{ decor = true }
 		)
-	end
-	-- Side walls with pillars and arches.
-	for _, side in { -1, 1 } do
-		A.part(
-			model,
-			Vector3.new(3, h, d),
-			center * CFrame.new(side * (w / 2 + 1.5), h / 2, 0),
-			STONE,
-			Enum.Material.Slate
-		)
-		local pillars = math.max(2, math.floor(d / 22))
-		for i = 0, pillars - 1 do
-			local z = z0 - (i + 0.5) * d / pillars
-			local pillarCF = CFrame.new(side * (w / 2 - 2), 0, z)
-			A.column(model, pillarCF, 1.8, h - 4, STYLE)
-			-- Gothic rib arching across the hall from this pillar.
-			if i % 2 == 0 and side == -1 then
-				A.part(
-					model,
-					Vector3.new(w, 2, 2),
-					CFrame.new(0, h - 1, z),
-					STONE_DARK,
-					Enum.Material.Slate,
-					{ decor = true }
-				)
-			end
-			if i % 2 == 1 then
-				candelabra(model, CFrame.new(side * (w / 2 - 6), 0, z), i % 4 == 1)
-			end
-		end
-		-- Tall lancet windows glowing with rift light.
-		for i = 0, 1 do
+	elseif kind == "Frost" then
+		for i = 1, 3 do
 			A.part(
-				model,
-				Vector3.new(0.4, h * 0.45, 4),
-				CFrame.new(side * (w / 2 + 0.05), h * 0.5, z0 - (i + 0.5) * d / 2),
-				CRYSTAL,
-				Enum.Material.Neon,
+				parent,
+				Vector3.new(1.2, rng:NextNumber(3, 6), 1.2),
+				cf
+					* CFrame.new(i * 1.8 - 3.6, rng:NextNumber(1.5, 3), 0)
+					* CFrame.Angles(0, 0, rng:NextNumber(-0.2, 0.2)),
+				Color3.fromRGB(200, 236, 255),
+				Enum.Material.Ice,
 				{ decor = true, transparency = 0.2 }
 			)
 		end
+	else
+		A.crystals(parent, cf, rng:NextNumber(5, 8), t.glow)
 	end
-	-- Entry wall (with an opening) and far wall (opening unless last room).
-	local walls: { { any } } = { { z0, true }, { z0 - d, not lastRoom } }
-	for _, spec in walls do
-		local z, open = spec[1], spec[2]
-		if open then
-			local side = (w - opening) / 2
-			local archHeight = 30
-			for _, s in { -1, 1 } do
-				A.part(
-					model,
-					Vector3.new(side, h, 3),
-					CFrame.new(s * (opening / 2 + side / 2), h / 2, z),
-					STONE,
-					Enum.Material.Slate
-				)
-			end
-			A.part(
-				model,
-				Vector3.new(opening, h - archHeight, 3),
-				CFrame.new(0, archHeight + (h - archHeight) / 2, z),
-				STONE,
-				Enum.Material.Slate
-			)
-			A.arch(
-				model,
-				CFrame.new(0, 0, z + (if z == z0 then -1.6 else 1.6)),
-				opening - 2,
-				archHeight,
-				1,
-				2,
-				STYLE
-			)
+end
+
+--[[
+	One wall of a room with its door openings. `side` N (toward the
+	entry, smaller z), S, E (+x) or W. Openings get a lintel above.
+]]
+local function wall(parent: Instance, floor: Floor, room: Room, side: string, t: Theme)
+	local cx, cz = room.center[1], room.center[2]
+	local w, h, d = room.size[1], room.size[2], room.size[3]
+	local alongX = side == "N" or side == "S"
+	local length = if alongX then w + WALL * 2 else d
+	local openings = {}
+	for _, door in room.doors do
+		if door.side == side then
+			table.insert(openings, { door.offset - door.width / 2, door.offset + door.width / 2 })
+		end
+	end
+	table.sort(openings, function(a, b)
+		return a[1] < b[1]
+	end)
+	local function piece(from: number, to: number, y0: number, y1: number)
+		local len = to - from
+		if len <= 0.05 or y1 - y0 <= 0.05 then
+			return
+		end
+		local mid = (from + to) / 2
+		local y = (y0 + y1) / 2
+		local cf, size
+		if alongX then
+			local z = if side == "N" then cz - d / 2 - WALL / 2 else cz + d / 2 + WALL / 2
+			cf = at(floor, cx + mid, y, z)
+			size = Vector3.new(len, y1 - y0, WALL)
 		else
-			A.part(model, Vector3.new(w, h, 3), CFrame.new(0, h / 2, z - 1.5), STONE, Enum.Material.Slate)
+			local x = if side == "W" then cx - w / 2 - WALL / 2 else cx + w / 2 + WALL / 2
+			cf = at(floor, x, y, cz + mid)
+			size = Vector3.new(WALL, y1 - y0, len)
 		end
+		A.part(parent, size, cf, t.stone, t.material)
 	end
-	-- Rift crystals and rubble for storytelling.
-	local rng = Random.new(index * 17)
-	for i = 1, math.max(3, math.floor(w * d / 3500)) do
-		local side = if i % 2 == 0 then 1 else -1
-		A.crystals(
-			model,
-			CFrame.new(side * (w / 2 - 8 - rng:NextNumber(0, 6)), 0, z0 - rng:NextNumber(0.2, 0.9) * d),
-			rng:NextNumber(5, 9),
-			CRYSTAL
-		)
-		rubble(model, CFrame.new(-side * (w / 2 - 10), 0, z0 - rng:NextNumber(0.2, 0.9) * d), index * 10 + i)
+	local cursor = -length / 2
+	for _, o in openings do
+		piece(cursor, o[1], 0, h)
+		piece(o[1], o[2], math.min(DOOR_HEIGHT, h), h)
+		cursor = o[2]
 	end
-	if isBoss then
-		-- Rune circle, broken statues and the great rift crystal behind the boss.
-		local mid = CFrame.new(0, 0, z0 - d * 0.62)
-		A.ring(model, 26, 1.2, 0.25, 40, mid, CRYSTAL, Enum.Material.Neon, { decor = true })
-		A.ring(model, 18, 0.6, 0.22, 32, mid, TRIM, Enum.Material.Metal, { decor = true })
-		for _, side in { -1, 1 } do
-			local statue = CFrame.new(side * (w / 2 - 14), 0, z0 - d * 0.3)
-			A.part(model, Vector3.new(8, 4, 8), statue * CFrame.new(0, 2, 0), STONE_DARK, Enum.Material.Slate)
-			A.part(model, Vector3.new(5, 12, 3.5), statue * CFrame.new(0, 10, 0), STONE, Enum.Material.Slate)
-			A.part(model, Vector3.new(3, 3, 3), statue * CFrame.new(0, 17.5, 0), STONE, Enum.Material.Slate)
+	piece(cursor, length / 2, 0, h)
+end
+
+local function roomVolume(parent: Instance, floor: Floor, room: Room, index: number)
+	local cx, cz = room.center[1], room.center[2]
+	local w, h, d = room.size[1], room.size[2], room.size[3]
+	marker(parent, `Room_{floor.index}_{index}`, Vector3.new(w, h, d), at(floor, cx, h / 2, cz))
+end
+
+local function buildRoom(parent: Instance, floor: Floor, room: Room, index: number, t: Theme)
+	local model = Instance.new("Model")
+	model.Name = `Room{index}_{room.id}`
+	local cx, cz = room.center[1], room.center[2]
+	local w, h, d = room.size[1], room.size[2], room.size[3]
+	A.part(model, Vector3.new(w, 2, d), at(floor, cx, -1, cz), t.floor, t.material)
+	for _, side in { "N", "S", "E", "W" } do
+		wall(model, floor, room, side, t)
+	end
+	local seed = floor.index * 1000 + index * 17
+	local rng = Random.new(seed)
+	if room.kind == "Hall" then
+		-- Candelabras against the walls between the chamber doors (no pillars:
+		-- they would crowd the doorways).
+		local doorZ = {}
+		for _, door in room.doors do
+			if door.side == "E" then
+				table.insert(doorZ, cz + door.offset)
+			end
 		end
-		local crystal = A.part(
+		table.sort(doorZ)
+		for i, z in doorZ do
+			local between = z + 26
+			if i < #doorZ or between < cz + d / 2 - 10 then
+				for _, s in { -1, 1 } do
+					candelabra(
+						model,
+						at(floor, cx + s * (w / 2 - 3), 0, between),
+						t,
+						(i + (if s > 0 then 1 else 0)) % 2 == 0
+					)
+				end
+			end
+		end
+		A.part(
 			model,
-			Vector3.new(7, 22, 7),
-			CFrame.new(0, 13, z0 - d + 10) * CFrame.Angles(0, math.rad(45), math.rad(8)),
-			CRYSTAL,
+			Vector3.new(3, 0.15, d - 20),
+			at(floor, cx, 0.08, cz),
+			t.glow,
 			Enum.Material.Neon,
-			{ decor = true, transparency = 0.15 }
+			{ decor = true, transparency = 0.35 }
 		)
-		local light = Instance.new("PointLight")
-		light.Color = CRYSTAL
-		light.Range = 50
-		light.Brightness = 2
-		light.Parent = crystal
+	elseif room.kind == "Chamber" then
+		-- A small vault: rune ring under the mini boss, two crystals, one light.
+		local mid = at(floor, cx, 0, cz)
+		A.ring(model, 14, 0.8, 0.22, 28, mid, t.glow, Enum.Material.Neon, { decor = true })
+		for _, s in { -1, 1 } do
+			accent(model, at(floor, cx + s * (w / 2 - 6), 0, cz + s * (d / 2 - 6)), t, floor.theme, seed + s)
+		end
+		local lamp = marker(model, "Lamp", Vector3.new(1, 1, 1), at(floor, cx, h - 6, cz))
+		light(lamp, t.glow, 40, 1.4)
+	else
+		-- Pillars down both long sides, candelabras between them.
+		local pillars = math.max(2, math.floor(d / 26))
+		for i = 0, pillars - 1 do
+			local z = cz - d / 2 + (i + 0.5) * d / pillars
+			for _, s in { -1, 1 } do
+				A.column(model, at(floor, cx + s * (w / 2 - 2.5), 0, z), 1.6, h - 4, t.style)
+			end
+			if i % 2 == 1 then
+				local lit = i % 4 == 1
+				candelabra(model, at(floor, cx - (w / 2 - 7), 0, z + 6), t, lit)
+				candelabra(model, at(floor, cx + (w / 2 - 7), 0, z - 6), t, not lit)
+			end
+		end
+		if room.kind ~= "Start" then
+			for i = 1, math.max(3, math.floor(w * d / 4000)) do
+				local s = if i % 2 == 0 then 1 else -1
+				local z = cz - d / 2 + rng:NextNumber(0.15, 0.85) * d
+				accent(model, at(floor, cx + s * (w / 2 - 10), 0, z), t, floor.theme, seed + i)
+				rubble(model, at(floor, cx - s * (w / 2 - 12), 0, z), t, seed + i * 3)
+			end
+		end
+		if room.kind == "Lair" or room.kind == "Sanctum" then
+			local mid = at(floor, cx, 0, cz + 20)
+			A.ring(model, 28, 1.2, 0.25, 40, mid, t.glow, Enum.Material.Neon, { decor = true })
+			A.ring(model, 19, 0.6, 0.22, 32, mid, t.trim, Enum.Material.Metal, { decor = true })
+			for _, s in { -1, 1 } do
+				local statue = at(floor, cx + s * (w / 2 - 16), 0, cz - d * 0.2)
+				A.part(model, Vector3.new(8, 4, 8), statue * CFrame.new(0, 2, 0), t.stoneDark, t.material)
+				A.part(model, Vector3.new(5, 12, 3.5), statue * CFrame.new(0, 10, 0), t.stone, t.material)
+			end
+			local crystal = A.part(
+				model,
+				Vector3.new(7, 22, 7),
+				at(floor, cx + (if room.kind == "Lair" then 40 else 0), 13, cz + d / 2 - 10)
+					* CFrame.Angles(0, math.rad(45), math.rad(8)),
+				t.glow,
+				Enum.Material.Neon,
+				{ decor = true, transparency = 0.15 }
+			)
+			light(crystal, t.glow, 60, 2)
+		end
 	end
-	marker(model, `Room_{index}`, Vector3.new(w, h, d), center * CFrame.new(0, h / 2, 0))
-	marker(model, `Checkpoint_{index}`, Vector3.new(4, 1, 4), CFrame.new(0, 3, z0 - 8))
+	roomVolume(model, floor, room, index)
 	model.Parent = parent
 end
 
-local function corridor(parent: Instance, index: number, z0: number, length: number, width: number)
+local function buildPassage(
+	parent: Instance,
+	floor: Floor,
+	passage: DungeonDefinitions.Passage,
+	index: number,
+	t: Theme
+)
 	local model = Instance.new("Model")
-	model.Name = `Corridor{index}`
-	local height = 32
-	local center = CFrame.new(0, 0, z0 - length / 2)
-	A.part(model, Vector3.new(width, 2, length), center * CFrame.new(0, -1, 0), FLOOR, Enum.Material.Slate)
-	for _, side in { -1, 1 } do
+	model.Name = `Passage{index}`
+	local cx, cz = passage.center[1], passage.center[2]
+	local w, d = passage.size[1], passage.size[2]
+	local height = DOOR_HEIGHT + 2
+	A.part(model, Vector3.new(w, 2, d), at(floor, cx, -1, cz), t.floor, t.material)
+	if passage.axis == "Z" then
+		for _, s in { -1, 1 } do
+			A.part(
+				model,
+				Vector3.new(WALL, height, d),
+				at(floor, cx + s * (w / 2 + WALL / 2), height / 2, cz),
+				t.stone,
+				t.material
+			)
+		end
 		A.part(
 			model,
-			Vector3.new(3, height, length),
-			center * CFrame.new(side * (width / 2 + 1.5), height / 2, 0),
-			STONE,
-			Enum.Material.Slate
+			Vector3.new(w + WALL * 2, 3, d),
+			at(floor, cx, height + 1.5, cz),
+			t.stoneDark,
+			t.material
+		)
+		if d >= 30 then
+			candelabra(model, at(floor, cx - (w / 2 - 2), 0, cz), t, true)
+		end
+	else
+		for _, s in { -1, 1 } do
+			A.part(
+				model,
+				Vector3.new(w, height, WALL),
+				at(floor, cx, height / 2, cz + s * (d / 2 + WALL / 2)),
+				t.stone,
+				t.material
+			)
+		end
+		A.part(
+			model,
+			Vector3.new(w, 3, d + WALL * 2),
+			at(floor, cx, height + 1.5, cz),
+			t.stoneDark,
+			t.material
 		)
 	end
-	A.part(
+	model.Parent = parent
+end
+
+-- A portal gate at floor-frame (x, z); `facingDeeper` turns it toward +z.
+local function portal(
+	parent: Instance,
+	floor: Floor,
+	point: { number },
+	label: string,
+	name: string,
+	facingDeeper: boolean,
+	t: Theme
+): BasePart
+	local cf = at(floor, point[1], 0, point[2])
+		* (if facingDeeper then CFrame.Angles(0, math.pi, 0) else CFrame.new())
+	local surface = A.portalGate(parent, cf, { label = label, opensIn = "", active = true }, t.style)
+	surface.Name = name
+	return surface
+end
+
+local function buildFloor(parent: Instance, dungeon: DungeonDefinitions.Dungeon, floor: Floor)
+	local t = THEMES[floor.theme] or THEMES.Crystal
+	local model = Instance.new("Model")
+	model.Name = `Floor_{floor.index}`
+	for index, room in floor.rooms do
+		buildRoom(model, floor, room, index, t)
+	end
+	for index, passage in floor.passages do
+		buildPassage(model, floor, passage, index, t)
+	end
+	marker(
 		model,
-		Vector3.new(width + 6, 3, length),
-		center * CFrame.new(0, height + 1.5, 0),
-		STONE_DARK,
-		Enum.Material.Slate
+		`Arrival_{floor.index}`,
+		Vector3.new(4, 1, 4),
+		at(floor, floor.arrival[1], 3, floor.arrival[2])
 	)
-	candelabra(model, CFrame.new(-(width / 2 - 2), 0, z0 - length / 2), true)
-	candelabra(model, CFrame.new(width / 2 - 2, 0, z0 - length / 4), false)
-	A.crystals(model, CFrame.new(width / 2 - 4, 0, z0 - length * 0.7), 6, CRYSTAL)
+	portal(model, floor, floor.leavePortal, "Leave Dungeon", `Leave_{floor.index}`, true, t)
+	if floor.upPortal then
+		portal(model, floor, floor.upPortal, `Up to Floor {floor.index - 1}`, `Up_{floor.index}`, true, t)
+	end
+	if floor.downPortal then
+		portal(
+			model,
+			floor,
+			floor.downPortal,
+			`Down to Floor {floor.index + 1}`,
+			`Down_{floor.index}`,
+			false,
+			t
+		)
+	end
+	local _ = dungeon
 	model.Parent = parent
 end
 
 --[[
-	Builds the template for `dungeon` (unparented Model, PrimaryPart "Origin"
-	at the first room's entry edge, floor top y = 0).
+	Builds every floor of `dungeon` (unparented Model, PrimaryPart "Origin"
+	at floor 1's landing entry, floor top y = 0).
 ]]
 function DungeonBuilder.build(dungeon: DungeonDefinitions.Dungeon): Model
-	opening = dungeon.corridorWidth
 	local model = Instance.new("Model")
 	model.Name = `Dungeon_{dungeon.id}`
 	local origin = marker(model, "Origin", Vector3.new(1, 1, 1), CFrame.new(0, 0.5, 0))
 	model.PrimaryPart = origin
-
-	-- Start landing with the exit portal behind the arrival point.
-	A.part(model, Vector3.new(34, 2, 24), CFrame.new(0, -1, 12), FLOOR, Enum.Material.Slate)
-	for _, side in { -1, 1 } do
-		A.part(model, Vector3.new(3, 24, 24), CFrame.new(side * 18.5, 12, 12), STONE, Enum.Material.Slate)
-	end
-	A.part(model, Vector3.new(40, 24, 3), CFrame.new(0, 12, 25.5), STONE, Enum.Material.Slate)
-	local exit = A.portalGate(
-		model,
-		CFrame.new(0, 0, 16) * CFrame.Angles(0, math.pi, 0),
-		{ label = "Leave Dungeon", opensIn = "", active = true },
-		STYLE
-	)
-	exit.Name = "Exit"
-	marker(model, "Arrival", Vector3.new(4, 1, 4), CFrame.new(0, 3, 4))
-
-	local offsets = DungeonDefinitions.roomOffsets(dungeon)
-	for index, def in dungeon.rooms do
-		local z0 = -offsets[index]
-		room(model, index, def, z0, def.boss ~= nil, index == #dungeon.rooms)
-		if index < #dungeon.rooms then
-			corridor(model, index, z0 - def.size[3], dungeon.corridorLength, dungeon.corridorWidth)
-		end
+	for _, floor in dungeon.floors do
+		buildFloor(model, dungeon, floor)
 	end
 	return model
 end
 
--- Template-frame CFrame of a spawn in room `index` (facing the entry).
-function DungeonBuilder.spawnCFrame(
-	dungeon: DungeonDefinitions.Dungeon,
-	index: number,
-	x: number,
-	z: number
-): CFrame
-	local offsets = DungeonDefinitions.roomOffsets(dungeon)
-	local position = Vector3.new(x, 0, -offsets[index] - z)
+-- Copy-frame CFrame of floor-frame point (x, z) on `floor`, facing the entry.
+function DungeonBuilder.pointCFrame(floor: Floor, x: number, z: number): CFrame
+	local position = Vector3.new(floor.offsetX + x, 0, -z)
 	return CFrame.lookAt(position, position + Vector3.new(0, 0, 1))
+end
+
+-- Copy-frame CFrame of a camp spot (relative to its room's centre).
+function DungeonBuilder.campCFrame(floor: Floor, room: Room, x: number, z: number): CFrame
+	return DungeonBuilder.pointCFrame(floor, room.center[1] + x, room.center[2] + z)
 end
 
 return DungeonBuilder

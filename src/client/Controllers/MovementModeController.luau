@@ -14,15 +14,15 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local NetClient = require(Shared.Net.Client)
+local CombatButtonsLayout = require(Shared.Layout.CombatButtonsLayout)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
-
-local BUTTON_SIZE = 64
 
 local MovementModeController = {}
 
@@ -56,16 +56,15 @@ local function buildTouchButtons()
 	})
 	local buttons: { [string]: { button: TextButton, stroke: UIStroke } } = {}
 	local specs = {
-		{ mode = "Sprint", label = "»\nRUN", offset = 0 },
-		{ mode = "Crouch", label = "⌄\nCROUCH", offset = BUTTON_SIZE + 12 },
+		{ mode = "Sprint", label = "»\nRUN", slot = "sprint" },
+		{ mode = "Crouch", label = "⌄\nCROUCH", slot = "crouch" },
 	}
+	local placed: { { button: TextButton, corner: UICorner, slot: string } } = {}
 	for _, spec in specs do
 		local button = Kit.new("TextButton", {
 			Name = spec.mode,
 			AnchorPoint = Vector2.new(1, 1),
-			-- Above the attack button (right side, clear of the jump button).
-			Position = UDim2.new(1, -120 - spec.offset, 1, -136),
-			Size = UDim2.fromOffset(BUTTON_SIZE, BUTTON_SIZE),
+			-- Above the attack button (CombatButtonsLayout).
 			BackgroundColor3 = Theme.Colors.Glass,
 			BackgroundTransparency = 0.2,
 			Text = spec.label,
@@ -75,7 +74,7 @@ local function buildTouchButtons()
 			AutoButtonColor = false,
 			Parent = gui,
 		})
-		Kit.corner(button, BUTTON_SIZE // 2)
+		table.insert(placed, { button = button, corner = Kit.corner(button, 32), slot = spec.slot })
 		local stroke = Kit.new("UIStroke", {
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			Color = Theme.Colors.Gold,
@@ -97,6 +96,22 @@ local function buildTouchButtons()
 			entry.button.TextColor3 = if active then Theme.Colors.GoldBright else Theme.Colors.Text
 			entry.button.BackgroundColor3 = if active then Theme.Colors.GlassRaised else Theme.Colors.Glass
 		end
+	end
+	local function place()
+		local camera = Workspace.CurrentCamera
+		local viewport = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+		local layout = CombatButtonsLayout.compute(viewport.X, viewport.Y) :: any
+		for _, entry in placed do
+			local slot = layout[entry.slot]
+			entry.button.Position = UDim2.new(1, -slot.right, 1, -slot.bottom)
+			entry.button.Size = UDim2.fromOffset(slot.size, slot.size)
+			entry.corner.CornerRadius = UDim.new(0, slot.size // 2)
+		end
+	end
+	place()
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(place)
 	end
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
 end

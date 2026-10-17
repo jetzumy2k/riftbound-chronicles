@@ -162,22 +162,70 @@ return function(t)
 	t.describe("collections", function()
 		t.it("filters invalid set entries", function()
 			local data = fresh()
-			data.OwnedSkills = { Fireball = true, Bad = "yes", [5] = true }
+			data.Job = "Warrior"
+			data.OwnedSkills =
+				{ ShieldBash = 2, Whirlwind = "yes", [5] = 1, CleavingStrike = 9, Hamstring = 1.5 }
 			data.StoryFlags = { Met = true, [""] = true }
 			ProfileValidator.repair(data)
-			t.eq(data.OwnedSkills.Fireball, true)
-			t.eq(data.OwnedSkills.Bad, nil)
+			t.eq(data.OwnedSkills.ShieldBash, 2)
+			t.eq(data.OwnedSkills.Whirlwind, nil)
 			t.eq(data.OwnedSkills[5], nil)
+			t.eq(data.OwnedSkills.CleavingStrike, nil, "rank above max")
+			t.eq(data.OwnedSkills.Hamstring, nil, "fractional rank")
 			t.eq(data.StoryFlags[""], nil)
 		end)
 
 		t.it("cleans the skill loadout: max 3 regular, no duplicates", function()
 			local data = fresh()
-			data.EquippedSkills = { Regular = { "A", "A", "B", "C", "D" }, Special = 5, Extra = true }
+			data.Job = "Warrior"
+			data.OwnedSkills = { ShieldBash = 1, CleavingStrike = 1, Whirlwind = 1, IronSkin = 1 }
+			data.EquippedSkills = {
+				Regular = { "ShieldBash", "ShieldBash", "Whirlwind", "IronSkin", "CleavingStrike" },
+				Special = 5,
+				Extra = true,
+			}
 			ProfileValidator.repair(data)
-			t.eq(table.concat(data.EquippedSkills.Regular, ","), "A,B")
+			t.eq(table.concat(data.EquippedSkills.Regular, ","), "ShieldBash,Whirlwind")
 			t.eq(data.EquippedSkills.Special, nil)
 			t.eq(data.EquippedSkills.Extra, nil)
+		end)
+
+		t.it("keeps only real skills of the character's own job, with their prerequisites (D-45)", function()
+			local data = fresh()
+			data.Job = "Healer"
+			data.OwnedSkills = {
+				MendingLight = 1,
+				Renewal = 1,
+				Lifewell = 1,
+				RadiantBurst = 1,
+				FlashHeal = 1,
+				DivineGrace = 1,
+				Smite = 1,
+				ShieldBash = 1, -- Warrior skill
+				Nope = 1, -- no such skill
+				WrathOfHeaven = 1, -- requires Halo of Silence (not learned)
+			}
+			data.EquippedSkills =
+				{ Regular = { "ShieldBash", "MendingLight", "DivineGrace" }, Special = "MendingLight" }
+			ProfileValidator.repair(data)
+			t.eq(data.OwnedSkills.MendingLight, 1)
+			t.eq(data.OwnedSkills.DivineGrace, 1)
+			t.eq(data.OwnedSkills.ShieldBash, nil)
+			t.eq(data.OwnedSkills.Nope, nil)
+			t.eq(data.OwnedSkills.WrathOfHeaven, nil, "missing prerequisite")
+			-- Wrong job, and a special in a regular slot, are dropped; a regular
+			-- skill can't sit in the special slot.
+			t.eq(table.concat(data.EquippedSkills.Regular, ","), "MendingLight")
+			t.eq(data.EquippedSkills.Special, nil)
+		end)
+
+		t.it("a character without a job owns no skills", function()
+			local data = fresh()
+			data.OwnedSkills = { ShieldBash = 1 }
+			data.EquippedSkills = { Regular = { "ShieldBash" } }
+			ProfileValidator.repair(data)
+			t.eq(next(data.OwnedSkills), nil)
+			t.eq(#data.EquippedSkills.Regular, 0)
 		end)
 
 		t.it("drops negative/fractional stacks and clamps currency", function()

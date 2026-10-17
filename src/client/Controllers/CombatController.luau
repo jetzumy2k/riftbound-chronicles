@@ -12,9 +12,12 @@
 	  - Hold to attack: holding the button / mouse / key keeps chaining.
 	  - Input buffer: a press slightly early is remembered and fires the
 	    moment the next step is allowed.
+	  - Always attacks the selected target (TargetController). With nothing
+	    selected, the nearest enemy in front becomes the selection, so the
+	    next attacks keep following it. Out of range, the character walks
+	    to it first (any movement input cancels).
 	  - Turns to face the target immediately; melee steps lunge in a little
 	    toward a target that is just out of reach.
-	  - Clicking / tapping an enemy makes it the sticky target.
 
 	Input:
 	  Desktop  left mouse (click an enemy to target it) or F
@@ -32,6 +35,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BasicAttacks = require(Shared.Definitions.BasicAttacks)
+local CombatButtonsLayout = require(Shared.Layout.CombatButtonsLayout)
 local ComboMath = require(Shared.Logic.ComboMath)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local NetClient = require(Shared.Net.Client)
@@ -43,20 +47,19 @@ local Kit = require(UI.Kit)
 local PlayerDataController = require(script.Parent.PlayerDataController)
 local AnimationController = require(script.Parent.AnimationController)
 local CharacterMotionController = require(script.Parent.CharacterMotionController)
+local TargetController = require(script.Parent.TargetController)
 
-local BUTTON_SIZE = 92
-local RAY_LENGTH = 300
 local BUFFER_SECONDS = 0.3
 local LUNGE_SECONDS = 0.14 -- CombatService.LUNGE_SECONDS
 local LUNGE_STOP_DISTANCE = 3.2
-local AUTO_TARGET_CONE = 0.25
+-- With nothing selected, an attack looks this far for an enemy to walk to.
+local SEARCH_STUDS = 30
 
 local CombatController = {}
 
 local combo = ComboMath.new()
 local holding: { [string]: boolean? } = {}
 local queued = false
-local stickyTarget: Model? = nil
 local pips: { Frame } = {}
 local button: TextButton? = nil
 local glyph: TextLabel? = nil
@@ -72,104 +75,6 @@ end
 local function rootOf(model: Model): BasePart?
 	local root = model:FindFirstChild("HumanoidRootPart")
 	return if root and root:IsA("BasePart") then root else nil
-end
-
--- Could this model be attacked by us? (The server decides for real.)
-local function isHostile(model: Model): boolean
-	if model == localCharacter() or model:GetAttribute("Defeated") == true or rootOf(model) == nil then
-		return false
-	end
-	if model:FindFirstChildOfClass("Humanoid") == nil then
-		return false
-	end
-	local player = Players:GetPlayerFromCharacter(model)
-	if player == nil then
-		return true -- NPCs (training dummies, mobs)
-	end
-	local ours = (Players.LocalPlayer :: Player):GetAttribute("Race")
-	local theirs = player:GetAttribute("Race")
-	return ours == nil or theirs == nil or ours ~= theirs
-end
-
-local function candidates(): { Model }
-	local out = {}
-	for _, player in Players:GetPlayers() do
-		if player.Character then
-			table.insert(out, player.Character)
-		end
-	end
-	local npcs = Workspace:FindFirstChild("RC_Npcs")
-	if npcs then
-		for _, child in npcs:GetChildren() do
-			if child:IsA("Model") then
-				table.insert(out, child)
-			end
-		end
-	end
-	return out
-end
-
--- The target we expect the attack to hit: the sticky target if it is still
--- valid and close, otherwise the nearest hostile in front of us.
-local function predictTarget(range: number): Model?
-	local character = localCharacter()
-	local root = character and rootOf(character)
-	if root == nil then
-		return nil
-	end
-	local sticky = stickyTarget
-	if sticky and sticky.Parent and isHostile(sticky) then
-		local stickyRoot = rootOf(sticky)
-		if stickyRoot and (stickyRoot.Position - root.Position).Magnitude <= range + 4 then
-			return sticky
-		end
-	end
-	local best: Model? = nil
-	local bestScore = math.huge
-	local facing = root.CFrame.LookVector
-	for _, model in candidates() do
-		if not isHostile(model) then
-			continue
-		end
-		local offset = (rootOf(model) :: BasePart).Position - root.Position
-		local distance = offset.Magnitude
-		if distance > range + 2 then
-			continue
-		end
-		local flat = Vector3.new(offset.X, 0, offset.Z)
-		local dot = if flat.Magnitude > 0.5 then flat.Unit:Dot(facing) else 1
-		if dot < AUTO_TARGET_CONE then
-			continue
-		end
-		-- Prefer close and in front.
-		local score = distance * (1.6 - dot)
-		if score < bestScore then
-			best, bestScore = model, score
-		end
-	end
-	return best
-end
-
--- Character model under the mouse/tap position, if any (not our own).
-local function modelAt(screenPosition: Vector2): Model?
-	local camera = Workspace.CurrentCamera
-	if camera == nil then
-		return nil
-	end
-	local ray = camera:ViewportPointToRay(screenPosition.X, screenPosition.Y)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local character = localCharacter()
-	params.FilterDescendantsInstances = if character then { character } else {}
-	local result = Workspace:Raycast(ray.Origin, ray.Direction * RAY_LENGTH, params)
-	if result == nil then
-		return nil
-	end
-	local model = result.Instance:FindFirstAncestorOfClass("Model")
-	while model and model:FindFirstChildOfClass("Humanoid") == nil do
-		model = model:FindFirstAncestorOfClass("Model")
-	end
-	return model
 end
 
 -- Short burst of horizontal velocity toward the target (melee steps).
@@ -213,12 +118,34 @@ local function refreshPips()
 	end
 end
 
-local function attack(explicitTarget: Model?)
+local attack: (explicitTarget: Model?) -> ()
+
+function attack(explicitTarget: Model?)
 	local definition = currentAttack()
 	local character = localCharacter()
-	if definition == nil or character == nil or character:GetAttribute("Defeated") == true then
+	if
+		definition == nil
+		or character == nil
+		or character:GetAttribute("Defeated") == true
+		or character:GetAttribute("Stunned") == true
+		or character:GetAttribute("Frozen") == true
+		or TargetController.approaching()
+	then
 		return
 	end
+	-- Always the selected enemy; with none, the nearest one becomes selected.
+	if explicitTarget and TargetController.isHostile(explicitTarget) then
+		TargetController.set(explicitTarget)
+	end
+	local target = TargetController.enemyFor(math.max(definition.range, SEARCH_STUDS))
+	if target and TargetController.distanceTo(target) > definition.range + 1 then
+		-- Walk into range first, then swing.
+		TargetController.approach(target, math.max(definition.range - 1.5, 4), function()
+			attack(target)
+		end)
+		return
+	end
+
 	local now = os.clock()
 	local index = ComboMath.resolve(combo, now, definition.steps)
 	if index == nil then
@@ -232,9 +159,6 @@ local function attack(explicitTarget: Model?)
 	ComboMath.commit(combo, now, definition.steps, index, definition.finisherCooldown)
 	local step = definition.steps[index]
 
-	local target = if explicitTarget and isHostile(explicitTarget)
-		then explicitTarget
-		else predictTarget(definition.range)
 	local targetRoot = if target then rootOf(target) else nil
 	if targetRoot then
 		CharacterMotionController.faceToward(targetRoot.Position, step.recovery + 0.3)
@@ -258,19 +182,30 @@ local function buildTouchButton()
 		ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets,
 		DisplayOrder = 5,
 	})
+	-- Left of Roblox's touch jump button (CombatButtonsLayout).
 	local holder = Kit.new("TextButton", {
 		Name = "Attack",
 		AnchorPoint = Vector2.new(1, 1),
-		-- Left of Roblox's touch jump button.
-		Position = UDim2.new(1, -120, 1, -28),
-		Size = UDim2.fromOffset(BUTTON_SIZE, BUTTON_SIZE),
 		BackgroundColor3 = Theme.Colors.Glass,
 		BackgroundTransparency = 0.15,
 		Text = "",
 		AutoButtonColor = false,
 		Parent = gui,
 	})
-	Kit.corner(holder, BUTTON_SIZE // 2)
+	local corner = Kit.corner(holder, 46)
+	local function place()
+		local camera = Workspace.CurrentCamera
+		local viewport = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+		local slot = CombatButtonsLayout.compute(viewport.X, viewport.Y).attack
+		holder.Position = UDim2.new(1, -slot.right, 1, -slot.bottom)
+		holder.Size = UDim2.fromOffset(slot.size, slot.size)
+		corner.CornerRadius = UDim.new(0, slot.size // 2)
+	end
+	place()
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(place)
+	end
 	Kit.goldStroke(holder, 3)
 
 	local icon = Kit.new("TextLabel", {
@@ -372,7 +307,6 @@ function CombatController:Start()
 		combo = ComboMath.new()
 		holding = {}
 		queued = false
-		stickyTarget = nil
 	end)
 
 	UserInputService.InputBegan:Connect(function(input, processed)
@@ -380,13 +314,15 @@ function CombatController:Start()
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			holding.mouse = true
 			local position = input.Position
-			local clicked = modelAt(Vector2.new(position.X, position.Y))
-			if clicked and isHostile(clicked) then
-				stickyTarget = clicked
+			local clicked = TargetController.pickAt(Vector2.new(position.X, position.Y))
+			if clicked and not TargetController.isHostile(clicked) then
+				-- A realm-mate: select them for heals and wards; no swing.
+				TargetController.set(clicked)
+				return
 			end
-			attack(if clicked and isHostile(clicked) then clicked else nil)
+			holding.mouse = true
+			attack(clicked)
 		elseif input.KeyCode == Enum.KeyCode.F or input.KeyCode == Enum.KeyCode.ButtonR2 then
 			holding[input.KeyCode.Name] = true
 			attack(nil)
@@ -409,6 +345,17 @@ function CombatController:Start()
 			refreshPips()
 		end
 	end)
+end
+
+--------------------------------------------------------------------------------
+-- For SkillBarController (Phase 5).
+--------------------------------------------------------------------------------
+
+-- A skill was cast: the basic-attack chain restarts after `seconds`.
+function CombatController.holdAttacks(seconds: number)
+	combo = ComboMath.new()
+	combo.readyAt = os.clock() + seconds
+	queued = false
 end
 
 return CombatController

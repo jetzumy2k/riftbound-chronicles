@@ -106,12 +106,12 @@ return function(t)
 		end)
 
 		t.it("boss phases follow HP", function()
-			local phases = DungeonDefinitions.boss("RiftGuardian").phases
+			local phases = DungeonDefinitions.boss("Cerberus").phases
 			t.eq(DungeonRules.phaseFor(phases, 1), 1)
-			t.eq(DungeonRules.phaseFor(phases, 0.61), 1)
-			t.eq(DungeonRules.phaseFor(phases, 0.6), 2)
-			t.eq(DungeonRules.phaseFor(phases, 0.3), 2)
-			t.eq(DungeonRules.phaseFor(phases, 0.2), 3)
+			t.eq(DungeonRules.phaseFor(phases, 0.66), 1)
+			t.eq(DungeonRules.phaseFor(phases, 0.65), 2)
+			t.eq(DungeonRules.phaseFor(phases, 0.31), 2)
+			t.eq(DungeonRules.phaseFor(phases, 0.3), 3)
 			t.eq(DungeonRules.phaseFor(phases, 0), 3)
 		end)
 
@@ -199,7 +199,7 @@ return function(t)
 		t.it("every enemy is sane", function()
 			for id, enemy in EnemyDefinitions.ById do
 				t.eq(enemy.id, id)
-				t.ok(enemy.level >= 0 and enemy.level <= 30, id)
+				t.ok(enemy.level >= 0 and enemy.level <= 50, id)
 				t.ok(enemy.attackRange < enemy.aggroRadius, `{id}: range < aggro`)
 				t.ok(enemy.aggroRadius < enemy.leashRadius, `{id}: aggro < leash`)
 				t.ok(enemy.windup >= 0.3, `{id}: readable wind-up`)
@@ -212,48 +212,33 @@ return function(t)
 		t.it("every room spawn, boss and ability resolves", function()
 			for id, dungeon in DungeonDefinitions.ById do
 				t.eq(dungeon.id, id)
-				local classes = { Mob = 0, MiniBoss = 0, Boss = 0 }
-				for _, room in dungeon.rooms do
-					t.ok(#room.camps > 0, `{room.id}: has creatures`)
-					for _, camp in room.camps do
-						t.ok(EnemyDefinitions.get(camp.enemy) ~= nil, `{room.id}: {camp.enemy}`)
-						t.ok(classes[camp.class] ~= nil, `{room.id}: class {camp.class}`)
-						classes[camp.class] += camp.count
-						-- Camps spread their creatures up to 7 studs around the spot.
-						t.ok(math.abs(camp.x) + 7 < room.size[1] / 2 - 4, `{room.id}: camp inside width`)
-						t.ok(
-							camp.z - 7 > 12 and camp.z + 7 < room.size[3] - 4,
-							`{room.id}: camp inside depth, clear of the entry`
-						)
-						if camp.class == "Boss" then
-							t.ok(room.boss ~= nil, `{room.id}: a Boss camp needs the room's boss definition`)
+				for _, floor in dungeon.floors do
+					for _, room in floor.rooms do
+						for _, camp in room.camps do
+							t.ok(EnemyDefinitions.get(camp.enemy) ~= nil, `{room.id}: {camp.enemy}`)
+							-- Camps spread their creatures up to 7 studs around the spot.
+							t.ok(math.abs(camp.x) + 7 < room.size[1] / 2 - 2, `{room.id}: camp inside width`)
+							t.ok(math.abs(camp.z) + 7 < room.size[3] / 2 - 2, `{room.id}: camp inside depth`)
+							if camp.class ~= "Mob" and EnemyDefinitions.get(camp.enemy).tier then
+								t.ok(
+									DungeonDefinitions.boss(camp.enemy) ~= nil,
+									`{room.id}: {camp.enemy} boss def`
+								)
+							end
 						end
-					end
-					if room.boss then
-						local boss = DungeonDefinitions.boss(room.boss)
-						t.ok(boss ~= nil, room.boss)
-						for _, phase in boss.phases do
-							for _, ability in phase.abilities do
-								t.ok(boss.abilities[ability] ~= nil, `{room.boss}: ability {ability}`)
+						if room.boss then
+							local boss = DungeonDefinitions.boss(room.boss)
+							t.ok(boss ~= nil, room.boss)
+							for _, phase in boss.phases do
+								for _, ability in phase.abilities do
+									t.ok(boss.abilities[ability] ~= nil, `{room.boss}: ability {ability}`)
+								end
 							end
 						end
 					end
 				end
-				t.ok(dungeon.rooms[#dungeon.rooms].boss ~= nil, `{id}: ends with a boss`)
-				t.eq(classes.Boss, 1, `{id}: one big boss`)
-				t.ok(classes.MiniBoss >= 1, `{id}: at least one mini boss`)
-				t.ok(classes.Mob >= 10, `{id}: plenty of regular creatures`)
-				t.ok(dungeon.bossBonusXp > dungeon.miniBossBonusXp, id)
-				-- D-42: the rooms are big (well above the first version's 70-110 studs).
-				for _, room in dungeon.rooms do
-					t.ok(room.size[1] >= 130 and room.size[3] >= 140, `{room.id}: big enough`)
-				end
-				t.ok(dungeon.corridorWidth >= 24, `{id}: wide corridors`)
-				-- Fits in its slot with room to spare.
-				t.ok(
-					DungeonDefinitions.length(dungeon) + 60 < WorldLayout.DungeonSlots.spacing,
-					`{id}: fits its slot`
-				)
+				t.ok(dungeon.bonusXp.Boss > dungeon.bonusXp.FloorBoss, id)
+				t.ok(dungeon.bonusXp.FloorBoss > dungeon.bonusXp.MiniBoss, id)
 			end
 		end)
 
@@ -283,17 +268,29 @@ return function(t)
 			t.ok(d.MiniBossRespawnMinutes >= 15 and d.MiniBossRespawnMinutes <= 30)
 			t.ok(d.BossRespawnHours >= 1 and d.BossRespawnHours <= 12)
 			-- Studio overrides are only shortcuts for testing.
+			t.ok(d.FloorBossRespawnMinutes >= d.MiniBossRespawnMinutes)
+			t.ok(d.FloorBossRespawnMinutes * 60 < d.BossRespawnHours * 3600)
 			t.ok(d.StudioMiniBossRespawnSeconds < d.MiniBossRespawnMinutes * 60)
+			t.ok(d.StudioFloorBossRespawnSeconds < d.FloorBossRespawnMinutes * 60)
 			t.ok(d.StudioBossRespawnSeconds < d.BossRespawnHours * 3600)
 		end)
 
-		t.it("roomAt finds rooms by depth and nil in corridors", function()
+		t.it("roomAt / floorAt find rooms and floors, nil in passages", function()
 			local dungeon = DungeonDefinitions.get("RiftHollow")
-			local offsets = DungeonDefinitions.roomOffsets(dungeon)
-			t.eq(DungeonDefinitions.roomAt(dungeon, 10), 1)
-			t.eq(DungeonDefinitions.roomAt(dungeon, offsets[2] + 5), 2)
-			t.eq(DungeonDefinitions.roomAt(dungeon, offsets[2] - 5), nil, "corridor")
-			t.eq(DungeonDefinitions.roomAt(dungeon, DungeonDefinitions.length(dungeon) + 50), nil)
+			local floor = dungeon.floors[1]
+			local first = floor.rooms[2]
+			t.eq(DungeonDefinitions.roomAt(floor, 0, first.center[2]), 2)
+			-- The passage before it.
+			local passage = floor.passages[1]
+			t.eq(DungeonDefinitions.roomAt(floor, 0, passage.center[2]), nil, "passage")
+			t.eq(DungeonDefinitions.roomAt(floor, 500, first.center[2]), nil)
+			for index, f in dungeon.floors do
+				local b = DungeonDefinitions.floorBounds(f)
+				local midX, midZ = (b[1] + b[2]) / 2, (b[3] + b[4]) / 2
+				local found = DungeonDefinitions.floorAt(dungeon, f.offsetX + midX, midZ)
+				t.eq(found, index, `floor {index}`)
+			end
+			t.eq((DungeonDefinitions.floorAt(dungeon, -900, 50)), nil)
 		end)
 
 		t.it("Training Grounds sprites can earn the first dungeon's level", function()

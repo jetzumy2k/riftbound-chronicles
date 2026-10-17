@@ -25,6 +25,9 @@ export type State = {
 	Level: number,
 	Experience: number,
 	XPToNext: number,
+	-- Phase 5 skill tree (D-45): learned skill id -> rank, and the 3 + 1 bar.
+	OwnedSkills: { [string]: number },
+	EquippedSkills: { Regular: { string }, Special: string? },
 }
 
 local PlayerDataController = {
@@ -38,6 +41,8 @@ local state: State = {
 	Level = 0,
 	Experience = 0,
 	XPToNext = 0,
+	OwnedSkills = {},
+	EquippedSkills = { Regular = {} },
 }
 
 function PlayerDataController:Init()
@@ -53,6 +58,8 @@ function PlayerDataController:Init()
 			Level = snapshot.Level,
 			Experience = snapshot.Experience,
 			XPToNext = snapshot.XPToNext,
+			OwnedSkills = snapshot.OwnedSkills or {},
+			EquippedSkills = snapshot.EquippedSkills or { Regular = {} },
 		}
 		log:Debug("snapshot: L%d %d/%d XP", state.Level, state.Experience, state.XPToNext)
 		PlayerDataController.Changed:Fire(state, "snapshot", 0)

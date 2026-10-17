@@ -1,6 +1,7 @@
 --!strict
 --[[
-	ProfileTemplate — player profile schema v1 (docs/DATA_MODEL.md §2).
+	ProfileTemplate — player profile schema v2 (docs/DATA_MODEL.md §2).
+	v2 (Phase 5, D-45): OwnedSkills maps skill id -> rank (skill tree).
 
 	`new()` returns a fresh deep copy. Fields owned by later phases ship as empty
 	defaults so those phases can fill them without a migration.
@@ -10,7 +11,7 @@
 
 local ProfileTemplate = {}
 
-ProfileTemplate.SCHEMA_VERSION = 1
+ProfileTemplate.SCHEMA_VERSION = 2
 
 -- Top-level keys that are allowed to be nil, with their expected type.
 ProfileTemplate.OPTIONAL_KEYS = table.freeze({
@@ -36,7 +37,7 @@ function ProfileTemplate.new(): { [string]: any }
 		Experience = 0,
 		TotalExperience = 0,
 
-		-- Skills (Phase 5)
+		-- Skills (Phase 5, D-45): learned skill id -> rank, and the 3 + 1 bar.
 		OwnedSkills = {},
 		EquippedSkills = { Regular = {} },
 

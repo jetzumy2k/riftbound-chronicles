@@ -24,6 +24,22 @@ return function(t)
 		t.eq(version, Migrations.CURRENT_VERSION + 1)
 	end)
 
+	t.it("v1 -> v2 refunds the old free skill grants (skill tree, D-45)", function()
+		local data = ProfileTemplate.new()
+		data.SchemaVersion = 1
+		data.Job = "Warrior"
+		data.Level = 7
+		data.OwnedSkills = { ShieldBash = true, Whirlwind = true }
+		data.EquippedSkills = { Regular = { "ShieldBash" }, Special = "ChallengersRoar" }
+		local status, result = Migrations.migrate(data)
+		t.eq(status, "ok")
+		t.eq(result.SchemaVersion, 2)
+		t.eq(next(result.OwnedSkills), nil)
+		t.eq(#result.EquippedSkills.Regular, 0)
+		t.eq(result.EquippedSkills.Special, nil)
+		t.eq(result.Level, 7)
+	end)
+
 	t.it("treats a missing/invalid version as v1", function()
 		local status = Migrations.migrate({ SchemaVersion = "x" })
 		t.eq(status, "ok")

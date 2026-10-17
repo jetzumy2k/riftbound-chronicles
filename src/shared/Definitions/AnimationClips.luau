@@ -10,7 +10,7 @@
 	  Idle      job idle (standing still, full body) / weapon hold (moving,
 	            upper body only, so the legs keep walking)
 	  Movement  sprint and crouch loops
-	  Action    attacks and hit reactions
+	  Action    attacks, skills (Phase 5) and hit reactions
 	  Action4   defeat (held)
 
 	Angles are degrees on R15 joints, positions (px/py/pz) are studs. A joint
@@ -1308,6 +1308,555 @@ local Defeat: Clip = {
 }
 
 --------------------------------------------------------------------------------
+-- Skill clips (Phase 5, D-45). Weapon arms at the main keys come from the
+-- solver (tools/anim/generate_arms.py); the rest of each pose is authored.
+--------------------------------------------------------------------------------
+
+-- Warrior: a full spin with the blade held out (Whirlwind, Blade Storm).
+local SPIN_ARMS: Pose = {
+	RightShoulder = { x = 20, z = 95 },
+	RightElbow = { x = 8 },
+	RightWrist = { x = -10 },
+	LeftShoulder = { x = 20, z = -80 },
+	LeftElbow = { x = 20 },
+}
+local SPIN_LEGS: Pose = {
+	LeftHip = { x = 16, z = -10 },
+	LeftKnee = { x = -34 },
+	LeftAnkle = { x = 16 },
+	RightHip = { x = 10, z = 10 },
+	RightKnee = { x = -30 },
+	RightAnkle = { x = 18 },
+}
+local Warrior_SkillSpin: Clip = {
+	duration = 0.9,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.3 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, W) },
+		-- Coil: hips turn right, blade drawn back low.
+		{
+			t = 0.12,
+			ease = "Out",
+			pose = with(SPIN_LEGS, {
+				Root = { py = -0.45, y = -40 },
+				Waist = { y = -30, x = -4 },
+				Neck = { y = 30 },
+				RightShoulder = { x = 30, z = 70, y = -30 },
+				RightElbow = { x = 40 },
+				RightWrist = { x = -20 },
+				LeftShoulder = { x = 30, z = -50 },
+				LeftElbow = { x = 40 },
+			}),
+		},
+		-- Spin: three 120-degree steps, blade out at shoulder height.
+		{
+			t = 0.3,
+			ease = "Linear",
+			pose = with(SPIN_LEGS, with(SPIN_ARMS, { Root = { py = -0.5, y = 80 }, Waist = { y = 10 } })),
+		},
+		{
+			t = 0.45,
+			ease = "Linear",
+			pose = with(SPIN_LEGS, with(SPIN_ARMS, { Root = { py = -0.5, y = -160 }, Waist = { y = 10 } })),
+		},
+		{
+			t = 0.6,
+			ease = "Linear",
+			pose = with(SPIN_LEGS, with(SPIN_ARMS, { Root = { py = -0.45, y = -40 }, Waist = { y = 6 } })),
+		},
+		{ t = 0.9, ease = "InOut", pose = with(READY_LEGS, W) },
+	},
+}
+
+-- Warrior: leap and slam the blade into the ground (Ground Slam, Earthsplitter).
+local Warrior_SkillSlam: Clip = {
+	duration = 1,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.5 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, W) },
+		-- Crouch to jump, blade low behind.
+		{
+			t = 0.16,
+			ease = "Out",
+			pose = {
+				Root = { py = -0.9, x = -14 },
+				Waist = { x = -10 },
+				LeftHip = { x = 56, z = -6 },
+				LeftKnee = { x = -84 },
+				LeftAnkle = { x = 14 },
+				RightHip = { x = 50, z = 6 },
+				RightKnee = { x = -80 },
+				RightAnkle = { x = 16 },
+				RightShoulder = { x = -30, z = 20 },
+				RightElbow = { x = 30 },
+				LeftShoulder = { x = -20, z = -20 },
+				LeftElbow = { x = 30 },
+			},
+		},
+		-- In the air: legs tucked, blade raised overhead in both hands.
+		{
+			t = 0.36,
+			ease = "Out",
+			pose = {
+				Root = { py = 1.3, x = 8 },
+				Waist = { x = 10 },
+				Neck = { x = -6 },
+				LeftHip = { x = 50 },
+				LeftKnee = { x = -70 },
+				LeftAnkle = { x = 10 },
+				RightHip = { x = 30 },
+				RightKnee = { x = -60 },
+				RightAnkle = { x = 20 },
+				RightShoulder = { x = 168, z = 18 },
+				RightElbow = { x = 46 },
+				RightWrist = { x = -36 },
+				LeftShoulder = { x = 160, z = -16 },
+				LeftElbow = { x = 50 },
+			},
+		},
+		-- Impact: land on one knee, blade driven into the ground ahead.
+		{
+			t = 0.5,
+			ease = "In",
+			pose = {
+				Root = { py = -1.3, x = -26, pz = -0.4 },
+				Waist = { x = -18 },
+				Neck = { x = 14 },
+				LeftHip = { x = 80 },
+				LeftKnee = { x = -84 },
+				LeftAnkle = { x = 30 },
+				RightHip = { x = -10, z = 4 },
+				RightKnee = { x = -100 },
+				RightAnkle = { x = 30 },
+				RightShoulder = { x = 70, z = 6 },
+				RightElbow = { x = 4 },
+				RightWrist = { x = -60 },
+				LeftShoulder = { x = 64, z = -10 },
+				LeftElbow = { x = 10 },
+			},
+		},
+		{
+			t = 0.72,
+			ease = "Out",
+			pose = {
+				Root = { py = -1.2, x = -22, pz = -0.4 },
+				Waist = { x = -14 },
+				Neck = { x = 12 },
+				LeftHip = { x = 78 },
+				LeftKnee = { x = -82 },
+				LeftAnkle = { x = 28 },
+				RightHip = { x = -8, z = 4 },
+				RightKnee = { x = -96 },
+				RightAnkle = { x = 30 },
+				RightShoulder = { x = 66, z = 6 },
+				RightElbow = { x = 6 },
+				RightWrist = { x = -56 },
+				LeftShoulder = { x = 60, z = -10 },
+				LeftElbow = { x = 12 },
+			},
+		},
+		{ t = 1, ease = "InOut", pose = with(READY_LEGS, W) },
+	},
+}
+
+-- Warrior: brace behind the blade held across the body (Iron Skin, Bulwark).
+local BRACE: Pose = {
+	Root = { py = -0.55, y = -10 },
+	Waist = { y = 10, x = -4 },
+	Neck = { y = -8 },
+	LeftHip = { x = 22, z = -16 },
+	LeftKnee = { x = -40 },
+	LeftAnkle = { x = 18 },
+	RightHip = { x = -6, z = 16 },
+	RightKnee = { x = -34 },
+	RightAnkle = { x = 40 },
+	RightShoulder = { x = 70, z = 30, y = 40 },
+	RightElbow = { x = 70 },
+	RightWrist = { x = -20 },
+	LeftShoulder = { x = 70, z = -20 },
+	LeftElbow = { x = 60 },
+}
+local Warrior_SkillBrace: Clip = {
+	duration = 0.85,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.3 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, W) },
+		{ t = 0.18, ease = "Out", pose = with(BRACE, { Root = { py = -0.7, y = -10 } }) },
+		{ t = 0.3, ease = "InOut", pose = BRACE },
+		{ t = 0.6, ease = "InOut", pose = with(BRACE, { Root = { py = -0.5, y = -10 } }) },
+		{ t = 0.85, ease = "InOut", pose = with(READY_LEGS, W) },
+	},
+}
+
+-- Warrior: gather, then a roar with the chest out and arms flung wide.
+local Warrior_SkillRoar: Clip = {
+	duration = 0.95,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.36 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, W) },
+		{
+			t = 0.16,
+			ease = "Out",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.4, x = -10 },
+				Waist = { x = -14 },
+				Neck = { x = -10 },
+				RightShoulder = { x = 40, z = 10 },
+				RightElbow = { x = 100 },
+				RightWrist = { x = -20 },
+				LeftShoulder = { x = 40, z = -10 },
+				LeftElbow = { x = 100 },
+			}),
+		},
+		{
+			t = 0.36,
+			ease = "Out",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.3, x = 6 },
+				Waist = { x = 14 },
+				Neck = { x = 22 },
+				RightShoulder = { x = 30, z = 110 },
+				RightElbow = { x = 20 },
+				RightWrist = { x = -30 },
+				LeftShoulder = { x = 30, z = -105 },
+				LeftElbow = { x = 20 },
+			}),
+		},
+		{
+			t = 0.62,
+			ease = "InOut",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.3, x = 4 },
+				Waist = { x = 10 },
+				Neck = { x = 16 },
+				RightShoulder = { x = 26, z = 104 },
+				RightElbow = { x = 24 },
+				RightWrist = { x = -30 },
+				LeftShoulder = { x = 26, z = -100 },
+				LeftElbow = { x = 24 },
+			}),
+		},
+		{ t = 0.95, ease = "InOut", pose = with(READY_LEGS, W) },
+	},
+}
+
+-- Healer: raise the staff overhead in both hands and look up (Renewal, Divine Grace).
+local RAISE: Pose = with(READY_LEGS, {
+	Root = { py = -0.1 },
+	Waist = { x = 8 },
+	Neck = { x = 18 },
+	RightShoulder = { x = 150, z = 8 },
+	RightElbow = { x = 30 },
+	LeftShoulder = { x = 145, z = -10 },
+	LeftElbow = { x = 36 },
+})
+local Healer_SkillRaise: Clip = {
+	duration = 0.95,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.45 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, H) },
+		{
+			t = 0.2,
+			ease = "Out",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.3 },
+				Waist = { x = -6 },
+				RightShoulder = { x = 60, z = 10 },
+				RightElbow = { x = 80 },
+				LeftShoulder = { x = 50, z = -10 },
+				LeftElbow = { x = 80 },
+			}),
+		},
+		{ t = 0.45, ease = "Out", pose = RAISE },
+		{ t = 0.68, ease = "InOut", pose = with(RAISE, { Neck = { x = 14 }, Waist = { x = 6 } }) },
+		{ t = 0.95, ease = "InOut", pose = with(READY_LEGS, H) },
+	},
+}
+
+-- Healer: lift the staff and plant it in the ground, free arm sweeping open
+-- (Radiant Burst, Blessing of Haste, Aegis of Dawn).
+local Healer_SkillPlant: Clip = {
+	duration = 0.9,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.4 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, H) },
+		{
+			t = 0.18,
+			ease = "Out",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.15 },
+				Waist = { x = 6 },
+				Neck = { x = 8 },
+				RightShoulder = { x = 128, z = 14 },
+				RightElbow = { x = 26 },
+				RightWrist = { x = -64 },
+				LeftShoulder = { x = 30, z = -20 },
+				LeftElbow = { x = 60 },
+			}),
+		},
+		{
+			t = 0.4,
+			ease = "In",
+			pose = {
+				Root = { py = -0.6, x = -8 },
+				Waist = { x = -12 },
+				Neck = { x = 6 },
+				LeftHip = { x = 30, z = -6 },
+				LeftKnee = { x = -50 },
+				LeftAnkle = { x = 20 },
+				RightHip = { x = -6, z = 6 },
+				RightKnee = { x = -30 },
+				RightAnkle = { x = 40 },
+				RightShoulder = { x = 44, z = 14 },
+				RightElbow = { x = 46 },
+				LeftShoulder = { x = 40, z = -90 },
+				LeftElbow = { x = 10 },
+				LeftWrist = { x = -30 },
+			},
+		},
+		{
+			t = 0.62,
+			ease = "InOut",
+			pose = {
+				Root = { py = -0.55, x = -6 },
+				Waist = { x = -8 },
+				Neck = { x = 4 },
+				LeftHip = { x = 28, z = -6 },
+				LeftKnee = { x = -46 },
+				LeftAnkle = { x = 18 },
+				RightHip = { x = -6, z = 6 },
+				RightKnee = { x = -28 },
+				RightAnkle = { x = 38 },
+				RightShoulder = { x = 42, z = 14 },
+				RightElbow = { x = 48 },
+				LeftShoulder = { x = 36, z = -86 },
+				LeftElbow = { x = 12 },
+				LeftWrist = { x = -26 },
+			},
+		},
+		{ t = 0.9, ease = "InOut", pose = with(READY_LEGS, H) },
+	},
+}
+
+-- Archer: lean back and loose a volley into the sky (Arrow Rain, Plague Volley).
+local SKY_BODY: Pose = {
+	Root = { py = -0.3, y = 30, x = 6 },
+	Waist = { y = 20, x = 22 },
+	Neck = { y = -24, x = 18 },
+	LeftHip = { x = 20, z = -6 },
+	LeftKnee = { x = -24 },
+	LeftAnkle = { x = 4 },
+	RightHip = { x = -14, z = 6 },
+	RightKnee = { x = -20 },
+	RightAnkle = { x = 30 },
+}
+local Archer_SkillSky: Clip = {
+	duration = 0.95,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.56 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, A) },
+		{
+			t = 0.16,
+			ease = "Out",
+			pose = with(SKY_BODY, {
+				LeftShoulder = { x = 120, z = -50 },
+				RightShoulder = { x = 100, z = -40 },
+				RightElbow = { x = 40 },
+			}),
+		},
+		{
+			t = 0.42,
+			ease = "InOut",
+			pose = with(SKY_BODY, {
+				LeftShoulder = { x = 130, z = -50 },
+				RightShoulder = { x = 60, z = 70 },
+				RightElbow = { x = 140 },
+			}),
+		},
+		{
+			t = 0.5,
+			ease = "Linear",
+			pose = with(SKY_BODY, {
+				LeftShoulder = { x = 130, z = -50 },
+				RightShoulder = { x = 60, z = 70 },
+				RightElbow = { x = 140 },
+			}),
+		},
+		{
+			t = 0.56,
+			ease = "Out",
+			pose = with(SKY_BODY, {
+				LeftShoulder = { x = 130, z = -50 },
+				RightShoulder = { x = 50, z = 100 },
+				RightElbow = { x = 90 },
+			}),
+		},
+		{ t = 0.95, ease = "InOut", pose = with(READY_LEGS, A) },
+	},
+}
+
+-- Archer: a tucked forward roll (Evasive Roll; the dash moves the body).
+local TUCK: Pose = {
+	Waist = { x = -30 },
+	Neck = { x = -30 },
+	LeftHip = { x = 100 },
+	LeftKnee = { x = -120 },
+	LeftAnkle = { x = 20 },
+	RightHip = { x = 100 },
+	RightKnee = { x = -120 },
+	RightAnkle = { x = 20 },
+	LeftShoulder = { x = 70, z = -10 },
+	LeftElbow = { x = 110 },
+	RightShoulder = { x = 70, z = 10 },
+	RightElbow = { x = 110 },
+}
+local Archer_SkillRoll: Clip = {
+	duration = 0.6,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.1 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, A) },
+		{ t = 0.08, ease = "Out", pose = with(TUCK, { Root = { py = -1.2, x = -40 } }) },
+		{ t = 0.2, ease = "Linear", pose = with(TUCK, { Root = { py = -1.8, x = -160 } }) },
+		{ t = 0.32, ease = "Linear", pose = with(TUCK, { Root = { py = -1.6, x = 80 } }) },
+		{
+			t = 0.44,
+			ease = "Out",
+			pose = with(TUCK, { Root = { py = -1, x = 0 }, Waist = { x = -20 }, Neck = { x = -10 } }),
+		},
+		{ t = 0.6, ease = "InOut", pose = with(READY_LEGS, A) },
+	},
+}
+
+-- Mage: hands raised to gather power overhead, then thrust it forward
+-- (Meteor, Blizzard, Arcane Barrier).
+local Mage_SkillChannel: Clip = {
+	duration = 1.1,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.62 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, M) },
+		{
+			t = 0.26,
+			ease = "Out",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.05 },
+				Waist = { x = 4 },
+				Neck = { x = 18 },
+				RightShoulder = { x = 150, z = 14 },
+				RightElbow = { x = 30 },
+				LeftShoulder = { x = 150, z = -14 },
+				LeftElbow = { x = 30 },
+				LeftWrist = { x = -20 },
+			}),
+		},
+		{
+			t = 0.5,
+			ease = "InOut",
+			pose = with(READY_LEGS, {
+				Root = { py = 0.05 },
+				Waist = { x = 6 },
+				Neck = { x = 22 },
+				RightShoulder = { x = 160, z = 10 },
+				RightElbow = { x = 24 },
+				LeftShoulder = { x = 160, z = -10 },
+				LeftElbow = { x = 24 },
+				LeftWrist = { x = -20 },
+			}),
+		},
+		{
+			t = 0.62,
+			ease = "In",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.3, x = -8, pz = -0.3 },
+				Waist = { x = -10 },
+				Neck = { x = 4 },
+				RightShoulder = { x = 100, z = 10 },
+				RightElbow = { x = 6 },
+				LeftShoulder = { x = 96, z = -10 },
+				LeftElbow = { x = 8 },
+				LeftWrist = { x = -50 },
+			}),
+		},
+		{
+			t = 0.82,
+			ease = "Out",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.28, x = -6, pz = -0.3 },
+				Waist = { x = -8 },
+				Neck = { x = 4 },
+				RightShoulder = { x = 96, z = 10 },
+				RightElbow = { x = 8 },
+				LeftShoulder = { x = 92, z = -10 },
+				LeftElbow = { x = 10 },
+				LeftWrist = { x = -46 },
+			}),
+		},
+		{ t = 1.1, ease = "InOut", pose = with(READY_LEGS, M) },
+	},
+}
+
+-- Mage: pull both hands to the chest, then push the spell out
+-- (Flame Wave, Glacial Prison).
+local PUSH: Pose = {
+	Root = { py = -0.35, x = -6, pz = -0.4 },
+	Waist = { x = -10 },
+	Neck = { x = 6 },
+	LeftHip = { x = 34, z = -4 },
+	LeftKnee = { x = -40 },
+	LeftAnkle = { x = 12 },
+	RightHip = { x = -16, z = 4 },
+	RightKnee = { x = -24 },
+	RightAnkle = { x = 46 },
+	RightShoulder = { x = 92, z = 6 },
+	RightElbow = { x = 6 },
+	LeftShoulder = { x = 88, z = -8 },
+	LeftElbow = { x = 8 },
+	LeftWrist = { x = -64 },
+}
+local Mage_SkillPush: Clip = {
+	duration = 0.85,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.34 },
+	keys = {
+		{ t = 0, pose = with(READY_LEGS, M) },
+		{
+			t = 0.16,
+			ease = "Out",
+			pose = with(READY_LEGS, {
+				Root = { py = -0.25, x = 4 },
+				Waist = { x = 6 },
+				RightShoulder = { x = 50, z = 20 },
+				RightElbow = { x = 110 },
+				LeftShoulder = { x = 50, z = -20 },
+				LeftElbow = { x = 110 },
+				LeftWrist = { x = -30 },
+			}),
+		},
+		{ t = 0.34, ease = "In", pose = PUSH },
+		{ t = 0.56, ease = "Out", pose = with(PUSH, { Root = { py = -0.3, x = -4, pz = -0.4 } }) },
+		{ t = 0.85, ease = "InOut", pose = with(READY_LEGS, M) },
+	},
+}
+
+--------------------------------------------------------------------------------
 -- Catalogue
 --------------------------------------------------------------------------------
 
@@ -1324,6 +1873,16 @@ local clips: { [string]: Clip } = {
 	Mage_Attack1 = Mage_Attack1,
 	Mage_Attack2 = Mage_Attack2,
 	Mage_Attack3 = Mage_Attack3,
+	Warrior_SkillSpin = Warrior_SkillSpin,
+	Warrior_SkillSlam = Warrior_SkillSlam,
+	Warrior_SkillBrace = Warrior_SkillBrace,
+	Warrior_SkillRoar = Warrior_SkillRoar,
+	Healer_SkillRaise = Healer_SkillRaise,
+	Healer_SkillPlant = Healer_SkillPlant,
+	Archer_SkillSky = Archer_SkillSky,
+	Archer_SkillRoll = Archer_SkillRoll,
+	Mage_SkillChannel = Mage_SkillChannel,
+	Mage_SkillPush = Mage_SkillPush,
 	Sprint = Sprint,
 	CrouchIdle = CrouchIdle,
 	CrouchWalk = CrouchWalk,

@@ -129,6 +129,46 @@ return table.freeze({
 			LeftShoulder = { x = 7, y = 4, z = -10 },
 			LeftWrist = { x = 5, y = 8, z = 4 },
 		},
+		["Archer.sky.aim.bow"] = {
+			LeftElbow = {},
+			LeftShoulder = { x = 125, y = 2, z = 20 },
+			LeftWrist = { x = -6, y = 27, z = 5 },
+		},
+		["Archer.sky.aim.string"] = {
+			RightElbow = { x = 151 },
+			RightShoulder = { x = 21, z = 87 },
+			RightWrist = { x = 9, y = 12, z = 19 },
+		},
+		["Archer.sky.draw.bow"] = {
+			LeftElbow = {},
+			LeftShoulder = { x = 125, y = 2, z = 20 },
+			LeftWrist = { x = -6, y = 27, z = 5 },
+		},
+		["Archer.sky.draw.string"] = {
+			RightElbow = { x = 151 },
+			RightShoulder = { x = 21, z = 87 },
+			RightWrist = { x = 9, y = 12, z = 19 },
+		},
+		["Archer.sky.nock.bow"] = {
+			LeftElbow = {},
+			LeftShoulder = { x = 125, y = 2, z = 20 },
+			LeftWrist = { x = -6, y = 27, z = 5 },
+		},
+		["Archer.sky.nock.string"] = {
+			RightElbow = { x = 55 },
+			RightShoulder = { x = 105, y = 1, z = -31 },
+			RightWrist = { x = 2, z = -2 },
+		},
+		["Archer.sky.release.bow"] = {
+			LeftElbow = {},
+			LeftShoulder = { x = 125, y = 2, z = 20 },
+			LeftWrist = { x = -6, y = 27, z = 5 },
+		},
+		["Archer.sky.release.string"] = {
+			RightElbow = {},
+			RightShoulder = { x = -15, y = -85, z = 113 },
+			RightWrist = { x = -32, y = -22, z = 23 },
+		},
 		["Healer.a1.follow"] = {
 			RightElbow = { x = 8 },
 			RightShoulder = { x = 82, z = 9 },
@@ -194,6 +234,46 @@ return table.freeze({
 			RightShoulder = { y = -3, z = 8 },
 			RightWrist = { x = 6, y = -9 },
 		},
+		["Healer.plant.hit0"] = {
+			RightElbow = { x = 67 },
+			RightShoulder = { x = 46, y = 7, z = 4 },
+			RightWrist = { x = 1, y = -6, z = -13 },
+		},
+		["Healer.plant.hit1"] = {
+			RightElbow = { x = 62 },
+			RightShoulder = { x = 44, y = 6, z = 3 },
+			RightWrist = { x = 1, y = -6, z = -12 },
+		},
+		["Healer.plant.lift"] = {
+			RightElbow = { x = 24 },
+			RightShoulder = { x = 134, y = 3, z = 6 },
+			RightWrist = { x = -60, y = 2, z = -4 },
+		},
+		["Healer.raise.low"] = {
+			RightElbow = { x = 82 },
+			RightShoulder = { x = 36, y = 4, z = 4 },
+			RightWrist = { x = -11, y = -5, z = -9 },
+		},
+		["Healer.raise.top0"] = {
+			RightElbow = { x = 19 },
+			RightShoulder = { x = 151, y = -4, z = -11 },
+			RightWrist = { x = -61, y = -7, z = -11 },
+		},
+		["Healer.raise.top1"] = {
+			RightElbow = { x = 19 },
+			RightShoulder = { x = 151, y = -4, z = -11 },
+			RightWrist = { x = -61, y = -7, z = -11 },
+		},
+		["Healer.raise.topL0"] = {
+			LeftElbow = { x = 42 },
+			LeftShoulder = { x = 141, y = -7, z = 11 },
+			LeftWrist = { x = 1, y = 1, z = 13 },
+		},
+		["Healer.raise.topL1"] = {
+			LeftElbow = { x = 42 },
+			LeftShoulder = { x = 141, y = -7, z = 11 },
+			LeftWrist = { x = 1, y = 1, z = 13 },
+		},
 		["Mage.a1.cock"] = {
 			RightElbow = { x = 112 },
 			RightShoulder = { x = 94, y = -3, z = 19 },
@@ -229,10 +309,45 @@ return table.freeze({
 			RightShoulder = { x = 48, y = 7, z = -27 },
 			RightWrist = { x = -2, y = -4, z = -14 },
 		},
+		["Mage.channel.thrust0"] = {
+			RightElbow = { x = 13 },
+			RightShoulder = { x = 112, y = -2, z = -11 },
+			RightWrist = { x = -22, y = -5, z = 2 },
+		},
+		["Mage.channel.thrust1"] = {
+			RightElbow = { x = 11 },
+			RightShoulder = { x = 109, y = -2, z = -10 },
+			RightWrist = { x = -21, y = -5, z = 2 },
+		},
+		["Mage.channel.up0"] = {
+			RightElbow = { x = 27 },
+			RightShoulder = { x = 146, y = 2, z = -7 },
+			RightWrist = { x = -9, y = -8, z = 3 },
+		},
+		["Mage.channel.up1"] = {
+			RightElbow = { x = 27 },
+			RightShoulder = { x = 146, y = 2, z = -7 },
+			RightWrist = { x = -9, y = -8, z = 3 },
+		},
 		["Mage.hold"] = {
 			RightElbow = { x = 40 },
 			RightShoulder = { x = 20, y = 3, z = 4 },
 			RightWrist = { x = -5, y = 1, z = -3 },
+		},
+		["Mage.push.hit0"] = {
+			RightElbow = { x = 13 },
+			RightShoulder = { x = 99, y = -1, z = -8 },
+			RightWrist = { x = -19, y = -4, z = 5 },
+		},
+		["Mage.push.hit1"] = {
+			RightElbow = { x = 12 },
+			RightShoulder = { x = 97, y = -1, z = -8 },
+			RightWrist = { x = -19, y = -4, z = 5 },
+		},
+		["Mage.push.pull"] = {
+			RightElbow = { x = 113 },
+			RightShoulder = { x = 23, y = 12, z = 5 },
+			RightWrist = { x = -19, y = -13, z = 7 },
 		},
 		["Warrior.a1.follow"] = {
 			RightElbow = { x = 33 },
@@ -284,10 +399,80 @@ return table.freeze({
 			RightShoulder = { x = 144, y = 5, z = -4 },
 			RightWrist = { x = -7, y = -15, z = -11 },
 		},
+		["Warrior.brace.0"] = {
+			RightElbow = { x = 72 },
+			RightShoulder = { x = 52, y = 47, z = 20 },
+			RightWrist = { x = -28, y = 21, z = -16 },
+		},
+		["Warrior.brace.1"] = {
+			RightElbow = { x = 72 },
+			RightShoulder = { x = 52, y = 47, z = 20 },
+			RightWrist = { x = -28, y = 21, z = -16 },
+		},
+		["Warrior.brace.2"] = {
+			RightElbow = { x = 72 },
+			RightShoulder = { x = 52, y = 47, z = 20 },
+			RightWrist = { x = -28, y = 21, z = -16 },
+		},
 		["Warrior.hold"] = {
 			RightElbow = { x = 59 },
 			RightShoulder = { x = 18, y = 4, z = 2 },
 			RightWrist = { x = -14, y = -6, z = -4 },
+		},
+		["Warrior.roar.gather"] = {
+			RightElbow = { x = 110 },
+			RightShoulder = { x = 24, y = 4, z = 5 },
+			RightWrist = { x = -14, y = -7, z = -5 },
+		},
+		["Warrior.roar.wide0"] = {
+			RightElbow = { x = 18 },
+			RightShoulder = { x = 34, y = 9, z = 107 },
+			RightWrist = { x = -42, y = -23, z = 12 },
+		},
+		["Warrior.roar.wide1"] = {
+			RightElbow = { x = 18 },
+			RightShoulder = { x = 34, y = 9, z = 107 },
+			RightWrist = { x = -42, y = -23, z = 12 },
+		},
+		["Warrior.slam.air"] = {
+			RightElbow = { x = 56 },
+			RightShoulder = { x = 165, y = 7 },
+			RightWrist = { x = -12, y = -8, z = -12 },
+		},
+		["Warrior.slam.crouch"] = {
+			RightElbow = { x = 22 },
+			RightShoulder = { x = -42, y = 37, z = 20 },
+			RightWrist = { x = -17, y = 80, z = -23 },
+		},
+		["Warrior.slam.hit"] = {
+			RightElbow = { x = 3 },
+			RightShoulder = { x = 84, y = -9, z = -15 },
+			RightWrist = { x = -60, y = -14, z = -1 },
+		},
+		["Warrior.slam.settle"] = {
+			RightElbow = { x = 3 },
+			RightShoulder = { x = 76, y = -8, z = -14 },
+			RightWrist = { x = -60, y = -14, z = -2 },
+		},
+		["Warrior.spin.0"] = {
+			RightElbow = {},
+			RightShoulder = { x = 22, y = 2, z = 81 },
+			RightWrist = { x = -38, y = -6, z = -1 },
+		},
+		["Warrior.spin.1"] = {
+			RightElbow = {},
+			RightShoulder = { x = 22, y = 2, z = 81 },
+			RightWrist = { x = -38, y = -6, z = -1 },
+		},
+		["Warrior.spin.2"] = {
+			RightElbow = {},
+			RightShoulder = { x = 22, y = 2, z = 81 },
+			RightWrist = { x = -38, y = -6, z = -1 },
+		},
+		["Warrior.spin.coil"] = {
+			RightElbow = { x = 22 },
+			RightShoulder = { x = 37, y = -56, z = 65 },
+			RightWrist = { x = -44, y = -51, z = 27 },
 		},
 	},
 	Keys = {
@@ -309,6 +494,12 @@ return table.freeze({
 			["0.620"] = { "Archer.a3.aim.bow", "Archer.a3.aim.string" },
 			["0.700"] = { "Archer.a3.release.bow", "Archer.a3.release.string" },
 		},
+		Archer_SkillSky = {
+			["0.160"] = { "Archer.sky.nock.bow", "Archer.sky.nock.string" },
+			["0.420"] = { "Archer.sky.draw.bow", "Archer.sky.draw.string" },
+			["0.500"] = { "Archer.sky.aim.bow", "Archer.sky.aim.string" },
+			["0.560"] = { "Archer.sky.release.bow", "Archer.sky.release.string" },
+		},
 		Healer_Attack1 = {
 			["0.140"] = { "Healer.a1.windup" },
 			["0.270"] = { "Healer.a1.hit" },
@@ -325,6 +516,16 @@ return table.freeze({
 			["0.500"] = { "Healer.a3.slam" },
 			["0.660"] = { "Healer.a3.settle" },
 		},
+		Healer_SkillPlant = {
+			["0.180"] = { "Healer.plant.lift" },
+			["0.400"] = { "Healer.plant.hit0" },
+			["0.620"] = { "Healer.plant.hit1" },
+		},
+		Healer_SkillRaise = {
+			["0.200"] = { "Healer.raise.low" },
+			["0.450"] = { "Healer.raise.top0", "Healer.raise.topL0" },
+			["0.680"] = { "Healer.raise.top1", "Healer.raise.topL1" },
+		},
 		Mage_Attack1 = {
 			["0.100"] = { "Mage.a1.cock" },
 			["0.180"] = { "Mage.a1.flick" },
@@ -334,6 +535,17 @@ return table.freeze({
 			["0.300"] = { "Mage.a3.gather" },
 			["0.560"] = { "Mage.a3.burst" },
 			["0.720"] = { "Mage.a3.follow" },
+		},
+		Mage_SkillChannel = {
+			["0.260"] = { "Mage.channel.up0" },
+			["0.500"] = { "Mage.channel.up1" },
+			["0.620"] = { "Mage.channel.thrust0" },
+			["0.820"] = { "Mage.channel.thrust1" },
+		},
+		Mage_SkillPush = {
+			["0.160"] = { "Mage.push.pull" },
+			["0.340"] = { "Mage.push.hit0" },
+			["0.560"] = { "Mage.push.hit1" },
 		},
 		Warrior_Attack1 = {
 			["0.130"] = { "Warrior.a1.windup" },
@@ -350,6 +562,28 @@ return table.freeze({
 			["0.320"] = { "Warrior.a3.hang" },
 			["0.400"] = { "Warrior.a3.hit" },
 			["0.520"] = { "Warrior.a3.settle" },
+		},
+		Warrior_SkillBrace = {
+			["0.180"] = { "Warrior.brace.0" },
+			["0.300"] = { "Warrior.brace.1" },
+			["0.600"] = { "Warrior.brace.2" },
+		},
+		Warrior_SkillRoar = {
+			["0.160"] = { "Warrior.roar.gather" },
+			["0.360"] = { "Warrior.roar.wide0" },
+			["0.620"] = { "Warrior.roar.wide1" },
+		},
+		Warrior_SkillSlam = {
+			["0.160"] = { "Warrior.slam.crouch" },
+			["0.360"] = { "Warrior.slam.air" },
+			["0.500"] = { "Warrior.slam.hit" },
+			["0.720"] = { "Warrior.slam.settle" },
+		},
+		Warrior_SkillSpin = {
+			["0.120"] = { "Warrior.spin.coil" },
+			["0.300"] = { "Warrior.spin.0" },
+			["0.450"] = { "Warrior.spin.1" },
+			["0.600"] = { "Warrior.spin.2" },
 		},
 	},
 })

@@ -23,8 +23,14 @@
 	    it (Logic/PvPRules.creditVictory: repeat victims, low-level victims,
 	    daily cap); both +1 Participations.
 	  - Leaving the game while combat-tagged by a player counts as a defeat.
-	Field creatures: camps from WorldLayout.WarZones respawn after
-	PvP.CampRespawnSeconds.
+	Field creatures: camps from WorldLayout.WarZones (levels 25-30, D-49)
+	respawn after PvP.CampRespawnSeconds; kill EXP is shared with the
+	killer's party / union nearby (D-32, D-48).
+	Bosses (D-49): five per zone, levels 30-50, with BossService abilities
+	and enrage (Logic/BossBalance tiers); each returns PvP.BossRespawnMinutes
+	after it falls (Studio: StudioBossRespawnSeconds). A billboard over each
+	boss's post shows "awake" or its countdown; phase / enrage warnings go
+	to the players near it. Boss loot is Phase 14.
 	Defeat itself (no loss, back to your own capital) is CombatService +
 	TravelService: nothing here changes items or EXP.
 ]]
@@ -32,6 +38,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local WarZoneTerrain = require(Shared.Logic.WarZoneTerrain)
@@ -49,9 +56,13 @@ local WorldService = require(script.Parent.WorldService)
 local TravelService = require(script.Parent.TravelService)
 local MobService = require(script.Parent.MobService)
 local DungeonService = require(script.Parent.DungeonService)
+local BossService = require(script.Parent.BossService)
+local PartyService = require(script.Parent.PartyService)
 local AntiExploitService = require(script.Parent.AntiExploitService)
 
 local SWEEP_SECONDS = 0.25
+-- Phase / enrage warnings reach players this close to a war-zone boss.
+local BOSS_ANNOUNCE_RADIUS = 160
 
 local log = Log.new("PvPService")
 
@@ -321,6 +332,110 @@ function PvPService:Init()
 	end)
 end
 
+local groupRecipients = MobService.groupRecipients(function(player)
+	return PartyService:GetGroupMembers(player)
+end)
+
+local function bossRespawnSeconds(): number
+	local c = config()
+	return if RunService:IsStudio() then c.StudioBossRespawnSeconds else c.BossRespawnMinutes * 60
+end
+
+-- "12m 05s" / "45s".
+local function formatDuration(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	local m, s = seconds // 60, seconds % 60
+	return if m > 0 then string.format("%dm %02ds", m, s) else `{s}s`
+end
+
+-- One war-zone boss: a camp of one that runs BossService while alive.
+local function spawnBoss(
+	zone: WorldLayout.WarZone,
+	spec: WorldLayout.ZoneBoss,
+	groundAt: (number, number) -> number
+)
+	local c = zone.center
+	local position = Vector3.new(c[1] + spec.x, c[2], c[3] + spec.z)
+	local attached: { [MobService.Mob]: BossService.Boss } = {}
+	local function announce(key: string, params: { [string]: string }?)
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if
+				root
+				and root:IsA("BasePart")
+				and (root.Position - position).Magnitude <= BOSS_ANNOUNCE_RADIUS
+			then
+				NetService:FireClient("Notify", player, { kind = "Warning", textKey = key, params = params })
+			end
+		end
+	end
+	local slots = MobService:SpawnCamp(spec.enemy, position, 1, zone.id, groundAt, {
+		respawnSeconds = bossRespawnSeconds,
+		xpRecipients = groupRecipients,
+		onSpawn = function(mob)
+			local boss = BossService:Attach(mob, spec.enemy, zone.id, announce)
+			if boss then
+				attached[mob] = boss
+			end
+		end,
+	})
+	local slot = slots[1]
+	-- Status billboard over the boss's post.
+	local holder = Instance.new("Part")
+	holder.Name = `BossPost_{spec.enemy}`
+	holder.Anchored = true
+	holder.CanCollide = false
+	holder.CanQuery = false
+	holder.CanTouch = false
+	holder.Transparency = 1
+	holder.Size = Vector3.new(1, 1, 1)
+	holder.Position = Vector3.new(position.X, groundAt(position.X, position.Z) + 30, position.Z)
+	holder.Parent = Workspace
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(300, 34)
+	gui.MaxDistance = 220
+	gui.LightInfluence = 0
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.TextSize = 16
+	label.FontFace = Font.fromEnum(Enum.Font.GothamBold)
+	label.TextColor3 = Color3.fromRGB(255, 226, 160)
+	label.TextStrokeTransparency = 0.25
+	label.Parent = gui
+	gui.Parent = holder
+	MobService.MobDefeated:Connect(function(mob)
+		local boss = attached[mob]
+		if boss then
+			attached[mob] = nil
+			for _, add in boss.adds do
+				MobService:Despawn(add)
+			end
+			BossService:Detach(mob)
+			log:Info(
+				"%s defeated in the %s; returns in %s",
+				mob.enemy.name,
+				zone.name,
+				formatDuration(bossRespawnSeconds())
+			)
+		end
+	end)
+	local displayName = spec.enemy
+	task.spawn(function()
+		while holder.Parent do
+			local mob = slot and slot.mob
+			if mob and not mob.dead then
+				displayName = mob.enemy.name
+				label.Text = `{displayName} · Lv {mob.level}: awake`
+			elseif slot and slot.respawnAt then
+				label.Text = `{displayName}: returns in {formatDuration(slot.respawnAt - os.clock())}`
+			end
+			task.wait(1)
+		end
+	end)
+end
+
 function PvPService:Start()
 	for _, zone in WorldLayout.WarZones :: { [string]: WorldLayout.WarZone } do
 		for race in WorldLayout.Realms :: { [string]: any } do
@@ -350,8 +465,13 @@ function PvPService:Start()
 					respawnSeconds = function()
 						return config().CampRespawnSeconds
 					end,
+					xpRecipients = groupRecipients,
+					level = camp.level,
 				}
 			)
+		end
+		for _, boss in zone.bosses do
+			spawnBoss(zone, boss, groundAt)
 		end
 	end
 	task.spawn(function()

@@ -141,6 +141,74 @@ for key, clip, t, phase in ARCHER_KEYS:
     T(f"Archer.{key}.string", clip, t, "Right", "Archer", hand, None, start)
 
 
+# --- Skill clips (Phase 5, D-45) -------------------------------------------
+def rel(x, y, z):
+    """A hand point in the upper-body frame (turns with Root / Waist)."""
+    def f(body):
+        Rw, waist = frame(body)
+        return waist + Rw @ V(x, y, z)
+    return f
+
+
+def reldir(x, y, z):
+    """A weapon direction in the upper-body frame."""
+    def f(body):
+        Rw, _ = frame(body)
+        return Rw @ V(x, y, z)
+    return f
+
+
+# Warrior: spin, slam, brace, roar.
+T("Warrior.spin.coil", "Warrior_SkillSpin", 0.12, "Right", "Warrior", rel(1.8, 0.4, 0.6), reldir(0.5, -0.2, 0.85), [30, -30, 70, 40, -20])
+for i, t in enumerate((0.3, 0.45, 0.6)):
+    T(f"Warrior.spin.{i}", "Warrior_SkillSpin", t, "Right", "Warrior", rel(2.6, 1.0, -0.4), reldir(1, 0.05, -0.25), [20, 0, 95, 8, -10])
+T("Warrior.slam.crouch", "Warrior_SkillSlam", 0.16, "Right", "Warrior", rel(1.0, -0.6, 1.0), reldir(0, -0.3, 1), [-30, 0, 20, 30, 0])
+T("Warrior.slam.air", "Warrior_SkillSlam", 0.36, "Right", "Warrior", rel(0.6, 3.4, 0.3), reldir(0, -0.45, 0.9), [168, 0, 18, 46, -36])
+T("Warrior.slam.hit", "Warrior_SkillSlam", 0.5, "Right", "Warrior", at(0.4, -1.4, -2.5), V(0, -0.75, -0.66), [70, 0, 6, 4, -60])
+T("Warrior.slam.settle", "Warrior_SkillSlam", 0.72, "Right", "Warrior", at(0.4, -1.3, -2.4), V(0, -0.75, -0.66), [66, 0, 6, 6, -56])
+for i, t in enumerate((0.18, 0.3, 0.6)):
+    T(f"Warrior.brace.{i}", "Warrior_SkillBrace", t, "Right", "Warrior", rel(0.5, 1.0, -1.3), reldir(-1, 0.2, -0.1), [70, 40, 30, 70, -20])
+T("Warrior.roar.gather", "Warrior_SkillRoar", 0.16, "Right", "Warrior", rel(0.9, 0.8, -0.8), reldir(0, 1, 0.2), [40, 0, 10, 100, -20])
+for i, t in enumerate((0.36, 0.62)):
+    T(f"Warrior.roar.wide{i}", "Warrior_SkillRoar", t, "Right", "Warrior", rel(2.5, 2.0, -0.2), reldir(0.5, 0.85, -0.1), [30, 0, 110, 20, -30])
+
+# Healer: raise, plant.
+T("Healer.raise.low", "Healer_SkillRaise", 0.2, "Right", "Healer", rel(0.9, 0.9, -1.0), reldir(0, 1, 0.1), [60, 0, 10, 80, 0])
+for i, t in enumerate((0.45, 0.68)):
+    T(f"Healer.raise.top{i}", "Healer_SkillRaise", t, "Right", "Healer", rel(0.4, 3.3, -0.5), reldir(0, 1, 0), [150, 0, 8, 30, -80])
+    T(f"Healer.raise.topL{i}", "Healer_SkillRaise", t, "Left", "Healer", rel(-0.3, 2.9, -0.5), None, [145, 0, -10, 36, 0])
+T("Healer.plant.lift", "Healer_SkillPlant", 0.18, "Right", "Healer", at(1.2, 3.0, -0.6), V(0, 1, 0.05), [128, 0, 14, 26, -64])
+for i, t in enumerate((0.4, 0.62)):
+    T(f"Healer.plant.hit{i}", "Healer_SkillPlant", t, "Right", "Healer", at(0.8, 0.1, -1.5), V(0, 1, 0), [44, 0, 14, 46, 0])
+
+# Archer: volley into the sky (bow aimed up and ahead).
+SKY_AIM = V(0, 0.8, -0.6) / np.linalg.norm(V(0, 0.8, -0.6))
+
+
+def sky_bow(body):
+    return shoulder(body, "Left") + 2.3 * SKY_AIM
+
+
+for key, t, phase in (("nock", 0.16, "nock"), ("draw", 0.42, "draw"), ("aim", 0.5, "draw"), ("release", 0.56, "release")):
+    T(f"Archer.sky.{key}.bow", "Archer_SkillSky", t, "Left", "Archer", sky_bow, V(0, 0.6, 0.8), [140, 0, -50, 4, 0])
+    if phase == "nock":
+        hand, start = (lambda body: sky_bow(body) + V(0.35, -0.3, 0.4)), [110, 0, -30, 46, 0]
+    elif phase == "draw":
+        hand, start = anchor, [6, -24, 88, 138, 0]
+    else:
+        hand, start = (lambda body: anchor(body) + V(0.45, 0.15, 0.9)), [4, -46, 96, 64, -20]
+    T(f"Archer.sky.{key}.string", "Archer_SkillSky", t, "Right", "Archer", hand, None, start)
+
+# Mage: channel overhead, push.
+for i, t in enumerate((0.26, 0.5)):
+    T(f"Mage.channel.up{i}", "Mage_SkillChannel", t, "Right", "Mage", rel(0.5, 3.2, -0.6), reldir(0, 1, -0.1), [150, 0, 14, 30, 0])
+for i, t in enumerate((0.62, 0.82)):
+    T(f"Mage.channel.thrust{i}", "Mage_SkillChannel", t, "Right", "Mage", at(0.7, 1.4, -2.5), V(0.05, 0.2, -1), [100, 0, 10, 6, -20])
+T("Mage.push.pull", "Mage_SkillPush", 0.16, "Right", "Mage", rel(0.6, 0.9, -0.6), reldir(0, 0.6, -0.8), [50, 0, 20, 110, -10])
+for i, t in enumerate((0.34, 0.56)):
+    T(f"Mage.push.hit{i}", "Mage_SkillPush", t, "Right", "Mage", at(0.6, 0.9, -2.5), V(0, 0.1, -1), [92, 0, 6, 6, -20])
+
+
 def main():
     clips = json.load(open(sys.argv[1]))
     results = {}
@@ -148,7 +216,8 @@ def main():
     for id, clip, t, side, job, hand, direction, start in TARGETS:
         body = body_at(clips, clip, t)
         target = hand(body)
-        aim = direction if direction is not None else V(0, 1, 0)
+        aim = direction(body) if callable(direction) else direction
+        aim = aim if aim is not None else V(0, 1, 0)
         out = solve(side, GRIP[job], body, tuple(target), tuple(aim),
                     wdir=1.0 if direction is not None else 0.0, start=start, quiet=True)
         v = [out[f"{side}Shoulder"][a] for a in "xyz"] + [out[f"{side}Elbow"]["x"]] + [out[f"{side}Wrist"][a] for a in "xyz"]

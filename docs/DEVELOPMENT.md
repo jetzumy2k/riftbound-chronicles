@@ -144,6 +144,48 @@ Each capital has a **Training Grounds** yard in front of the spawn, outside the 
    then walk: the server log shows `[Security] … MovementSuspect (shadow) speed …`, and nothing is corrected yet (Enforce comes before PvP).
 7. **Tamper test** (client command bar): `game.ReplicatedStorage.Remotes.BasicAttack:FireServer(workspace)`. It's rejected (BadArgs, not a Model); there is no remote that can set damage or HP.
 
+## Phase 5 manual tests (skill trees, D-45)
+Studio now uses the real level gates (1 skill point per level). To try the whole tree, set `Skills.StudioUnlockAll = true` and `StudioBonusPoints = 60` in `src/server/Config/Defaults.luau` (Studio only, never live). Server Output: `96 skills in 16 branches ready`. Old test characters are migrated to schema v2 with an empty tree (all points back); skills or ranks above the character's level are removed on join.
+1. **Skill tree:** press **K** or tap **✦ SKILLS (n)** on the right edge. Each class has 4 branch columns x 6 tiers, 24 skills (Warrior: Blademaster / Ironclad / Warlord / Vanguard; Healer: Light / Sanctity / Judgment / Seraph; Archer: Marksman / Venom / Ranger / Windrunner; Mage: Pyromancy / Cryomancy / Arcanist / Stormcaller). Every node and branch has a **drawn icon** (no empty boxes), a rank badge `n/5` (specials, round icons: `n/3`), a padlock + "Lv N" while locked, and **LEARN / +RANK** when a point can be spent. Lines join each skill to the one it needs. The tree scrolls and keeps its scroll position when you learn.
+1b. **Level gates:** at level 0 only the four tier-1 skills can be learned; new skills open at levels 3-6, 8-11, 14-17, 20-23 and 27-30 (one column per level), with a toast naming the new skill on level-up. A skill's rank 2 opens at level 6, rank 3 at 12, rank 4 at 18, rank 5 at 24 (**"Rank n opens at level X"** on the button and as a toast); a toast says when a new rank opens.
+2. **Skill information:** tap a node: the right / lower pane shows type, category, branch, rank, Focus, cooldown, range / radius, target type, every effect with numbers and durations, the **COMBO** rule and what the next rank adds. Hover a skill-bar button (desktop) or press-and-hold it (phone) for the same card.
+3. **Learn and choose your set:** **Learn (1 pt)** / **Rank n (1 pt)** spends a point; **Put in slot 1/2/3** or **Put in Special** builds the bar from *any* learned skills (swaps if already on the bar); **Remove from bar** empties a slot. The bar row at the top of the tree shows the result. **Reset** works only in a safe zone (toast otherwise) and refunds every point. Rejoin: tree, ranks and bar are saved.
+4. **Targeting:** click / tap a creature or player (near misses snap to the closest one); a red dashed ring (enemy) or green ring with gaps (ally) stays under it and a plate over its head shows name, level, HP and statuses with ✕ to clear. **Tab** / DPad-right cycles enemies. Attacks and skills always go to the selected target; with none, the nearest enemy in front becomes selected. Out of range, your character **walks to it and then attacks / casts** (moving yourself cancels).
+5. **Effects to check** (training dummies, then creatures): stun stars, **freeze** ice block, root shards, slow mist, **poison** green bubbles + ☠ numbers each second, **burn** flames + 🔥 numbers, **hardening** stone outline, empower red sparks, haste wind, regen sparkles + green numbers, shield bubble + blue 🛡 numbers when it soaks, mark reticle, silence ∅, taunt "!". Every status also shows as a word chip.
+6. **Skill visuals:** casts show weapon glints / glowing hands / rune circles; projectiles (fireball, frost lance, holy bolt, arrows, homing missiles) fly with trails and light; impacts burst on whoever is hit (explosions, ice shatter, venom splash, light pillars, quake rocks); areas: whirl, nova, quake, arrow / poison rain, blizzard, meteor (red warning circle first), healing dome.
+7. **Combos:** freeze a target (Glacial Prison / Frost Arrow), then Frost Bolt or Shield Bash: big shatter + **"COMBO · SHATTER!"**. Also: Combustion on burning, Toxic Bloom (Entangling Arrow) on poisoned, Judgment / Deadeye on marked, Earthshaker on slowed, Crushing Blow on stunned, Execute below 35% / 30% HP. The skill-bar button glows with **COMBO!** when its combo is ready on your target.
+8. **New skill animations:** Warrior spin (Whirlwind / Blade Storm), leap-slam (Ground Slam / Earthsplitter), brace (Iron Skin / Bulwark), roar; Healer raise and staff-plant; Archer sky volley and dodge roll; Mage channel and push.
+8b. **Rest regen:** after a fight, stop attacking and move 40+ studs from any creature (dungeon, forest, desert, jungle): after 5 s the HP bar shows **"· resting"** and HP fills in about 50 s. Getting hit, attacking or a creature walking close stops it; training dummies don't block it.
+9. **Fair play:** a stunned / frozen player can't attack, cast or walk; silenced can't cast; after a stun / freeze ends a player can't be stunned again for 3 s; crowd control lasts half as long player-vs-player; bosses ignore stun / freeze / root / slow / silence (taunt works).
+10. **Tamper tests** (client command bar), each does nothing:
+   ```lua
+   local R = game.ReplicatedStorage.Remotes
+   R.LearnSkill:FireServer("Fireball")          -- another class's skill (security log: LearnNotAllowed)
+   R.SkillCast:FireServer("Execution")          -- not learned / not on the bar (SkillNotAllowed)
+   R.SetLoadout:FireServer({"CleavingStrike","Whirlwind","Execution","IronSkin"})  -- 4 regular (BadArgs)
+   R.SetLoadout:FireServer({"BladeStorm"})      -- special in a regular slot (InvalidLoadout)
+   for i = 1, 20 do R.LearnSkill:FireServer("CleavingStrike") end  -- one rank per free point, max 5
+   ```
+
+## Dungeon floors, unions and war-zone bosses (D-47, D-48, D-49)
+Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `StudioFloorBossRespawnSeconds` 120, `StudioBossRespawnSeconds` 180; `PvP.StudioBossRespawnSeconds` 120). Server Output: `dungeons ready (Rift Hollow: 4 floors, 37 bosses per realm)`.
+1. **Floor 1:** enter through the capital's Rift Dungeons gate. The tracker shows `Floor 1/4 · The Shattered Crypts (Lv 1-10)` and the room. Walk the landing, 7 rooms and Cerberus's Gate: creatures rise from level 1 to 9 (head plates), a Stoneback Guardian mini boss guards room 4.
+2. **Open, guarded way down (D-50):** rooms hold 4-5 creature packs; Cerberus's Gate has guard packs on the flanks and two elites by the portal. The "Down to Floor 2" portal at the back of the lair works **with Cerberus alive** (any level): its label reads `Floor 2: The Ember Depths (Lv 11-20)`. "Up to Floor 1" there brings you back in front of the lair.
+3. **Floors 2-3:** ember basalt with lava seams (levels 11-20, Chimera at 20), then ice-stone with icicles (21-30, Basilisk at 30).
+4. **Floor 4:** the Hall of Thirty: 15 chambers on each side, one mini boss each (levels 31-40, a billboard over each shows awake / countdown; the tracker counts "Mini bosses awake: n / 30"). Typhon's Sanctum is a separate room at the end of the hall.
+5. **Enrage:** stay in a boss fight past its timer (Mini 3 min, Floor 4 min, Boss 5 min): toast "<name> is ENRAGED!", the tracker's HP bar adds ENRAGED, and its hits become deadly. Leave its room for 6 s: it resets to full HP, calm again.
+6. **Killability check (solo):** a level-30 test character alone can't finish Typhon before the enrage.
+7. **Unions:** with 4 test players (Studio: Test > Clients and Servers), form two parties; leader A taps **+ Union** and picks leader B: B gets "A invites your party to a union" with Accept / Decline. Both panels list "Union · 2/4 parties · n players" with each party; A (union leader, ★) can remove B's party (×); B can **Leave union**. Kill EXP goes to every union member within 150 studs.
+8. **War zones:** Desert and Jungle creatures are level 25-30 (head plates) with many more camps; five bosses per zone stand in the middle band with "awake" billboards (Desert: Ammit 30, Anzu 35, Sphinx 40, Apophis 45, Oasis Colossus 50; Jungle: Camazotz 30, Ahuizotl 35, Mapinguari 40, Jungle Hydra 45, Leviathan 50). Their phase / enrage warnings reach players within 160 studs. A level-10 character can still enter.
+9. **Creature-like bosses (D-50):** Cerberus has three heads that look around on their own and all turn to watch you as you approach; jaws open when it snarls and bites; now and then it sniffs, howls or shakes; it prowls its lair when idle and turns to face you rather than snapping round. Chimera: mane, horns, wings that fold at rest and spread / beat when alert, a snake-headed tail. Basilisk slithers (a wave runs down its body), rears its neck back in the wind-up and strikes down. Ability wind-ups differ: ground circle = roar, cone = sweep, ring = rear-up and slam.
+10. **Tamper tests** (client command bar), each does nothing:
+   ```lua
+   local R = game.ReplicatedStorage.Remotes
+   R.UnionInvite:FireServer("Player2")                       -- a name, not a Player (BadArgs)
+   R.UnionKick:FireServer(game.Players.LocalPlayer)          -- not the union leader / own party
+   R.UnionRespond:FireServer(game.Players:GetPlayers()[2], true)  -- no pending invite
+   ```
+
 ## Animation and movement checks
 Character animation is authored keyframe clips (`src/shared/Definitions/AnimationClips.luau`, PLAN.md D-36) played through each character's Animator by `AnimationController`. Until the clips are published (docs/ASSET_GUIDE.md Part D) they are registered for play-testing in Studio; Output then shows `[Animation] registered … for play-testing`. A warning `animation … is not published and could not be registered` means you are outside Studio and must publish first.
 

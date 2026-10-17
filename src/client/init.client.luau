@@ -27,9 +27,13 @@ local CONTROLLER_ORDER = {
 	"AnimationController",
 	"CharacterMotionController",
 	"MovementModeController",
+	"TargetController",
 	"CombatController",
+	"SkillBarController",
+	"SkillTreeController",
 	"MobVisualController",
 	"CombatFeedbackController",
+	"StatusVfxController",
 	"DungeonController",
 	"PartyController",
 }

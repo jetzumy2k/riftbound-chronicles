@@ -9,6 +9,7 @@
 local roblox = require("@lune/roblox")
 local process = require("@lune/process")
 local serde = require("@lune/serde")
+local stdio = require("@lune/stdio")
 local load = require("../../tests/pure/loader")
 
 -- Minimal Random (not provided by @lune/roblox): deterministic LCG.
@@ -124,22 +125,34 @@ local only = (process.args[1] or "all")
 if only == "all" or only == "capitals" then
 	for race, realm in WorldLayout.Realms do
 		local built = CapitalBuilder.build(root, realm, zones[realm.zone])
-		out[race] = { center = realm.platformCenter, parts = dumpParts(root:FindFirstChild(realm.zone)), count = built.parts }
+		out[race] = {
+			center = realm.platformCenter,
+			parts = dumpParts(root:FindFirstChild(realm.zone)),
+			count = built.parts,
+		}
 	end
 end
 if only == "all" or only == "dungeon" then
 	local dungeon = DungeonDefinitions.get("RiftHollow")
 	local map = DungeonBuilder.build(dungeon)
 	map.Parent = root
-	-- Place every room's enemies as they spawn in a run.
-	for index, room in dungeon.rooms do
-		for _, spawn in room.camps do
-			local creature = CreatureBuilder.build(spawn.enemy, DungeonBuilder.spawnCFrame(dungeon, index, spawn.x, spawn.z))
-			creature.Parent = map
+	-- Place every camp's creatures where they spawn.
+	local creatures = 0
+	for _, floor in dungeon.floors do
+		for _, room in floor.rooms do
+			for _, spawn in room.camps do
+				local creature = CreatureBuilder.build(
+					spawn.enemy,
+					DungeonBuilder.campCFrame(floor, room, spawn.x, spawn.z)
+				)
+				creature.Parent = map
+				creatures += 1
+			end
 		end
 	end
 	local parts = dumpParts(map)
-	out.Dungeon = { center = { 0, 0, -DungeonDefinitions.length(dungeon) / 2 }, parts = parts, count = #parts, half = 400 }
+	stdio.ewrite(`dungeon: {#parts} parts incl. {creatures} creature camps\n`)
+	out.Dungeon = { center = { 700, 0, -800 }, parts = parts, count = #parts, half = 1100 }
 end
 if only == "all" or only == "creatures" then
 	local holder = roblox.Instance.new("Folder")
@@ -158,11 +171,13 @@ if only == "all" or only == "creatures" then
 	end
 	local parts = dumpParts(holder)
 	local single = process.args[2] ~= nil
+	-- Frame one creature by its size (bosses are several times bigger).
+	local size = if single then EnemyDefinitions.ById[process.args[2]].scale else 1
 	out.Creatures = {
-		center = if single then { -24, 2, 0 } else { 12, 0, 0 },
+		center = if single then { -24, 2 * size, 0 } else { 12, 0, 0 },
 		parts = parts,
 		count = #parts,
-		half = if single then 7 else 26,
+		half = if single then 7 * size else 26,
 	}
 end
 print(serde.encode("json", out))

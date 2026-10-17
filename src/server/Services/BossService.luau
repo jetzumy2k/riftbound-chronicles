@@ -13,6 +13,9 @@
 	    the shape (Logic/Telegraph) and resolves hits through
 	    CombatService:NpcStrike. Moving out of the marked area dodges.
 	  - Summon abilities call adds through MobService (owned by the run).
+	  - Enrage (D-47): engaged for enrageSeconds without being defeated, the
+	    boss deals 4x damage, uses abilities twice as often and moves
+	    faster, so a group too small to kill it in time can't win.
 	  - Reset() (wipe or everyone left) returns the boss home at full HP,
 	    removes its adds and restarts at phase 1.
 ]]
@@ -31,6 +34,8 @@ local CombatService = require(script.Parent.CombatService)
 local MobService = require(script.Parent.MobService)
 
 local TICK_SECONDS = 0.2
+-- Damage multiplier once a boss enrages (DungeonDefinitions enrageSeconds).
+local ENRAGE_DAMAGE = 4
 local TELEGRAPH_RADIUS = 200
 
 local log = Log.new("BossService")
@@ -42,10 +47,13 @@ export type Boss = {
 	nextAbilityAt: number,
 	abilityIndex: number,
 	adds: { MobService.Mob },
-	-- Called with a notify text key when a phase begins (run members).
-	announce: (key: string) -> (),
+	-- Called with a notify text key (and params) when a phase begins or the
+	-- boss enrages; the owner tells the players around it.
+	announce: (key: string, params: { [string]: string }?) -> (),
 	owner: string,
 	engaged: boolean,
+	engagedAt: number,
+	enraged: boolean,
 }
 
 local BossService = {}
@@ -88,6 +96,9 @@ local function nearestPlayerRoot(boss: Boss): BasePart?
 	return best
 end
 
+-- How the body moves for each ability shape (MobVisualController).
+local MOVE_OF: { [string]: string } = { Circle = "Roar", Cone = "Sweep", Ring = "Slam" }
+
 local function useAbility(boss: Boss, ability: DungeonDefinitions.Ability, now: number)
 	local mob = boss.mob
 	local root = mob.root
@@ -97,7 +108,7 @@ local function useAbility(boss: Boss, ability: DungeonDefinitions.Ability, now: 
 	if ability.shape == "Summon" then
 		CombatService:Broadcast(
 			mob.model,
-			{ kind = "MobAttack", target = mob.model, windup = ability.telegraph }
+			{ kind = "MobAttack", target = mob.model, windup = ability.telegraph, move = "Roar" }
 		)
 		task.delay(ability.telegraph, function()
 			if mob.dead then
@@ -113,7 +124,7 @@ local function useAbility(boss: Boss, ability: DungeonDefinitions.Ability, now: 
 				local add = MobService:Spawn(
 					ability.enemy or "RiftWolf",
 					at,
-					{ owner = boss.owner, xpRecipients = mob.xpRecipients }
+					{ owner = boss.owner, xpRecipients = mob.xpRecipients, level = ability.level }
 				)
 				if add then
 					add.state = "Chase"
@@ -149,7 +160,10 @@ local function useAbility(boss: Boss, ability: DungeonDefinitions.Ability, now: 
 	end
 	facing = facing.Unit
 
-	CombatService:Broadcast(mob.model, { kind = "MobAttack", target = mob.model, windup = ability.telegraph })
+	CombatService:Broadcast(
+		mob.model,
+		{ kind = "MobAttack", target = mob.model, windup = ability.telegraph, move = MOVE_OF[ability.shape] }
+	)
 	sendTelegraph(boss, {
 		shape = ability.shape,
 		center = center,
@@ -192,11 +206,25 @@ local function stepBoss(boss: Boss, now: number)
 	local engaged = mob.state == "Chase" or mob.state == "Windup"
 	if not engaged then
 		boss.engaged = false
+		if boss.enraged then
+			-- Gave up the fight (leashed home): the rage passes.
+			boss.enraged = false
+			CombatService:SetOutgoingScale(mob.model, 1)
+		end
 		return
 	end
 	if not boss.engaged then
 		boss.engaged = true
+		boss.engagedAt = now
 		boss.nextAbilityAt = now + 3
+	end
+	-- Enrage (D-47): too slow a fight and the boss overwhelms whoever is left.
+	if not boss.enraged and now - boss.engagedAt >= boss.def.enrageSeconds then
+		boss.enraged = true
+		CombatService:SetOutgoingScale(mob.model, ENRAGE_DAMAGE)
+		mob.speedScale = math.max(mob.speedScale, 1.4)
+		boss.announce("boss.enraged", { name = mob.enemy.name })
+		log:Info("%s enraged after %ds", boss.def.id, boss.def.enrageSeconds)
 	end
 
 	local hp = CombatService:HpFraction(mob.model)
@@ -217,7 +245,8 @@ local function stepBoss(boss: Boss, now: number)
 	local phase = boss.def.phases[boss.phase]
 	boss.abilityIndex = boss.abilityIndex % #phase.abilities + 1
 	local ability = boss.def.abilities[phase.abilities[boss.abilityIndex]]
-	boss.nextAbilityAt = now + phase.cooldown + (if ability then ability.telegraph else 0)
+	local cooldown = if boss.enraged then phase.cooldown * 0.5 else phase.cooldown
+	boss.nextAbilityAt = now + cooldown + (if ability then ability.telegraph else 0)
 	if ability then
 		useAbility(boss, ability, now)
 	end
@@ -231,7 +260,7 @@ function BossService:Attach(
 	mob: MobService.Mob,
 	bossId: string,
 	owner: string,
-	announce: (key: string) -> ()
+	announce: (key: string, params: { [string]: string }?) -> ()
 ): Boss?
 	local def = DungeonDefinitions.boss(bossId)
 	if def == nil then
@@ -248,9 +277,13 @@ function BossService:Attach(
 		announce = announce,
 		owner = owner,
 		engaged = false,
+		engagedAt = 0,
+		enraged = false,
 	}
 	bosses[mob] = boss
 	mob.model:SetAttribute("RC_Boss", bossId)
+	-- Bosses shrug off stuns, roots and slows (taunts still work).
+	CombatService:SetControlImmune(mob.model, true)
 	return boss
 end
 
@@ -267,8 +300,10 @@ function BossService:Reset(boss: Boss)
 	boss.phase = 1
 	boss.abilityIndex = 0
 	boss.engaged = false
+	boss.enraged = false
 	boss.nextAbilityAt = math.huge
 	boss.mob.speedScale = 1
+	CombatService:SetOutgoingScale(boss.mob.model, 1)
 	MobService:Reset(boss.mob)
 	CombatService:RestoreNpc(boss.mob.model)
 end

@@ -11,6 +11,13 @@
 	  Defeat  non-graphic: a burst of light and the body fades out
 	          (no blood, no dismemberment — CLAUDE.md §14, §18).
 	  Revive  fade back in (training dummies resetting).
+	  Skill   (Phase 5, D-45) the caster's cast animation and cast effect
+	          (Effects/SkillVfx), a ground warning for delayed areas, the
+	          projectile / area effect timed to the server hit, and an
+	          impact on everyone the server says was hit or healed. Combo
+	          hits get a bigger impact and a "COMBO · NAME" title; poison
+	          and burn ticks show small coloured numbers; damage a shield
+	          absorbed shows as a blue shield number.
 
 	Floating numbers are capped to keep phones smooth.
 ]]
@@ -27,7 +34,11 @@ local MobVisualController = require(script.Parent.MobVisualController)
 local CharacterMotionController = require(script.Parent.CharacterMotionController)
 local CombatVfx = require(script.Parent.Parent.Effects.CombatVfx)
 local CameraShake = require(script.Parent.Parent.Effects.CameraShake)
+local TelegraphVfx = require(script.Parent.Parent.Effects.TelegraphVfx)
+local SkillVfx = require(script.Parent.Parent.Effects.SkillVfx)
+local SkillBarController = require(script.Parent.SkillBarController)
 local BasicAttacks = require(Shared.Definitions.BasicAttacks)
+local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 
 local Players = game:GetService("Players")
 
@@ -57,7 +68,14 @@ local function formatNumber(n: number): string
 	return (string.gsub(formatted, "^,", ""))
 end
 
-local function showNumber(model: Model, amount: number, crit: boolean, heal: boolean)
+local function showNumber(
+	model: Model,
+	amount: number,
+	crit: boolean,
+	heal: boolean,
+	shielded: boolean?,
+	tick: string?
+)
 	local adornee = anchorPart(model)
 	if adornee == nil or activeNumbers >= MAX_NUMBERS then
 		return
@@ -78,13 +96,19 @@ local function showNumber(model: Model, amount: number, crit: boolean, heal: boo
 	label.Size = UDim2.fromScale(1, 1)
 	label.FontFace = Theme.Fonts.DisplayHeavy
 	label.TextScaled = false
-	label.TextSize = if crit then 34 else 24
-	label.Text = if heal
-		then `+{formatNumber(amount)}`
+	label.TextSize = if crit then 34 elseif shielded or tick then 19 else 24
+	label.Text = if shielded
+		then `🛡 {formatNumber(amount)}`
+		elseif tick == "Poison" then `☠ {formatNumber(amount)}`
+		elseif tick == "Burn" then `🔥 {formatNumber(amount)}`
+		elseif heal then `+{formatNumber(amount)}`
 		elseif crit then `✦ {formatNumber(amount)}`
 		else formatNumber(amount)
-	label.TextColor3 = if heal
-		then Color3.fromRGB(140, 255, 170)
+	label.TextColor3 = if shielded
+		then Color3.fromRGB(150, 210, 255)
+		elseif tick == "Poison" then Color3.fromRGB(150, 240, 110)
+		elseif tick == "Burn" then Color3.fromRGB(255, 160, 70)
+		elseif heal then Color3.fromRGB(140, 255, 170)
 		elseif crit then Theme.Colors.GoldBright
 		else Color3.fromRGB(255, 255, 255)
 	label.TextStrokeColor3 = Color3.fromRGB(20, 12, 4)
@@ -114,6 +138,11 @@ local function showNumber(model: Model, amount: number, crit: boolean, heal: boo
 		activeNumbers -= 1
 		billboard:Destroy()
 	end)
+end
+
+-- Damage a shield soaked up (blue, with a shield glyph).
+local function showShielded(model: Model, amount: number)
+	showNumber(model, amount, false, false, true)
 end
 
 local function hitFlash(model: Model)
@@ -210,9 +239,133 @@ local function onAttack(model: Model, action: any, aim: any)
 	end)
 end
 
+-- A skill cast (Phase 5): the caster's animation and cast effect, a ground
+-- warning for delayed areas, then the travel / area effect timed to land
+-- with the server's hit. Impacts play when the server's Damage / Heal
+-- arrives (onDamage / onHeal), so they always match a real hit.
+local function onSkill(model: Model, payload: any)
+	local skill = SkillDefinitions.get(payload.skill)
+	if skill == nil then
+		return
+	end
+	local fx = skill.fx
+	local me = (Players.LocalPlayer :: Player).Character
+	local isSelf = model == me
+	local aim: Model? = if typeof(payload.aim) == "Instance" and payload.aim:IsA("Model")
+		then payload.aim
+		else nil
+	local point: Vector3? = if typeof(payload.point) == "Vector3" then payload.point else nil
+	local clip = skill.clip
+	if clip and (not isSelf or AnimationController.actionElapsed(model, clip) == nil) then
+		AnimationController.play(model, clip)
+	end
+	if isSelf then
+		SkillBarController.onOwnCast(skill.id)
+	elseif aim then
+		local root = aim:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") then
+			CharacterMotionController.faceToward(root.Position, 0.6)
+		end
+	end
+	local elapsed = if clip then AnimationController.actionElapsed(model, clip) or 0 else 0
+	local clipHit = math.max(0, SkillDefinitions.hitTime(skill) - (skill.delay or 0) - elapsed)
+	local landIn = clipHit + (skill.delay or 0)
+	SkillVfx.cast(fx, model, clipHit + 0.15)
+
+	local waves = skill.waves or 1
+	local gap = skill.waveGap or 0
+	if skill.target == "EnemyArea" or skill.target == "SelfArea" then
+		local function center(): Vector3
+			if point then
+				return SkillVfx.groundAt(point)
+			end
+			return SkillVfx.groundAt(model:GetPivot().Position)
+		end
+		if skill.delay then
+			-- Everyone nearby sees where it will land.
+			TelegraphVfx.show({
+				shape = "Circle",
+				center = center(),
+				radius = skill.radius or 8,
+				duration = landIn,
+			})
+		end
+		if fx.area then
+			-- Falling effects start a little early so they land with the hit.
+			local early = if fx.area == "Rain" or fx.area == "Blizzard" or fx.area == "Meteor" then 0.3 else 0
+			for wave = 1, waves do
+				task.delay(math.max(0, landIn - early + (wave - 1) * gap), function()
+					if model.Parent then
+						SkillVfx.area(fx, center(), skill.radius or 8, wave, model)
+					end
+				end)
+			end
+		elseif fx.travel ~= "None" and aim then
+			-- Multi Shot: a fan of arrows at the target.
+			task.delay(clipHit, function()
+				if model.Parent and aim.Parent then
+					SkillVfx.projectile(fx, model, aim, 160)
+				end
+			end)
+		end
+		return
+	end
+
+	if fx.travel ~= "None" and aim then
+		for wave = 1, waves do
+			task.delay(clipHit + (wave - 1) * gap, function()
+				if model.Parent and aim.Parent then
+					SkillVfx.projectile(fx, model, aim, skill.projectileSpeed or 140)
+				end
+			end)
+		end
+	elseif fx.impact == "Slash" or fx.cast == "Weapon" then
+		task.delay(clipHit, function()
+			if model.Parent then
+				CombatVfx.slashArc(model, if skill.tier % 2 == 0 then "Rising" else "Across")
+			end
+		end)
+	end
+	-- Buffs, shields and cleanses have no Damage / Heal event: show their
+	-- impact on whoever receives them at the Hit frame.
+	local damages = SkillDefinitions.effect(skill, "Damage") ~= nil
+		or SkillDefinitions.effect(skill, "Heal") ~= nil
+	if not damages then
+		task.delay(landIn, function()
+			local receiver = aim or model
+			if receiver.Parent then
+				SkillVfx.impact(fx, receiver)
+			end
+		end)
+	end
+end
+
 local function onDamage(model: Model, payload: any)
 	local heavy = payload.heavy == true
 	local crit = payload.crit == true
+	local tick = if type(payload.tick) == "string" then payload.tick else nil
+	if tick then
+		-- Poison / burn: a small coloured number, no flinch.
+		showNumber(model, payload.amount or 0, false, false, false, tick)
+		return
+	end
+	local skill = SkillDefinitions.get(payload.skill)
+	local combo = if type(payload.combo) == "string" then payload.combo else nil
+	if skill then
+		SkillVfx.impact(skill.fx, model, combo ~= nil)
+	end
+	if combo then
+		SkillVfx.comboTitle(model, combo)
+		heavy = true
+	end
+	local absorbed = if type(payload.absorbed) == "number" then payload.absorbed else 0
+	if absorbed > 0 then
+		showShielded(model, absorbed)
+	end
+	if (payload.amount or 0) <= 0 and absorbed > 0 then
+		hitFlash(model)
+		return -- fully absorbed: no number, no flinch
+	end
 	showNumber(model, payload.amount or 0, crit, false)
 	hitFlash(model)
 	-- React, unless the target is mid-attack (never cancel its swing).
@@ -251,12 +404,22 @@ local function onEvent(payload: any)
 	local kind = payload.kind
 	if kind == "Attack" then
 		onAttack(model, payload.action, payload.aim)
+	elseif kind == "Skill" then
+		onSkill(model, payload)
 	elseif kind == "MobAttack" then
-		MobVisualController.attack(model, if type(payload.windup) == "number" then payload.windup else 0.5)
+		MobVisualController.attack(
+			model,
+			if type(payload.windup) == "number" then payload.windup else 0.5,
+			payload.move
+		)
 	elseif kind == "Damage" then
 		onDamage(model, payload)
 	elseif kind == "Heal" then
 		showNumber(model, payload.amount or 0, payload.crit == true, true)
+		local skill = SkillDefinitions.get(payload.skill)
+		if skill then
+			SkillVfx.impact(skill.fx, model)
+		end
 	elseif kind == "Defeat" then
 		if MobVisualController.isCreature(model) then
 			MobVisualController.defeat(model)

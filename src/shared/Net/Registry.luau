@@ -25,11 +25,19 @@ local Constants = require(script.Parent.Parent.Constants)
 
 local FacePresets = require(script.Parent.Parent.Definitions.FacePresets)
 local AnimationClips = require(script.Parent.Parent.Definitions.AnimationClips)
+local SkillDefinitions = require(script.Parent.Parent.Definitions.SkillDefinitions)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
 local MAX_LEVEL = Constants.Level.Max
 
 local ACTION_NAMES = table.clone(AnimationClips.NAMES)
+local SKILL_IDS = table.clone(SkillDefinitions.IDS)
+local COMBO_NAMES = {}
+for _, skill in SkillDefinitions.All do
+	if skill.combo and table.find(COMBO_NAMES, skill.combo.name) == nil then
+		table.insert(COMBO_NAMES, skill.combo.name)
+	end
+end
 
 return function(S: any)
 	return {
@@ -73,6 +81,62 @@ return function(S: any)
 			args = { S.optional(S.instance("Model")) },
 			rate = { capacity = 6, refillPerSecond = 4 },
 			states = { "ProfileLoaded", "HasJob", "Alive" },
+		},
+
+		-- Skill cast intent (Phase 5). The skill must be equipped; the optional
+		-- target is a hint (enemy or ally model; dashes are moved by the client
+		-- within a server-granted speed allowance). The server checks ownership, job, loadout,
+		-- level, cooldown, Focus, stun, target, range and line of sight, and
+		-- computes every effect (SECURITY_MODEL T-02/T-03/T-04).
+		SkillCast = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(SKILL_IDS), S.optional(S.instance("Model")) },
+			rate = { capacity = 4, refillPerSecond = 2.5 },
+			states = { "ProfileLoaded", "HasJob", "Alive" },
+		},
+
+		-- Skill tree (D-45): spend one skill point to learn a skill or raise
+		-- its rank. The server checks job, level, prerequisite, points, rank.
+		LearnSkill = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(SKILL_IDS) },
+			rate = { capacity = 6, refillPerSecond = 2 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+
+		-- Skill tree reset (D-45): refunds every point. Only in a safe zone
+		-- and out of combat (checked by the server).
+		ResetSkills = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = {},
+			rate = { capacity = 2, refillPerSecond = 0.1 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+
+		-- Skill loadout intent (Phase 5): up to 3 regular skills + 1 special.
+		-- A 4th regular entry fails the schema; SkillService checks the rest.
+		SetLoadout = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.array(S.enum(SKILL_IDS), 3), S.optional(S.enum(SKILL_IDS)) },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+
+		-- Server -> caster: a skill's authoritative cooldown after a cast
+		-- attempt (0 = ready; corrects the client's predicted sweep).
+		SkillCooldown = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					skill = S.enum(SKILL_IDS),
+					readyIn = S.number(0, 600),
+				}),
+			},
 		},
 
 		-- Movement mode intent (Walk / Sprint / Crouch). The server decides the
@@ -127,6 +191,70 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 		},
 
+		-- Unions (D-48): party leaders join up to Party.UnionMaxParties
+		-- parties. Intents only; PartyService checks leadership, race, size
+		-- and pending invites. Targets are the other parties' leaders.
+		UnionInvite = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.instance("Player") },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		UnionRespond = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.instance("Player"), S.boolean() },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		UnionLeave = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = {},
+			rate = { capacity = 3, refillPerSecond = 0.3 },
+			states = { "ProfileLoaded" },
+		},
+		UnionKick = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.instance("Player") },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- Server -> union members: the parties in the union (display only).
+		UnionState = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					parties = S.array(
+						S.struct({
+							leaderUserId = S.int(),
+							size = S.int(1, 8),
+							-- The union leader's party.
+							leads = S.boolean(),
+						}),
+						8
+					),
+					maxParties = S.int(1, 8),
+				}),
+			},
+		},
+
+		-- Server -> invited party leader: join a union (Accept / Decline).
+		UnionInvited = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					fromUserId = S.int(),
+					expiresIn = S.number(0, 300),
+				}),
+			},
+		},
+
 		-- Server -> party members: the party roster (display only).
 		PartyState = {
 			direction = "ServerToClient",
@@ -166,12 +294,18 @@ return function(S: any)
 				S.struct({
 					phase = S.enum({ "None", "Inside" }),
 					dungeon = S.optional(S.string(60)),
+					-- D-47: floors.
+					floor = S.optional(S.int(1, 10)),
+					floorCount = S.optional(S.int(1, 10)),
+					floorName = S.optional(S.string(60)),
+					levels = S.optional(S.string(20)),
+					enraged = S.optional(S.boolean()),
 					room = S.optional(S.string(60)),
 					objective = S.optional(S.string(120)),
 					progress = S.optional(S.int(0, 1000)),
 					goal = S.optional(S.int(0, 1000)),
-					roomIndex = S.optional(S.int(1, 50)),
-					roomCount = S.optional(S.int(1, 50)),
+					roomIndex = S.optional(S.int(1, 64)),
+					roomCount = S.optional(S.int(1, 64)),
 					members = S.optional(S.int(0, 50)),
 					maxMembers = S.optional(S.int(1, 50)),
 					countdown = S.optional(S.number(0, 600)),
@@ -214,7 +348,9 @@ return function(S: any)
 				S.struct({
 					-- "Attack": `target` is the attacker, `action` the AnimationClips
 					-- clip every nearby client plays on it, `step` its combo step.
-					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive", "Attack", "MobAttack" }),
+					-- "Skill": `target` is the caster, `skill` the skill, `aim` its
+					-- target and `point` where an area skill lands.
+					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive", "Attack", "MobAttack", "Skill" }),
 					target = S.instance("Model"),
 					amount = S.optional(S.int(0)),
 					crit = S.optional(S.boolean()),
@@ -227,6 +363,16 @@ return function(S: any)
 					heavy = S.optional(S.boolean()),
 					-- "MobAttack": seconds until the creature's hit lands.
 					windup = S.optional(S.number(0, 5)),
+					-- "MobAttack": the motion's shape (MobVisualController).
+					move = S.optional(S.enum({ "Strike", "Slam", "Roar", "Sweep" })),
+					skill = S.optional(S.enum(SKILL_IDS)),
+					point = S.optional(S.vector3()),
+					-- "Damage": how much a shield soaked up, and the skill combo
+					-- that powered the hit ("Shatter", "Execute", ...).
+					absorbed = S.optional(S.int(0)),
+					combo = S.optional(S.enum(COMBO_NAMES)),
+					-- "Damage" / "Heal" over time (poison, burn, regen ticks).
+					tick = S.optional(S.enum({ "Poison", "Burn", "Regen" })),
 				}),
 			},
 		},
@@ -259,6 +405,12 @@ return function(S: any)
 					Level = S.int(0, MAX_LEVEL),
 					Experience = S.int(0),
 					XPToNext = S.int(0),
+					-- Phase 5 (D-45): learned skill id -> rank, and the 3 + 1 bar.
+					OwnedSkills = S.map(S.enum(SKILL_IDS), S.int(1, 5), 64),
+					EquippedSkills = S.struct({
+						Regular = S.array(S.enum(SKILL_IDS), 3),
+						Special = S.optional(S.enum(SKILL_IDS)),
+					}),
 				}),
 			},
 		},

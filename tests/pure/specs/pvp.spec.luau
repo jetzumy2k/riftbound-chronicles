@@ -419,11 +419,11 @@ return function(t)
 			end
 		end)
 
-		t.it("the jungle creatures are fair level 10+ field creatures", function()
+		t.it("the jungle creatures are level 25-30 field creatures (D-49)", function()
 			for _, id in { "JungleProwler", "Thorncrawler", "MossbackGolem" } do
 				local enemy = EnemyDefinitions.get(id)
 				t.ok(enemy ~= nil, id)
-				t.ok(enemy.level >= Defaults.PvP.MinLevel and enemy.level <= 15, `{id} level`)
+				t.ok(enemy.level >= 25 and enemy.level <= 30, `{id} level`)
 			end
 		end)
 	end)

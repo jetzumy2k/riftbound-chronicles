@@ -38,7 +38,9 @@ local specs = {
 	{ "animation_clips", require("./specs/animation_clips.spec") },
 	{ "combo_math", require("./specs/combo_math.spec") },
 	{ "dungeon", require("./specs/dungeon.spec") },
+	{ "dungeon_floors", require("./specs/dungeon_floors.spec") },
 	{ "pvp", require("./specs/pvp.spec") },
+	{ "skills", require("./specs/skills.spec") },
 	{ "structure", require("./specs/structure.spec") },
 }
 

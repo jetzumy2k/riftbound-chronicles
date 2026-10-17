@@ -222,6 +222,13 @@ local function render(state: any)
 	local where = if state.roomIndex
 		then `Room {state.roomIndex}/{state.roomCount or 1} · {state.room}`
 		else (state.room or "")
+	-- D-47: floor line, e.g. "Floor 2/4 · The Ember Depths (Lv 11-20)".
+	if state.floor then
+		where = `Floor {state.floor}/{state.floorCount or 4} · {state.floorName or ""}`
+			.. (if state.levels then ` (Lv {state.levels})` else "")
+			.. "\n"
+			.. where
+	end
 	w.room.Text = where
 	-- Boss timers: "awake" or the countdown until they return.
 	local lines = {}
@@ -233,14 +240,14 @@ local function render(state: any)
 	end
 	w.objective.Text = table.concat(lines, "\n")
 	w.detail.Text = if state.leader and (state.members or 1) > 1
-		then `Party {state.members} · Leader: {state.leader}`
+		then `Group {state.members} · Leader: {state.leader}`
 		else "Solo"
 	w.bossFrame.Visible = state.bossName ~= nil and state.bossHp ~= nil
 	if w.bossFrame.Visible then
 		w.bossName.Text = state.bossName
 		local hp = math.clamp(state.bossHp, 0, 1)
 		w.bossFill.Size = UDim2.fromScale(hp, 1)
-		w.bossText.Text = `{math.ceil(hp * 100)}%`
+		w.bossText.Text = `{math.ceil(hp * 100)}%{if state.enraged then "  ENRAGED" else ""}`
 	end
 end
 

@@ -202,15 +202,20 @@ C→S means an intent from client to server. S→C means a push from server to c
 | `SelectJob` | C→S | Job enum. One-shot; `ProfileLoaded` + `HasRace` states | 4 |
 | `BasicAttack` | C→S | optional target Model; server auto-targets otherwise. States: ProfileLoaded, HasJob, Alive | 6 |
 | `UseConsumable` | C→S | ItemDefId (stackable allowlist) | 6/7 |
-| `CombatEvent` | S→C | {kind: Damage/Heal/Defeat/Revive/Attack/MobAttack, target Model, amount?, crit?, action?, step?, aim?, source?, heavy?, windup?} to players within `Combat.RelevanceRadius` | 6, 9 |
-| `EquipSkill` | C→S | SkillId, SlotIndex (1–4) | 5 |
-| `SkillCast` | C→S | SkillId, TargetRef? / AimDirection (unit vector) | 5 |
+| `CombatEvent` | S→C | {kind: Damage/Heal/Defeat/Revive/Attack/MobAttack/Skill, target Model, amount?, crit?, action?, step?, aim?, source?, heavy?, windup?, skill?, point?, absorbed?} to players within `Combat.RelevanceRadius` | 6, 9, 5 |
+| `SetLoadout` | C→S | {SkillId ≤ 3} regular, SkillId? special (whole loadout; replaces the planned per-slot `EquipSkill`) | 5 |
+| `SkillCast` | C→S | SkillId, optional target Model hint (dashes are moved by the client inside a server speed allowance, so no aim vector is sent) | 5 |
+| `SkillCooldown` | S→C | {skill, readyIn} to the caster after every cast attempt | 5 |
+| `LearnSkill` | C→S | SkillId: spend 1 skill point to learn it / raise its rank (D-45) | 5 |
+| `ResetSkills` | C→S | — (refund the tree; safe zone, out of combat) | 5 |
 | `EquipItem` / `UnequipItem` | C→S | ItemGuid / SlotEnum | 7 |
 | `LockItem` / `SalvageItems` | C→S | ItemGuid / {ItemGuid ≤ 20} | 7 |
 | `EnhanceItem` | C→S | ItemGuid, StoneType enum | 8 |
 | *(gate ProximityPrompt)* | server-side `Triggered` | Enter the dungeon (leader / solo) or rejoin your party's run: no remote; the server checks race, reach, level, leadership and party size | 9 |
 | `DungeonLeave` | C→S | — (no arguments; the server looks up the caller's own run) | 9 |
 | `PartyInvite` / `PartyKick` | C→S | Player (leader only; same realm, size, expiry checked server-side) | 9 (D-39) |
+| `UnionInvite` / `UnionRespond` / `UnionLeave` / `UnionKick` | C→S | Player (+ accept); party leaders only, union leader for invite / kick; same realm, ≤ 4 parties, expiry | 9 (D-48) |
+| `UnionState` / `UnionInvited` | S→C | union roster (party leaders and sizes) / invite popup (display only) | 9 (D-48) |
 | `PartyRespond` / `PartyLeave` | C→S | inviting Player + accept bool / — | 9 (D-39) |
 | `PartyState` / `PartyInvited` | S→C | {members [{userId, leader}], maxMembers} / {fromUserId, expiresIn} | 9 (D-39) |
 | `DungeonState` | S→C | {phase None/Inside, dungeon, room, roomIndex, roomCount, miniBoss, bossStatus, members, leader, bossName, bossHp} (D-42) | 9 |

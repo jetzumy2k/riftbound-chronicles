@@ -286,7 +286,18 @@ end
 -- heightmap (Logic/WarZoneTerrain).
 --------------------------------------------------------------------------------
 
-export type Camp = { enemy: string, x: number, z: number, count: number }
+export type Camp = {
+	enemy: string,
+	x: number,
+	z: number,
+	count: number,
+	-- Creature level for this camp (D-49: war zones 25-30).
+	level: number?,
+}
+
+-- A war-zone boss (D-49): one creature with BossService abilities at a
+-- point relative to the zone centre.
+export type ZoneBoss = { enemy: string, x: number, z: number }
 
 -- A realm's base in a war zone: arrival point, return portal and safe zone,
 -- relative to the zone centre. Only that realm can pass its barrier.
@@ -305,6 +316,7 @@ export type WarZone = {
 	terrain: string,
 	atmosphere: string,
 	camps: { Camp },
+	bosses: { ZoneBoss },
 }
 
 WorldLayout.WarZones = table.freeze({
@@ -321,17 +333,37 @@ WorldLayout.WarZones = table.freeze({
 		terrain = "Desert",
 		atmosphere = "Desert",
 		camps = table.freeze({
-			-- Around the oasis: contested PvP ground with creatures (and, in
-			-- Phase 14, the PvP boss).
-			table.freeze({ enemy = "SandScarab", x = 48, z = 22, count = 2 }),
-			table.freeze({ enemy = "DuneStalker", x = -48, z = -22, count = 3 }),
-			table.freeze({ enemy = "DuneStalker", x = 190, z = 120, count = 3 }),
-			table.freeze({ enemy = "DuneStalker", x = -210, z = -150, count = 3 }),
-			table.freeze({ enemy = "DuneStalker", x = 60, z = -260, count = 3 }),
-			table.freeze({ enemy = "SandScarab", x = -240, z = 170, count = 2 }),
-			table.freeze({ enemy = "SandScarab", x = 260, z = -120, count = 2 }),
-			table.freeze({ enemy = "SandstoneGolem", x = -180, z = 270, count = 1 }),
-			table.freeze({ enemy = "SandstoneGolem", x = 300, z = 260, count = 1 }),
+			-- Around the oasis: contested PvP ground with creatures.
+			table.freeze({ enemy = "SandScarab", x = 48, z = 22, count = 2, level = 25 }),
+			table.freeze({ enemy = "DuneStalker", x = -48, z = -22, count = 3, level = 26 }),
+			table.freeze({ enemy = "DuneStalker", x = 190, z = 120, count = 3, level = 27 }),
+			table.freeze({ enemy = "DuneStalker", x = -210, z = -150, count = 3, level = 28 }),
+			table.freeze({ enemy = "DuneStalker", x = 60, z = -260, count = 3, level = 29 }),
+			table.freeze({ enemy = "SandScarab", x = -240, z = 170, count = 2, level = 25 }),
+			table.freeze({ enemy = "SandScarab", x = 260, z = -120, count = 2, level = 26 }),
+			table.freeze({ enemy = "SandstoneGolem", x = -180, z = 270, count = 1, level = 29 }),
+			table.freeze({ enemy = "SandstoneGolem", x = 300, z = 260, count = 1, level = 29 }),
+			-- D-49: more creature camps across the zone (levels 25-30).
+			table.freeze({ enemy = "DuneStalker", x = 365, z = -370, count = 3, level = 25 }),
+			table.freeze({ enemy = "SandScarab", x = -145, z = -370, count = 2, level = 26 }),
+			table.freeze({ enemy = "DuneStalker", x = -370, z = 365, count = 3, level = 27 }),
+			table.freeze({ enemy = "SandstoneGolem", x = 125, z = 365, count = 1, level = 30 }),
+			table.freeze({ enemy = "DuneStalker", x = -355, z = -370, count = 3, level = 29 }),
+			table.freeze({ enemy = "SandScarab", x = 185, z = -370, count = 2, level = 30 }),
+			table.freeze({ enemy = "DuneStalker", x = 110, z = -115, count = 3, level = 25 }),
+			table.freeze({ enemy = "SandstoneGolem", x = -85, z = -235, count = 1, level = 30 }),
+			table.freeze({ enemy = "DuneStalker", x = 365, z = -220, count = 3, level = 27 }),
+			table.freeze({ enemy = "SandScarab", x = -115, z = 110, count = 2, level = 28 }),
+			table.freeze({ enemy = "DuneStalker", x = -370, z = 215, count = 3, level = 29 }),
+			table.freeze({ enemy = "SandstoneGolem", x = 200, z = -235, count = 1, level = 30 }),
+		}),
+		-- D-49: five bosses in the contested middle band (levels 30-50).
+		bosses = table.freeze({
+			table.freeze({ enemy = "Ammit", x = -205, z = 5 }),
+			table.freeze({ enemy = "Anzu", x = 365, z = 50 }),
+			table.freeze({ enemy = "Sphinx", x = -10, z = 200 }),
+			table.freeze({ enemy = "Apophis", x = -370, z = -190 }),
+			table.freeze({ enemy = "OasisColossus", x = -370, z = -10 }),
 		}),
 	} :: WarZone),
 	JungleRift = table.freeze({
@@ -348,18 +380,39 @@ WorldLayout.WarZones = table.freeze({
 		atmosphere = "Jungle",
 		camps = table.freeze({
 			-- The plaza around the waterfall pool: contested ground.
-			table.freeze({ enemy = "Thorncrawler", x = 10, z = -50, count = 2 }),
-			table.freeze({ enemy = "JungleProwler", x = 10, z = 50, count = 3 }),
+			table.freeze({ enemy = "Thorncrawler", x = 10, z = -50, count = 2, level = 25 }),
+			table.freeze({ enemy = "JungleProwler", x = 10, z = 50, count = 3, level = 26 }),
 			-- The jungle floor between the camps and the river.
-			table.freeze({ enemy = "JungleProwler", x = 200, z = -90, count = 3 }),
-			table.freeze({ enemy = "JungleProwler", x = -200, z = 200, count = 3 }),
-			table.freeze({ enemy = "Thorncrawler", x = 300, z = 100, count = 2 }),
-			table.freeze({ enemy = "Thorncrawler", x = -120, z = -200, count = 2 }),
-			table.freeze({ enemy = "MossbackGolem", x = 320, z = -200, count = 1 }),
-			table.freeze({ enemy = "MossbackGolem", x = 120, z = 170, count = 1 }),
+			table.freeze({ enemy = "JungleProwler", x = 200, z = -90, count = 3, level = 27 }),
+			table.freeze({ enemy = "JungleProwler", x = -200, z = 200, count = 3, level = 28 }),
+			table.freeze({ enemy = "Thorncrawler", x = 300, z = 100, count = 2, level = 29 }),
+			table.freeze({ enemy = "Thorncrawler", x = -120, z = -200, count = 2, level = 25 }),
+			table.freeze({ enemy = "MossbackGolem", x = 320, z = -200, count = 1, level = 29 }),
+			table.freeze({ enemy = "MossbackGolem", x = 120, z = 170, count = 1, level = 29 }),
 			-- Up on the highland above the falls.
-			table.freeze({ enemy = "JungleProwler", x = -250, z = -60, count = 3 }),
-			table.freeze({ enemy = "MossbackGolem", x = -280, z = 70, count = 1 }),
+			table.freeze({ enemy = "JungleProwler", x = -250, z = -60, count = 3, level = 28 }),
+			table.freeze({ enemy = "MossbackGolem", x = -280, z = 70, count = 1, level = 29 }),
+			-- D-49: more creature camps across the zone (levels 25-30).
+			table.freeze({ enemy = "JungleProwler", x = 365, z = 365, count = 3, level = 25 }),
+			table.freeze({ enemy = "Thorncrawler", x = -250, z = -370, count = 2, level = 26 }),
+			table.freeze({ enemy = "JungleProwler", x = 185, z = -370, count = 3, level = 27 }),
+			table.freeze({ enemy = "MossbackGolem", x = 155, z = 365, count = 1, level = 30 }),
+			table.freeze({ enemy = "JungleProwler", x = -280, z = 365, count = 3, level = 29 }),
+			table.freeze({ enemy = "Thorncrawler", x = 365, z = -370, count = 2, level = 30 }),
+			table.freeze({ enemy = "JungleProwler", x = -130, z = 335, count = 3, level = 25 }),
+			table.freeze({ enemy = "MossbackGolem", x = 260, z = 245, count = 1, level = 30 }),
+			table.freeze({ enemy = "JungleProwler", x = -130, z = 20, count = 3, level = 27 }),
+			table.freeze({ enemy = "Thorncrawler", x = 170, z = 50, count = 2, level = 28 }),
+			table.freeze({ enemy = "JungleProwler", x = -370, z = -325, count = 3, level = 29 }),
+			table.freeze({ enemy = "MossbackGolem", x = -250, z = -235, count = 1, level = 30 }),
+		}),
+		-- D-49: five bosses in the contested middle band (levels 30-50).
+		bosses = table.freeze({
+			table.freeze({ enemy = "Camazotz", x = -40, z = 200 }),
+			table.freeze({ enemy = "Ahuizotl", x = 80, z = -190 }),
+			table.freeze({ enemy = "Mapinguari", x = 350, z = -55 }),
+			table.freeze({ enemy = "JungleHydra", x = -370, z = 200 }),
+			table.freeze({ enemy = "Leviathan", x = -370, z = -190 }),
 		}),
 	} :: WarZone),
 })

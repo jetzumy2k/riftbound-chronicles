@@ -15,6 +15,7 @@
 	  PowerArrow    bright, heavier arrow that bursts on arrival
 
 	Also: castCircle (finisher wind-ups), chargeGlow (bow draw), targetRing.
+	Skill effects live in Effects/SkillVfx (Phase 5).
 
 	Every effect is a few anchored, non-colliding, non-queryable parts in a
 	client-only folder, cleaned up with Debris. Colour comes from the actor's

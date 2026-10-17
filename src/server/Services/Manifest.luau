@@ -24,6 +24,7 @@ return {
 	{ name = "AntiExploitService", layer = 4 },
 	{ name = "CombatService", layer = 4 },
 	{ name = "MovementService", layer = 4 },
+	{ name = "SkillService", layer = 4 },
 	{ name = "WorldService", layer = 5 },
 	{ name = "TravelService", layer = 5 },
 	{ name = "MobService", layer = 5 },

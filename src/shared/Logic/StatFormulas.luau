@@ -62,4 +62,28 @@ function StatFormulas.forLevel(level: number): BaseStats
 	})
 end
 
+-- Creatures may be above the player cap (floor-4 mini bosses, the level-40
+-- Dungeon Boss, war-zone bosses up to 50): same formula, levels 0..CREATURE_MAX.
+StatFormulas.CREATURE_MAX = 60
+
+function StatFormulas.forCreatureLevel(level: number): BaseStats
+	assert(
+		type(level) == "number" and level % 1 == 0 and level >= 0 and level <= StatFormulas.CREATURE_MAX,
+		`invalid creature level {tostring(level)}`
+	)
+	if level <= Constants.Level.Max then
+		return StatFormulas.forLevel(level)
+	end
+	local critDamagePct = BASE.CritDamagePct + GROWTH.CritDamagePctPerLevel * level
+	return table.freeze({
+		MaxHP = BASE.HP * GROWTH.HPMultiplier ^ level,
+		Attack = BASE.Attack * GROWTH.AttackMultiplier ^ level,
+		Defense = BASE.Defense * GROWTH.DefenseMultiplier ^ level,
+		CritDamagePct = critDamagePct,
+		HPRegenPct = BASE.HPRegenPct + GROWTH.HPRegenPctPerLevel * level,
+		CritChancePct = CRIT.BaseChancePct,
+		CritMultiplier = CRIT.BaseMultiplier + critDamagePct / 100,
+	})
+end
+
 return table.freeze(StatFormulas)

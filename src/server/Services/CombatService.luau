@@ -25,9 +25,23 @@
 	    as a defeat credited to the last attacker; otherwise they are a
 	    rate-limited reset.
 	  - Regen: CLAUDE.md §5 HP regen out of combat (D-04), fast regen in safe
-	    zones (proposed D-29), Focus regen (D-23).
+	    zones (D-29), rest regen out of combat with no creature near (D-46),
+	    Focus regen (D-23).
+	  - Statuses (Phase 5 skills, D-45) live on the entity with an expiry:
+	    Stun, Freeze, Root, Slow, Silence, Mark, Weaken, Poison, Burn, Guard,
+	    Harden, Empower, Haste, Regen, Shield, Taunt. Attack is scaled by
+	    Empower / Weaken, Defense by Harden; every hit goes through Mark /
+	    Guard / Shield (Logic/SkillRules.incoming). Poison / Burn damage and
+	    Regen healing tick once a second, credited to whoever applied them.
+	    A player can't be stunned / frozen again for
+	    `Skills.ControlImmunitySeconds` after one ends. Statuses are mirrored
+	    as model attributes for display (Stunned, Frozen, ..., Shield) and
+	    announced with `StatusChanged` so MovementService / MobService apply
+	    the speed effects. SkillService calls the skill primitives (Strike,
+	    HealTarget, ApplyStatus, ...).
 ]]
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -37,6 +51,7 @@ local BasicAttacks = require(Shared.Definitions.BasicAttacks)
 local CombatMath = require(Shared.Logic.CombatMath)
 local PvPRules = require(Shared.Logic.PvPRules)
 local ComboMath = require(Shared.Logic.ComboMath)
+local SkillRules = require(Shared.Logic.SkillRules)
 local StatFormulas = require(Shared.Logic.StatFormulas)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
@@ -52,6 +67,8 @@ local SafeZoneService = require(script.Parent.SafeZoneService)
 local AntiExploitService = require(script.Parent.AntiExploitService)
 
 local TICK_SECONDS = 0.25
+-- Rest regen re-checks (creature distance) this often per player.
+local REST_CHECK_SECONDS = 0.5
 local AUTO_TARGET_CONE = 0.35 -- dot product: ~70 degrees either side of facing
 local NPC_RESET_SECONDS = 3
 -- Combo presses may arrive this much early (network jitter).
@@ -62,6 +79,56 @@ local MELEE_FOLLOW_STUDS = 6
 local LUNGE_SECONDS = 0.14
 
 local log = Log.new("CombatService")
+
+-- Client status visuals find every combat entity by this tag.
+local COMBATANT_TAG = "RC_Combatant"
+
+export type StatusKind =
+	"Stun"
+	| "Freeze"
+	| "Root"
+	| "Slow"
+	| "Silence"
+	| "Mark"
+	| "Weaken"
+	| "Poison"
+	| "Burn"
+	| "Guard"
+	| "Harden"
+	| "Empower"
+	| "Haste"
+	| "Regen"
+	| "Shield"
+	| "Taunt"
+--[[
+	`value`: percent (Slow / Mark / Weaken / Guard / Harden / Empower /
+	Haste) or Shield points left. `perTick`: damage (Poison / Burn) or
+	healing (Regen) every second. `source`: who applied it (credit, taunt).
+]]
+export type Status =
+	{ untilAt: number, value: number, source: Entity?, perTick: number?, nextTickAt: number? }
+
+-- Display attribute per status (boolean, except Shield which carries points).
+local STATUS_ATTRIBUTES: { [string]: string } = {
+	Stun = "Stunned",
+	Freeze = "Frozen",
+	Root = "Rooted",
+	Slow = "Slowed",
+	Silence = "Silenced",
+	Mark = "Marked",
+	Weaken = "Weakened",
+	Poison = "Poisoned",
+	Burn = "Burning",
+	Guard = "Guarded",
+	Harden = "Hardened",
+	Empower = "Empowered",
+	Haste = "Hasted",
+	Regen = "Regenerating",
+	Shield = "Shield",
+	Taunt = "Taunted",
+}
+-- Over-time statuses tick once per second.
+local TICK_SECONDS_DOT = 1
 
 export type Entity = {
 	kind: "Player" | "Npc",
@@ -92,6 +159,18 @@ export type Entity = {
 	-- out of combat. Mobs turn both off; MobService owns their lifecycle.
 	autoRevive: boolean,
 	regen: boolean,
+	statuses: { [string]: Status },
+	-- Bosses: immune to crowd control (Taunt still works).
+	controlImmune: boolean,
+	-- Players: no new stun / freeze until then (after one ends).
+	ccImmuneUntil: number,
+	-- Basic attacks wait until then (a skill's cast animation is playing).
+	attackLockUntil: number,
+	-- NPCs: outgoing damage multiplier (an enraged boss, D-47).
+	outgoingScale: number,
+	-- Players: resting (out of combat, no creature near) and when to re-check.
+	resting: boolean,
+	restCheckAt: number,
 }
 
 local CombatService = {
@@ -101,6 +180,8 @@ local CombatService = {
 	RespawnRequested = Signal.new(),
 	-- (entity, lastAttacker) a player left the game while combat-tagged.
 	CombatLogged = Signal.new(),
+	-- (entity) a status started or ended (speed effects). Handlers must not yield.
+	StatusChanged = Signal.new(),
 }
 
 -- "Why didn't my attack do anything?" toasts: at most this often per player.
@@ -141,6 +222,40 @@ local function inCombat(entity: Entity): boolean
 	return now() - entity.lastHostileAt < combatConfig().TagSeconds
 end
 
+-- The live status of `kind` (nil once expired).
+local function statusOf(entity: Entity, kind: string): Status?
+	local status = entity.statuses[kind]
+	if status and now() < status.untilAt then
+		return status
+	end
+	return nil
+end
+
+-- Stunned or frozen: can't move, attack or cast.
+local function isStunned(entity: Entity): boolean
+	return statusOf(entity, "Stun") ~= nil or statusOf(entity, "Freeze") ~= nil
+end
+
+local function isSilenced(entity: Entity): boolean
+	return statusOf(entity, "Silence") ~= nil
+end
+
+local function statusValue(entity: Entity, kind: string): number
+	local status = statusOf(entity, kind)
+	return if status then status.value else 0
+end
+
+-- Attack after Empower / Weaken; Defense after Harden.
+local function attackOf(entity: Entity, base: number): number
+	return base
+		* entity.outgoingScale
+		* SkillRules.attackScale(statusValue(entity, "Empower"), statusValue(entity, "Weaken"))
+end
+
+local function defenseOf(entity: Entity): number
+	return entity.defense * (1 + statusValue(entity, "Harden") / 100)
+end
+
 --------------------------------------------------------------------------------
 -- Mirroring (display only)
 --------------------------------------------------------------------------------
@@ -166,6 +281,21 @@ local function mirror(entity: Entity)
 	if humanoid.Parent then
 		humanoid.MaxHealth = math.max(entity.maxHp, 1)
 		humanoid.Health = if entity.defeated then 1 else math.clamp(entity.hp, 1, entity.maxHp)
+	end
+end
+
+-- Status attributes (display only; the server reads `entity.statuses`).
+local function mirrorStatuses(entity: Entity)
+	local model = entity.model
+	for kind, attribute in STATUS_ATTRIBUTES do
+		local status = statusOf(entity, kind)
+		local value: any = nil
+		if status then
+			value = if kind == "Shield" then math.floor(status.value) else true
+		end
+		if model:GetAttribute(attribute) ~= value then
+			model:SetAttribute(attribute, value)
+		end
 	end
 end
 
@@ -236,7 +366,23 @@ local function newEntity(
 		contributors = {},
 		autoRevive = true,
 		regen = true,
+		statuses = {},
+		controlImmune = false,
+		ccImmuneUntil = -math.huge,
+		attackLockUntil = -math.huge,
+		outgoingScale = 1,
+		resting = false,
+		restCheckAt = 0,
 	}
+end
+
+local function clearStatuses(entity: Entity)
+	if next(entity.statuses) == nil then
+		return
+	end
+	entity.statuses = {}
+	mirrorStatuses(entity)
+	CombatService.StatusChanged:Fire(entity)
 end
 
 --------------------------------------------------------------------------------
@@ -258,6 +404,7 @@ function defeat(entity: Entity, attacker: Entity?, reason: string)
 	end
 	entity.defeated = true
 	entity.hp = 0
+	clearStatuses(entity)
 	entity.humanoid.WalkSpeed = 0
 	entity.humanoid.JumpPower = 0
 	mirror(entity)
@@ -281,8 +428,33 @@ function defeat(entity: Entity, attacker: Entity?, reason: string)
 	end
 end
 
-local function applyDamage(target: Entity, amount: number, attacker: Entity, crit: boolean, heavy: boolean?)
+export type HitExtra = { skill: string?, combo: string?, tick: string? }
+
+local function applyDamage(
+	target: Entity,
+	rawAmount: number,
+	attacker: Entity,
+	crit: boolean,
+	heavy: boolean?,
+	extra: HitExtra?
+)
 	local t = now()
+	-- Mark / Guard scale the hit, then a shield soaks up what it can.
+	local mark, guard, shield =
+		statusOf(target, "Mark"), statusOf(target, "Guard"), statusOf(target, "Shield")
+	local amount, absorbed, shieldLeft = SkillRules.incoming(
+		rawAmount,
+		if mark then mark.value else 0,
+		if guard then guard.value else 0,
+		if shield then shield.value else 0
+	)
+	if shield then
+		shield.value = shieldLeft
+		if shieldLeft <= 0 then
+			target.statuses["Shield"] = nil
+		end
+		mirrorStatuses(target)
+	end
 	target.hp = math.max(0, target.hp - amount)
 	target.lastHostileAt = t
 	target.lastAttacker = attacker
@@ -299,6 +471,10 @@ local function applyDamage(target: Entity, amount: number, attacker: Entity, cri
 		crit = crit,
 		source = attacker.model,
 		heavy = heavy == true,
+		absorbed = if absorbed > 0 then absorbed else nil,
+		skill = extra and extra.skill,
+		combo = extra and extra.combo,
+		tick = extra and extra.tick,
 	})
 	if target.hp <= 0 then
 		defeat(target, attacker, "Combat")
@@ -371,6 +547,7 @@ local function setupCharacter(player: Player, character: Model)
 	entitiesByModel[character] = entity
 	entityByPlayer[player] = entity
 	mirror(entity)
+	CollectionService:AddTag(character, COMBATANT_TAG)
 
 	humanoid.Died:Connect(function()
 		onUnsanctionedDeath(entity)
@@ -455,6 +632,67 @@ local function notifyBlocked(player: Player, reason: string)
 	NetService:FireClient("Notify", player, { kind = "Warning", textKey = key })
 end
 
+-- Attack stat and level a player uses against `target`. D-16: against a
+-- lower-level player you fight at min(own, theirs + gap).
+local function offense(attacker: Entity, target: Entity): (number, number)
+	if attacker.kind == "Player" and target.kind == "Player" then
+		local pvp = ConfigurationService:Get("PvP")
+		local effective = PvPRules.normalizedLevel(attacker.level, target.level, pvp.LevelGap)
+		if effective < attacker.level then
+			return StatFormulas.forLevel(effective).Attack, effective
+		end
+	end
+	return attacker.attack, attacker.level
+end
+
+-- Computes and applies one hit (callers have validated it).
+local function strike(
+	attacker: Entity,
+	target: Entity,
+	coefficient: number,
+	critBonusPct: number,
+	heavy: boolean?,
+	extra: HitExtra?
+)
+	local attackStat, attackLevel = offense(attacker, target)
+	local amount, crit = CombatMath.damage({
+		attack = attackOf(attacker, attackStat),
+		attackerLevel = attackLevel,
+		coefficient = coefficient,
+		critChancePct = attacker.critChancePct + critBonusPct,
+		critMultiplier = attacker.critMultiplier,
+		roll = rng:NextNumber(),
+		defense = defenseOf(target),
+	}, combatConfig())
+	applyDamage(target, amount, attacker, crit, heavy, extra)
+end
+
+-- Damage one over-time tick deals (no crit), worked out when it is applied.
+local function tickDamage(attacker: Entity, target: Entity, coefficient: number): number
+	local attackStat, attackLevel = offense(attacker, target)
+	local amount = CombatMath.damage({
+		attack = attackOf(attacker, attackStat),
+		attackerLevel = attackLevel,
+		coefficient = coefficient,
+		critChancePct = 0,
+		critMultiplier = 1,
+		roll = 1,
+		defense = defenseOf(target),
+	}, combatConfig())
+	return amount
+end
+
+local function healAmount(healer: Entity, coefficient: number, allowCrit: boolean): (number, boolean)
+	return CombatMath.heal({
+		attack = attackOf(healer, healer.attack),
+		attackerLevel = healer.level,
+		coefficient = coefficient,
+		critChancePct = if allowCrit then healer.critChancePct else 0,
+		critMultiplier = healer.critMultiplier,
+		roll = if allowCrit then rng:NextNumber() else 1,
+	}, combatConfig())
+end
+
 -- The hit lands (Hit frame / projectile arrival): re-check, then damage.
 local function landHit(
 	attacker: Entity,
@@ -481,31 +719,16 @@ local function landHit(
 			return -- the target stepped out of the swing
 		end
 	end
-	-- D-16: against a lower-level player you fight at min(own, theirs + gap).
-	local attackStat, attackLevel = attacker.attack, attacker.level
-	if attacker.kind == "Player" and target.kind == "Player" then
-		local pvp = ConfigurationService:Get("PvP")
-		local effective = PvPRules.normalizedLevel(attacker.level, target.level, pvp.LevelGap)
-		if effective < attacker.level then
-			attackStat = StatFormulas.forLevel(effective).Attack
-			attackLevel = effective
-		end
-	end
-	local amount, crit = CombatMath.damage({
-		attack = attackStat,
-		attackerLevel = attackLevel,
-		coefficient = step.coefficient,
-		critChancePct = attacker.critChancePct,
-		critMultiplier = attacker.critMultiplier,
-		roll = rng:NextNumber(),
-		defense = target.defense,
-	}, config)
-	applyDamage(target, amount, attacker, crit, step.heavy)
+	strike(attacker, target, step.coefficient, 0, step.heavy)
 end
 
 local function onBasicAttack(player: Player, targetModel: Model?)
 	local attacker = entityByPlayer[player]
-	if attacker == nil or attacker.defeated then
+	if attacker == nil or attacker.defeated or isStunned(attacker) then
+		return
+	end
+	-- A skill's cast is still playing out (small slack for network jitter).
+	if now() < attacker.attackLockUntil - COMBO_SLACK then
 		return
 	end
 	local attack = BasicAttacks.forJob(JobService:GetJob(player))
@@ -577,12 +800,89 @@ end
 -- Regeneration tick
 --------------------------------------------------------------------------------
 
+-- A live creature that fights back (mob / boss, not a training dummy) near `entity`.
+local function creatureNear(entity: Entity, radius: number): boolean
+	local position = entity.root.Position
+	for _, other in entitiesByModel do
+		if
+			other.kind == "Npc"
+			and not other.autoRevive
+			and not other.defeated
+			and (other.root.Position - position).Magnitude <= radius
+		then
+			return true
+		end
+	end
+	return false
+end
+
+-- Rest regen (creator review 2026-10-17): out of combat for a moment with no
+-- creature nearby, players recover RestRegenPctPerSecond of max HP per
+-- second anywhere: dungeons, forest, desert, war zones. Re-checked twice a
+-- second; the HUD shows "resting" from the model attribute.
+local function updateResting(entity: Entity, t: number, config: any)
+	if t < entity.restCheckAt then
+		return
+	end
+	entity.restCheckAt = t + REST_CHECK_SECONDS
+	local resting = t - entity.lastHostileAt >= config.RegenDelaySeconds
+		and entity.hp < entity.maxHp
+		and not creatureNear(entity, config.RestCreatureRadius)
+	if resting ~= entity.resting then
+		entity.resting = resting
+		entity.model:SetAttribute("Resting", if resting then true else nil)
+	end
+end
+
 local function tick(dt: number)
 	local config = combatConfig()
 	local t = now()
 	for _, entity in entitiesByModel do
 		if entity.defeated then
 			continue
+		end
+		-- Over-time ticks first (the last one lands exactly at the expiry).
+		for kind, status in entity.statuses do
+			local perTick, nextTickAt = status.perTick, status.nextTickAt
+			if perTick and nextTickAt and t >= nextTickAt and nextTickAt <= status.untilAt + 0.01 then
+				status.nextTickAt = nextTickAt + TICK_SECONDS_DOT
+				if kind == "Regen" then
+					local before = entity.hp
+					entity.hp = math.min(entity.maxHp, entity.hp + perTick)
+					local healed = math.floor(entity.hp - before + 0.5)
+					if healed > 0 then
+						mirror(entity)
+						broadcast(
+							entity,
+							{ kind = "Heal", target = entity.model, amount = healed, tick = "Regen" }
+						)
+					end
+				else
+					applyDamage(entity, perTick, status.source or entity, false, false, { tick = kind })
+					if entity.defeated then
+						break
+					end
+				end
+			end
+		end
+		if entity.defeated then
+			continue
+		end
+		-- Expire statuses. A player who was stunned or frozen can't be again
+		-- for a moment (no chain-stunning, D-45).
+		local expired = false
+		for kind, status in entity.statuses do
+			if t >= status.untilAt then
+				entity.statuses[kind] = nil
+				expired = true
+				if (kind == "Stun" or kind == "Freeze") and entity.kind == "Player" then
+					entity.ccImmuneUntil = t + ConfigurationService:Get("Skills").ControlImmunitySeconds
+				end
+			end
+		end
+		if expired then
+			mirrorStatuses(entity)
+			CombatService.StatusChanged:Fire(entity)
 		end
 		local before = entity.hp
 		if entity.kind == "Npc" then
@@ -592,7 +892,14 @@ local function tick(dt: number)
 		elseif inSafeZone(entity) then
 			entity.hp += entity.maxHp * config.SafeZoneRegenPctPerSecond / 100 * dt
 		elseif t - entity.lastHostileAt >= config.RegenDelaySeconds then
-			entity.hp += CombatMath.regen(entity.maxHp, entity.regenPct, dt)
+			updateResting(entity, t, config)
+			local pct = entity.regenPct + (if entity.resting then config.RestRegenPctPerSecond else 0)
+			entity.hp += CombatMath.regen(entity.maxHp, pct, dt)
+		end
+		if entity.resting and (t - entity.lastHostileAt < config.RegenDelaySeconds or inSafeZone(entity)) then
+			-- Fighting again (or the safe zone's own regen took over).
+			entity.resting = false
+			entity.model:SetAttribute("Resting", nil)
 		end
 		entity.hp = math.min(entity.hp, entity.maxHp)
 		entity.focus = math.min(config.FocusMax, entity.focus + config.FocusRegenPerSecond * dt)
@@ -691,7 +998,7 @@ function CombatService:RegisterNpc(model: Model, spec: NpcSpec): boolean
 		return false
 	end
 	local entity = newEntity("Npc", model, humanoid, root, spec.name)
-	applyStats(entity, StatFormulas.forLevel(spec.level), spec.level, false)
+	applyStats(entity, StatFormulas.forCreatureLevel(spec.level), spec.level, false)
 	entity.maxHp = spec.maxHp
 	entity.hp = spec.maxHp
 	entity.attack *= spec.attackScale or 1
@@ -701,6 +1008,8 @@ function CombatService:RegisterNpc(model: Model, spec: NpcSpec): boolean
 	entitiesByModel[model] = entity
 	humanoid.BreakJointsOnDeath = false
 	mirror(entity)
+	model:SetAttribute("Level", spec.level) -- target frame (display)
+	CollectionService:AddTag(model, COMBATANT_TAG)
 	return true
 end
 
@@ -754,7 +1063,7 @@ function CombatService:NpcStrike(
 ): boolean
 	local attacker = entitiesByModel[attackerModel]
 	local target = entitiesByModel[targetModel]
-	if attacker == nil or target == nil or attacker.kind ~= "Npc" then
+	if attacker == nil or target == nil or attacker.kind ~= "Npc" or isStunned(attacker) then
 		return false
 	end
 	if not CombatMath.canHarm(harmFacts(attacker, target)) then
@@ -768,13 +1077,13 @@ function CombatService:NpcStrike(
 		end
 	end
 	local amount, crit = CombatMath.damage({
-		attack = attacker.attack,
+		attack = attackOf(attacker, attacker.attack),
 		attackerLevel = attacker.level,
 		coefficient = coefficient,
 		critChancePct = attacker.critChancePct,
 		critMultiplier = attacker.critMultiplier,
 		roll = rng:NextNumber(),
-		defense = target.defense,
+		defense = defenseOf(target),
 	}, config)
 	applyDamage(target, amount, attacker, crit, heavy)
 	return true
@@ -844,6 +1153,285 @@ end
 
 function CombatService:GetPlayerEntity(player: Player): Entity?
 	return entityByPlayer[player]
+end
+
+--------------------------------------------------------------------------------
+-- Skill primitives (SkillService, Phase 5). Server-internal: every caller
+-- has already validated the cast; these re-check what may have changed
+-- while the spell was in the air.
+--------------------------------------------------------------------------------
+
+function CombatService:IsStunned(entity: Entity): boolean
+	return isStunned(entity)
+end
+
+function CombatService:IsSilenced(entity: Entity): boolean
+	return isSilenced(entity)
+end
+
+function CombatService:HasStatus(entity: Entity, kind: string): boolean
+	return statusOf(entity, kind) ~= nil
+end
+
+-- Removes one status (a combo that consumes it).
+function CombatService:ConsumeStatus(entity: Entity, kind: string)
+	if entity.statuses[kind] then
+		entity.statuses[kind] = nil
+		mirrorStatuses(entity)
+		CombatService.StatusChanged:Fire(entity)
+	end
+end
+
+function CombatService:InSafeZone(entity: Entity): boolean
+	return inSafeZone(entity)
+end
+
+function CombatService:IsEntityInCombat(entity: Entity): boolean
+	return inCombat(entity)
+end
+
+-- Whether `attacker` may harm `target` right now, with the reason if not.
+function CombatService:HarmCheck(attacker: Entity, target: Entity): (boolean, string?)
+	return CombatMath.canHarm(harmFacts(attacker, target))
+end
+
+-- Whether `helper` may heal / shield / buff / cleanse `target` (SkillRules.canHelp).
+function CombatService:HelpCheck(helper: Entity, target: Entity): (boolean, string?)
+	return SkillRules.canHelp({
+		helperIsPlayer = helper.kind == "Player",
+		targetIsPlayer = target.kind == "Player",
+		helperRace = helper.race,
+		targetRace = target.race,
+		helperDefeated = helper.defeated,
+		targetDefeated = target.defeated,
+		helperInSafeZone = inSafeZone(helper),
+		targetInSafeZone = inSafeZone(target),
+		targetInCombat = inCombat(target),
+	})
+end
+
+-- Nearest hostile in front of `attacker` within `range` (casts without a target).
+function CombatService:AutoTarget(attacker: Entity, range: number): Entity?
+	return autoTarget(attacker, range)
+end
+
+function CombatService:HasLineOfSight(from: Vector3, to: Vector3): boolean
+	return hasLineOfSight(from, to)
+end
+
+-- Living entities within `radius` of `center` (area skills), nearest first.
+function CombatService:EntitiesNear(center: Vector3, radius: number): { Entity }
+	local out = {}
+	for _, entity in entitiesByModel do
+		if not entity.defeated and (entity.root.Position - center).Magnitude <= radius then
+			table.insert(out, entity)
+		end
+	end
+	table.sort(out, function(a, b)
+		return (a.root.Position - center).Magnitude < (b.root.Position - center).Magnitude
+	end)
+	return out
+end
+
+-- One skill hit (re-validates harm). Returns true if damage was dealt.
+function CombatService:Strike(
+	attacker: Entity,
+	target: Entity,
+	coefficient: number,
+	critBonusPct: number?,
+	heavy: boolean?,
+	extra: HitExtra?
+): boolean
+	if entitiesByModel[attacker.model] ~= attacker or entitiesByModel[target.model] ~= target then
+		return false
+	end
+	if not CombatMath.canHarm(harmFacts(attacker, target)) then
+		return false
+	end
+	strike(attacker, target, coefficient, critBonusPct or 0, heavy, extra)
+	return true
+end
+
+-- Heals `target` by coefficient x the healer's Attack (re-validates help rules).
+function CombatService:HealTarget(
+	healer: Entity,
+	target: Entity,
+	coefficient: number,
+	skill: string?
+): boolean
+	if entitiesByModel[healer.model] ~= healer or entitiesByModel[target.model] ~= target then
+		return false
+	end
+	if not (CombatService:HelpCheck(healer, target)) then
+		return false
+	end
+	local amount, crit = healAmount(healer, coefficient, true)
+	local before = target.hp
+	target.hp = math.min(target.maxHp, target.hp + amount)
+	-- Supporting someone who is fighting pulls you into that fight.
+	if inCombat(target) then
+		healer.lastHostileAt = math.max(healer.lastHostileAt, target.lastHostileAt)
+	end
+	mirror(target)
+	local healed = math.floor(target.hp - before + 0.5)
+	if healed > 0 then
+		broadcast(
+			target,
+			{ kind = "Heal", target = target.model, amount = healed, crit = crit, skill = skill }
+		)
+	end
+	return true
+end
+
+-- Shield points worth coefficient x the caster's Attack (no crit).
+function CombatService:ShieldAmount(caster: Entity, coefficient: number): number
+	return (healAmount(caster, coefficient, false))
+end
+
+-- Healing per Regen tick worth coefficient x the caster's Attack (no crit).
+function CombatService:RegenAmount(caster: Entity, coefficient: number): number
+	return (healAmount(caster, coefficient, false))
+end
+
+-- Damage per Poison / Burn tick from `attacker` to `target` (no crit).
+function CombatService:TickDamage(attacker: Entity, target: Entity, coefficient: number): number
+	return tickDamage(attacker, target, coefficient)
+end
+
+--[[
+	Puts status `kind` on `target` for `seconds` (refreshes; keeps the
+	stronger value). Crowd control goes through SkillRules.controlSeconds
+	(boss immunity, PvP scale) and a player's short immunity after a stun /
+	freeze. `perTick` is the damage / healing per second for Poison, Burn
+	and Regen. Returns the seconds applied (0 = no effect).
+]]
+function CombatService:ApplyStatus(
+	target: Entity,
+	kind: StatusKind,
+	seconds: number,
+	value: number?,
+	source: Entity?,
+	perTick: number?
+): number
+	if target.defeated or entitiesByModel[target.model] ~= target or seconds <= 0 then
+		return 0
+	end
+	local targetIsPlayer = target.player ~= nil
+	local t = now()
+	local isTaunt = kind == "Taunt"
+	local stunLike = kind == "Stun" or kind == "Freeze"
+	if isTaunt or (SkillRules.CONTROL :: any)[kind] then
+		if isTaunt and targetIsPlayer then
+			return 0
+		end
+		if stunLike and targetIsPlayer and t < target.ccImmuneUntil then
+			return 0
+		end
+		local pvp = source ~= nil and source.player ~= nil and targetIsPlayer
+		seconds = SkillRules.controlSeconds(
+			kind,
+			seconds,
+			target.controlImmune,
+			pvp,
+			ConfigurationService:Get("Skills").PvPControlScale
+		)
+		if seconds <= 0 then
+			return 0
+		end
+	end
+	local untilAt = t + seconds
+	local existing = statusOf(target, kind)
+	if existing then
+		existing.untilAt = math.max(existing.untilAt, untilAt)
+		existing.value = math.max(existing.value, value or 0)
+		if perTick then
+			existing.perTick = math.max(existing.perTick or 0, perTick)
+			existing.source = source
+		end
+		if kind == "Taunt" then
+			existing.source = source
+			existing.untilAt = untilAt
+		end
+	else
+		target.statuses[kind] = {
+			untilAt = untilAt,
+			value = value or 0,
+			source = source,
+			perTick = perTick,
+			nextTickAt = if perTick then t + TICK_SECONDS_DOT else nil,
+		}
+	end
+	mirrorStatuses(target)
+	CombatService.StatusChanged:Fire(target)
+	return seconds
+end
+
+-- Removes every hindrance (SkillRules.CLEANSED).
+function CombatService:Cleanse(target: Entity)
+	local changed = false
+	for _, kind in SkillRules.CLEANSED do
+		if target.statuses[kind] then
+			target.statuses[kind] = nil
+			changed = true
+		end
+	end
+	if changed then
+		mirrorStatuses(target)
+		CombatService.StatusChanged:Fire(target)
+	end
+end
+
+export type Control = { stunned: boolean, rooted: boolean, speedScale: number, taunter: Model? }
+
+-- Movement effects on an entity (MobService, MovementService).
+function CombatService:ControlOf(entity: Entity): Control
+	local stunned = isStunned(entity)
+	local rooted = statusOf(entity, "Root") ~= nil
+	local taunt = statusOf(entity, "Taunt")
+	local taunter = taunt and taunt.source
+	local scale = (1 + statusValue(entity, "Haste") / 100) * (1 - statusValue(entity, "Slow") / 100)
+	return {
+		stunned = stunned,
+		rooted = rooted,
+		speedScale = if stunned or rooted then 0 else math.clamp(scale, 0.1, 2),
+		taunter = if taunter
+				and not taunter.defeated
+				and entitiesByModel[taunter.model] == taunter
+			then taunter.model
+			else nil,
+	}
+end
+
+function CombatService:ControlOfModel(model: Model): Control?
+	local entity = entitiesByModel[model]
+	return if entity then CombatService:ControlOf(entity) else nil
+end
+
+-- Bosses: immune to crowd control.
+function CombatService:SetControlImmune(model: Model, immune: boolean)
+	local entity = entitiesByModel[model]
+	if entity then
+		entity.controlImmune = immune
+	end
+end
+
+-- Multiplies an NPC's outgoing damage (1 = normal; an enraged boss).
+function CombatService:SetOutgoingScale(model: Model, scale: number)
+	local entity = entitiesByModel[model]
+	if entity and entity.kind == "Npc" then
+		entity.outgoingScale = math.max(scale, 0)
+		model:SetAttribute("Enraged", if scale > 1 then true else nil)
+	end
+end
+
+-- After a skill cast: no basic attacks until the cast animation is done,
+-- spawn protection ends for hostile skills, the combo chain restarts.
+function CombatService:CastStarted(entity: Entity, lockSeconds: number, hostile: boolean)
+	entity.attackLockUntil = now() + lockSeconds
+	entity.combo = ComboMath.new()
+	if hostile then
+		entity.protectedUntil = 0
+	end
 end
 
 return CombatService

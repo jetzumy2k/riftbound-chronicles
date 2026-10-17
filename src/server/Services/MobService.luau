@@ -10,6 +10,9 @@
 	    attack (MobAttack event, then CombatService:NpcStrike re-validates
 	    harm and reach), leash home and restore.
 	  - Mobs never target players they can't harm (safe zones, protection).
+	  - Skill statuses (Phase 5): stunned mobs freeze and lose their wind-up,
+	    rooted ones stay put, slowed ones move slower, taunted ones fight
+	    the taunter.
 	  - On defeat: EXP to the players who earned it (Logic/DungeonRules
 	    shareXp over the recipients, D-32), then the body fades and is
 	    removed; spawners respawn their mob after a delay.
@@ -41,6 +44,12 @@ local MOVE_REFRESH_SECONDS = 0.3
 -- Idle wandering: radius around home and fraction of the run speed.
 local WANDER_RADIUS = 10
 local WANDER_SPEED = 0.35
+-- Elites and bosses prowl a smaller patch, pausing longer between laps.
+local ELITE_WANDER_RADIUS = 7
+-- Most a creature turns per tick while squaring up to a target (radians):
+-- a creature turns, it doesn't snap round.
+local TURN_STEP = math.rad(35)
+local ELITE_TURN_STEP = math.rad(22)
 local wanderRng = Random.new()
 local CORPSE_SECONDS = 2.6
 
@@ -49,6 +58,8 @@ local log = Log.new("MobService")
 export type Mob = {
 	id: number,
 	enemy: EnemyDefinitions.Enemy,
+	-- Level it spawned at (a camp may set one other than the definition's).
+	level: number,
 	model: Model,
 	humanoid: Humanoid,
 	root: BasePart,
@@ -74,6 +85,7 @@ export type Mob = {
 
 export type SpawnOptions = {
 	owner: string?,
+	level: number?,
 	hpScale: number?,
 	parent: Instance?,
 	xpRecipients: ((mob: Mob) -> { Player })?,
@@ -117,11 +129,12 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 		root:SetNetworkOwner(nil) -- server-owned physics (SECURITY_MODEL T-33)
 	end)
 
-	local base = StatFormulas.forLevel(enemy.level)
+	local level = math.clamp((options and options.level) or enemy.level, 0, StatFormulas.CREATURE_MAX)
+	local base = StatFormulas.forCreatureLevel(level)
 	local hpScale = enemy.hpScale * ((options and options.hpScale) or 1)
 	CombatService:RegisterNpc(model, {
 		name = enemy.name,
-		level = enemy.level,
+		level = level,
 		maxHp = math.floor(base.MaxHP * hpScale + 0.5),
 		attackScale = enemy.attackScale,
 		defenseScale = enemy.defenseScale,
@@ -133,6 +146,7 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 	local mob: Mob = {
 		id = nextId,
 		enemy = enemy,
+		level = level,
 		model = model,
 		humanoid = humanoid,
 		root = root,
@@ -219,19 +233,43 @@ local function moveTo(mob: Mob, goal: Vector3, now: number)
 	mob.humanoid:MoveTo(goal)
 end
 
-local function face(mob: Mob, point: Vector3)
+-- Faces `point`, at most `maxStep` radians this tick (nil: at once).
+local function face(mob: Mob, point: Vector3, maxStep: number?)
 	local from = mob.root.Position
 	local look = flat(point - from)
-	if look.Magnitude > 0.1 then
-		mob.root.CFrame = CFrame.lookAt(from, from + look)
+	if look.Magnitude <= 0.1 then
+		return
 	end
+	if maxStep then
+		local current = flat(mob.root.CFrame.LookVector)
+		if current.Magnitude > 0.1 then
+			local a = math.atan2(-current.X, -current.Z)
+			local b = math.atan2(-look.X, -look.Z)
+			local delta = (b - a + math.pi) % (math.pi * 2) - math.pi
+			local yaw = a + math.clamp(delta, -maxStep, maxStep)
+			look = Vector3.new(-math.sin(yaw), 0, -math.cos(yaw))
+		end
+	end
+	mob.root.CFrame = CFrame.lookAt(from, from + look)
 end
 
 local function stepMob(mob: Mob, now: number)
 	local enemy = mob.enemy
-	mob.humanoid.WalkSpeed = enemy.moveSpeed * mob.speedScale
+	-- Skill statuses (Phase 5): stun / root / slow / taunt.
+	local control = CombatService:ControlOfModel(mob.model)
+	mob.humanoid.WalkSpeed = enemy.moveSpeed * mob.speedScale * (if control then control.speedScale else 1)
 	if mob.state ~= "Idle" then
 		mob.wandering = false
+	end
+	if control and control.stunned then
+		-- Stunned: frozen, and a wind-up in progress is interrupted.
+		mob.humanoid:Move(Vector3.zero)
+		if mob.state == "Windup" then
+			mob.state = "Chase"
+			mob.target = nil
+			mob.attackReadyAt = math.max(mob.attackReadyAt, now + 0.5)
+		end
+		return
 	end
 	if now < mob.busyUntil then
 		mob.humanoid:Move(Vector3.zero)
@@ -240,6 +278,15 @@ local function stepMob(mob: Mob, now: number)
 	local distanceFromHome = (flat(mob.root.Position) - flat(mob.home)).Magnitude
 	local search = enemy.aggroRadius * MobBrain.LOSE_TARGET_FACTOR
 	local target, targetDistance = nearestTarget(mob, search)
+	-- Taunted: fight the taunter while it can be harmed (even out of aggro range).
+	local taunter = control and control.taunter
+	if taunter and mob.state ~= "Return" and CombatService:CanHarm(mob.model, taunter) then
+		local taunterRoot = taunter:FindFirstChild("HumanoidRootPart")
+		if taunterRoot and taunterRoot:IsA("BasePart") then
+			target = taunter
+			targetDistance = math.min((taunterRoot.Position - mob.root.Position).Magnitude, enemy.aggroRadius)
+		end
+	end
 	local state, action = MobBrain.step({
 		state = mob.state,
 		now = now,
@@ -264,7 +311,7 @@ local function stepMob(mob: Mob, now: number)
 		mob.humanoid:Move(Vector3.zero)
 		local targetRoot = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if targetRoot then
-			face(mob, targetRoot.Position)
+			face(mob, targetRoot.Position, if enemy.elite then ELITE_TURN_STEP else TURN_STEP)
 		end
 	elseif action == "StartWindup" and target then
 		mob.target = target
@@ -294,13 +341,14 @@ local function stepMob(mob: Mob, now: number)
 				enemy.elite
 			)
 		end
-	elseif action == "None" and state == "Idle" and not enemy.elite then
-		-- Idle creatures amble around their post instead of standing frozen.
+	elseif action == "None" and state == "Idle" then
+		-- Idle creatures amble around their post instead of standing frozen;
+		-- elites and bosses prowl their patch.
 		if now >= mob.nextWanderAt then
-			mob.nextWanderAt = now + wanderRng:NextNumber(4, 9)
+			mob.nextWanderAt = now + wanderRng:NextNumber(4, 9) * (if enemy.elite then 1.4 else 1)
 			if wanderRng:NextNumber() < 0.65 then
 				local a = wanderRng:NextNumber(0, math.pi * 2)
-				local r = wanderRng:NextNumber(3, WANDER_RADIUS)
+				local r = wanderRng:NextNumber(3, if enemy.elite then ELITE_WANDER_RADIUS else WANDER_RADIUS)
 				mob.wandering = true
 				mob.humanoid.WalkSpeed = enemy.moveSpeed * WANDER_SPEED
 				mob.humanoid:MoveTo(mob.home + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r))
@@ -368,6 +416,45 @@ local function defaultRecipients(mob: Mob, contributors: { [Player]: number }): 
 	return out
 end
 
+--[[
+	A recipients rule for camps / bosses: everyone who damaged the creature,
+	plus their group (`groupOf`: party / union members), alive and within
+	Dungeon.XpShareRadius of it (D-32, D-48).
+]]
+function MobService.groupRecipients(groupOf: (player: Player) -> { Player }): (mob: Mob) -> { Player }
+	return function(mob: Mob): { Player }
+		local radius = ConfigurationService:Get("Dungeon").XpShareRadius
+		local seen: { [Player]: boolean } = {}
+		local out = {}
+		local function consider(player: Player)
+			if seen[player] then
+				return
+			end
+			seen[player] = true
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if
+				player.Parent == Players
+				and root
+				and root:IsA("BasePart")
+				and not CombatService:IsDefeated(player)
+				and (root.Position - mob.root.Position).Magnitude <= radius
+			then
+				table.insert(out, player)
+			end
+		end
+		for player in CombatService:GetContributors(mob.model) do
+			if player.Parent == Players then
+				consider(player)
+				for _, member in groupOf(player) do
+					consider(member)
+				end
+			end
+		end
+		return out
+	end
+end
+
 local function onDefeated(entity: CombatService.Entity)
 	local mob = mobs[entity.model]
 	if mob == nil or mob.dead then
@@ -380,7 +467,7 @@ local function onDefeated(entity: CombatService.Entity)
 		then recipientsFn(mob)
 		else defaultRecipients(mob, contributors)
 	-- Only players who actually fought (or their party, per the recipient rule) earn EXP.
-	local share = DungeonRules.shareXp(mob.enemy.xp, #recipients)
+	local share = DungeonRules.shareXp(EnemyDefinitions.xpAt(mob.enemy, mob.level), #recipients)
 	for _, player in recipients do
 		if share > 0 then
 			LevelService:GrantXP(player, share, `Mob:{mob.enemy.id}`)
@@ -405,6 +492,8 @@ export type CampOptions = {
 	-- changes apply without a restart).
 	respawnSeconds: () -> number,
 	xpRecipients: ((mob: Mob) -> { Player })?,
+	-- Creature level for this camp (default: the enemy's own).
+	level: number?,
 	-- Called after each (re)spawn, e.g. to attach a boss's ability loop.
 	onSpawn: ((mob: Mob) -> ())?,
 }
@@ -425,7 +514,7 @@ local function spawnCampSlot(slot: CampSlot)
 	local mob = MobService:Spawn(
 		slot.enemy,
 		slot.at,
-		{ owner = slot.owner, xpRecipients = slot.options.xpRecipients }
+		{ owner = slot.owner, xpRecipients = slot.options.xpRecipients, level = slot.options.level }
 	)
 	slot.mob = mob
 	if mob then

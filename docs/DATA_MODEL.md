@@ -2,7 +2,7 @@
 
 - **Phase:** 0 (Repository Audit)
 - **Date:** 2026-10-08
-- **Status:** Schema v1 implemented in Phase 2 (`src/server/Persistence/*`). Fields owned by later phases ship in v1 as empty defaults, so later phases fill them without a migration where possible.
+- **Status:** Schema v1 implemented in Phase 2 (`src/server/Persistence/*`); **v2** (Phase 5, D-45) turns `OwnedSkills` into the skill tree (id -> rank), with a v1 -> v2 migration that refunds the old free skill grants. Fields owned by later phases ship in v1 as empty defaults, so later phases fill them without a migration where possible.
 - **Existing data model:** none (no code). This document is the source of truth until code exists. After that, the code plus this document must agree.
 
 ---
@@ -24,13 +24,13 @@ The `_v1` suffix on store names means a hard reset is never needed: a fundamenta
 
 ---
 
-## 2. Player Profile — Schema v1
+## 2. Player Profile — Schema v2
 
 Luau-style types. All numbers are integers unless marked `number`.
 
 ```lua
 type Profile = {
-    SchemaVersion: number,           -- 1
+    SchemaVersion: number,           -- 2
     CreatedAt: number,               -- os.time() UTC
     LastLoginAt: number,
 
@@ -44,8 +44,9 @@ type Profile = {
     Experience: number,              -- 0 .. XPToNext(Level)-1 ; 0 at Level 30 (XP at the cap is discarded, not banked)
     TotalExperience: number,         -- lifetime, for audits/analytics
 
-    -- Skills (Phase 5) ------------------------------------------------------
-    OwnedSkills: { [SkillId]: true },
+    -- Skills (Phase 5, D-45) ------------------------------------------------
+    OwnedSkills: { [SkillId]: number },  -- learned skill -> rank 1..maxRank
+                                     -- (skill points = 1 + Level, spent 1 per rank)
     EquippedSkills: {                -- 3 regular + 1 special
         Regular: { SkillId? },       -- length ≤ 3, no duplicates
         Special: SkillId?,
@@ -139,8 +140,8 @@ type QuestProgress = {
 | `Experience` | 0 ≤ xp < XPToNext(Level); 0 at L30 | Clamp |
 | `Race`/`Job` | nil or a valid enum | nil (forces re-selection) and log |
 | `FacePreset` | in allowlist | 1 |
-| `OwnedSkills` | Each id exists and matches the Job | Drop invalid |
-| `EquippedSkills` | Owned, job-valid, correct type, no duplicates, ≤ 3 + 1 | Drop invalid entries |
+| `OwnedSkills` | Each id exists and matches the Job; rank is a whole number 1..maxRank; the skill above it in the tree is learned. More points spent than the level allows (checked by SkillService on load) refunds the tree | Drop invalid |
+| `EquippedSkills` | Learned, job-valid, correct slot type, no duplicates, ≤ 3 + 1 | Drop invalid entries |
 | `Inventory` | Guid key equals `item.Guid`. DefId exists. Rarity valid. Enhancement 0..10. Attributes come from the allowed pool, within bounds | Drop the item if DefId is unknown (log the full item); otherwise clamp |
 | Duplicate Guids | Impossible by key, but checked across Equipment | Unequip dangling references |
 | `Equipment` | Slot valid, guid in Inventory, item fits the slot | nil |

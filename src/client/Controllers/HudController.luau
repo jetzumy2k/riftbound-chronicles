@@ -260,7 +260,16 @@ local function renderVitals(character: Model?)
 		protectedBadge.Visible = false
 		return
 	end
+	local shield = if character then character:GetAttribute("Shield") else nil
 	hpText.Text = `HP  {formatNumber(hp)} / {formatNumber(maxHp)}`
+		.. (if type(shield) == "number" and shield > 0 then `  +{formatNumber(shield)} shield` else "")
+		.. (
+			if character
+					and character:GetAttribute("Resting") == true
+					and hp < maxHp
+				then "  · resting"
+				else ""
+		)
 	Kit.tween(hpFill, Kit.Tween.Quick, { Size = UDim2.fromScale(math.clamp(hp / maxHp, 0, 1), 1) })
 	if type(focus) == "number" then
 		focusFill.Size = UDim2.fromScale(math.clamp(focus / 100, 0, 1), 1)
@@ -275,7 +284,7 @@ local function bindCharacter(character: Model?)
 	table.clear(characterConnections)
 	renderVitals(character)
 	if character then
-		for _, name in { "HP", "MaxHP", "Focus", "Protected" } do
+		for _, name in { "HP", "MaxHP", "Focus", "Protected", "Shield", "Resting" } do
 			table.insert(
 				characterConnections,
 				character:GetAttributeChangedSignal(name):Connect(function()

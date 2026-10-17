@@ -20,6 +20,7 @@ local Constants = require(Shared.Constants)
 local Enums = require(Shared.Enums)
 local XPTable = require(Shared.Logic.XPTable)
 local FacePresets = require(Shared.Definitions.FacePresets)
+local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 local ProfileTemplate = require(script.Parent.ProfileTemplate)
 
 local MAX_NOTES = 25
@@ -177,7 +178,31 @@ local function repairProgression(data: Data, note: (string) -> ())
 end
 
 local function repairSkills(data: Data, note: (string) -> ())
-	filterMap(data.OwnedSkills, "OwnedSkills", note, isSetEntry)
+	-- Phase 5 (D-45): real skills of the character's own job, a whole rank
+	-- within 1..maxRank, and the skill above it in the tree learned too.
+	filterMap(data.OwnedSkills, "OwnedSkills", note, function(id, rank)
+		local skill = SkillDefinitions.get(id)
+		return skill ~= nil
+			and skill.job == data.Job
+			and isFinite(rank)
+			and rank % 1 == 0
+			and rank >= 1
+			and rank <= skill.maxRank
+	end)
+	for tier = 2, SkillDefinitions.TIERS do
+		for id in data.OwnedSkills do
+			local skill = SkillDefinitions.get(id)
+			if
+				skill
+				and skill.tier == tier
+				and skill.requires
+				and data.OwnedSkills[skill.requires] == nil
+			then
+				note(`OwnedSkills: removed {id} (requires {skill.requires})`)
+				data.OwnedSkills[id] = nil
+			end
+		end
+	end
 
 	local equipped = data.EquippedSkills
 	dropUnknownKeys(equipped, { Regular = true, Special = true }, "EquippedSkills", note)
@@ -187,9 +212,13 @@ local function repairSkills(data: Data, note: (string) -> ())
 	end
 	-- Rebuild Regular as a clean, duplicate-free array of at most N skill ids.
 	local clean, seen = {}, {}
+	local function owns(id: any, slotType: string): boolean
+		local skill = SkillDefinitions.get(id)
+		return skill ~= nil and skill.type == slotType and data.OwnedSkills[id] ~= nil
+	end
 	for index = 1, Constants.Loadout.RegularSlots do
 		local id = equipped.Regular[index]
-		if isShortString(id, MAX_KEY_LENGTH) and not seen[id] then
+		if isShortString(id, MAX_KEY_LENGTH) and not seen[id] and owns(id, "Regular") then
 			seen[id] = true
 			table.insert(clean, id)
 		end
@@ -202,7 +231,7 @@ local function repairSkills(data: Data, note: (string) -> ())
 		note(`EquippedSkills.Regular: kept {#clean} of {originalCount}`)
 	end
 	equipped.Regular = clean
-	if equipped.Special ~= nil and not isShortString(equipped.Special, MAX_KEY_LENGTH) then
+	if equipped.Special ~= nil and not owns(equipped.Special, "Special") then
 		note("EquippedSkills.Special: cleared invalid value")
 		equipped.Special = nil
 	end

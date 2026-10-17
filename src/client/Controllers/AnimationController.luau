@@ -425,7 +425,8 @@ end
 -- True while an attack (not a reaction) is playing.
 function AnimationController.isAttacking(character: Model): boolean
 	local name = AnimationController.currentAction(character)
-	return name ~= nil and string.find(name, "_Attack", 1, true) ~= nil
+	return name ~= nil
+		and (string.find(name, "_Attack", 1, true) ~= nil or string.find(name, "_Skill", 1, true) ~= nil)
 end
 
 -- Freezes the current action for `seconds` (impact hit-stop).

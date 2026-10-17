@@ -188,6 +188,25 @@ return function(t)
 				PartyRespond = true,
 				PartyLeave = true,
 				PartyKick = true,
+				-- D-48 unions: leaders only, same realm, size and invite checks.
+				UnionInvite = true,
+				UnionRespond = true,
+				UnionLeave = true,
+				UnionKick = true,
+				-- Phase 5 review: skill id enum + optional target Model hint;
+				-- the server checks loadout, ownership, job, level, cooldown,
+				-- Focus, stun, hostility / ally rules, range and LOS, and
+				-- computes every effect (SECURITY_MODEL T-02/T-03/T-04).
+				SkillCast = true,
+				-- Phase 5 review: ≤ 3 regular + 1 special skill ids (enum);
+				-- validated against learned skills, job and slot type.
+				SetLoadout = true,
+				-- Phase 5 rework (D-45): one skill id (enum); the server checks
+				-- job, level, prerequisite, free points and max rank.
+				LearnSkill = true,
+				-- Phase 5 rework (D-45): no arguments; only in a safe zone and
+				-- out of combat; refunds points derived from the level.
+				ResetSkills = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

@@ -1,30 +1,36 @@
 --!strict
 --[[
 	DungeonService (Layer 5) — persistent dungeons, one per realm
-	(PLAN.md Phase 9, D-32, D-39, D-42; SECURITY_MODEL T-12, T-15).
+	(PLAN.md Phase 9, D-32, D-39, D-42, D-47; SECURITY_MODEL T-12, T-15).
 
 	Map:
 	  Each realm has its own copy of Rift Hollow, built once at server start
 	  in a reserved slot far from the world (WorldLayout.DungeonSlots: slot 1
 	  Angels, slot 2 Devils). Every player of that realm shares it; parties
-	  fight together inside. There is no PvP inside (one realm per copy).
+	  and unions fight together inside. No PvP inside (one realm per copy).
+	Floors (D-47):
+	  1-3  landing, 7 rooms and a floor boss's lair (creatures 1-10 / 11-20 /
+	       21-30; Cerberus, Chimera, Basilisk)
+	  4    the Hall of Thirty (30 mini-boss chambers, 31-40) and Typhon's
+	       Sanctum (the level-40 Dungeon Boss)
+	  Every floor is open to every level and nothing is locked (creator
+	  review 2026-10-17): each landing has a "Leave Dungeon" portal (and "Up"
+	  on floors 2-4) and the "Down" portal at the back of each lair always
+	  works. The way there is guarded: rooms full of creature packs, guards
+	  around the lair, and the floor boss in front of the portal.
 	Entering / leaving:
 	  The capital "Rift Dungeons" gate (ProximityPrompt resolved on the
-	  server, so no remote) takes you to your realm's dungeon entrance; you
-	  need DungeonDefinitions minLevel and must be within reach of the gate.
-	  The exit portal at the entrance or the tracker's Leave button returns
-	  you in front of the gate.
-	Creatures (MobService camps):
-	  Mob       respawns Dungeon.MobRespawnSeconds after falling
-	  MiniBoss  respawns after Dungeon.MiniBossRespawnMinutes
-	  Boss      respawns after Dungeon.BossRespawnHours (BossService abilities)
-	  In Studio the boss timers use the short Studio* values for testing.
-	  An engaged boss resets if no living player is in its room for
-	  Dungeon.WipeResetSeconds.
+	  server, so no remote) takes you to floor 1's landing; you need the
+	  dungeon's minLevel and must be within reach of the gate. Portals and
+	  the tracker's Leave button act only for players inside that copy.
+	Creatures (MobService camps; respawn per class):
+	  Mob / MiniBoss / FloorBoss / Boss (config Dungeon.*; Studio uses short
+	  boss timers). Bosses run BossService abilities and enrage; an engaged
+	  boss resets if no living player is in its room for WipeResetSeconds.
 	Rewards:
-	  Kill EXP is shared among the killer's party members nearby (D-32).
-	  Each MiniBoss / Boss spawn also gives everyone who damaged it a one-time
-	  bonus, claimed as "B:<spawnId>:<enemy>" (idempotent, DATA_MODEL §4.2).
+	  Kill EXP is shared among the killer's party / union members nearby
+	  (D-32, D-48). Each boss spawn also gives everyone who damaged it a
+	  one-time bonus, claimed as "B:<spawnId>:<enemy>" (idempotent).
 	Defeat (D-39):
 	  Inside a dungeon you respawn next to your party leader, or another
 	  living party member, in the same dungeon; otherwise outside the gate.
@@ -61,16 +67,23 @@ local DUNGEON_ID = "RiftHollow" -- the dungeon behind the capital gates
 local GATE_ID = "Dungeons"
 local GATE_REACH = 24
 local GATE_FRONT = 16
+local PORTAL_REACH = 20
 local TICK_SECONDS = 1
 local SLOT_BY_RACE: { [string]: number } = { Angel = 1, Devil = 2 }
 
 local log = Log.new("DungeonService")
 
+type Floor = DungeonDefinitions.Floor
+type RespawnClass = DungeonDefinitions.RespawnClass
+
 type BossCamp = {
-	class: "MiniBoss" | "Boss",
+	class: RespawnClass,
+	floor: number,
 	room: number,
 	slot: MobService.CampSlot,
 	label: TextLabel?,
+	boss: BossService.Boss?,
+	emptySince: number?,
 }
 
 type Copy = {
@@ -80,8 +93,6 @@ type Copy = {
 	map: Model,
 	owner: string,
 	bosses: { BossCamp },
-	activeBoss: BossService.Boss?,
-	emptyBossRoomSince: number?,
 }
 
 local DungeonService = {}
@@ -89,6 +100,7 @@ local DungeonService = {}
 local copies: { [string]: Copy } = {}
 -- Who is inside which copy (by position, refreshed every tick).
 local copyOfPlayer: { [Player]: Copy } = {}
+local floorOfPlayer: { [Player]: number } = {}
 local counter = 0
 local serverId = ""
 
@@ -110,12 +122,15 @@ local function alive(player: Player): boolean
 	return player.Parent == Players and rootOf(player) ~= nil and not CombatService:IsDefeated(player)
 end
 
-local function respawnSeconds(class: DungeonDefinitions.RespawnClass): number
+local function respawnSeconds(class: RespawnClass): number
 	local c = config()
+	local studio = RunService:IsStudio()
 	if class == "Boss" then
-		return if RunService:IsStudio() then c.StudioBossRespawnSeconds else c.BossRespawnHours * 3600
+		return if studio then c.StudioBossRespawnSeconds else c.BossRespawnHours * 3600
+	elseif class == "FloorBoss" then
+		return if studio then c.StudioFloorBossRespawnSeconds else c.FloorBossRespawnMinutes * 60
 	elseif class == "MiniBoss" then
-		return if RunService:IsStudio() then c.StudioMiniBossRespawnSeconds else c.MiniBossRespawnMinutes * 60
+		return if studio then c.StudioMiniBossRespawnSeconds else c.MiniBossRespawnMinutes * 60
 	end
 	return c.MobRespawnSeconds
 end
@@ -151,29 +166,50 @@ local function mapPart(copy: Copy, name: string): BasePart?
 	return if part and part:IsA("BasePart") then part else nil
 end
 
-local function entranceCFrame(copy: Copy): CFrame
-	local arrival = mapPart(copy, "Arrival")
-	local base = if arrival then arrival.Position else copy.origin.Position + Vector3.new(0, 3, 4)
-	local p = base + Vector3.new(math.random(-5, 5), 1, 0)
-	return CFrame.lookAt(p, p + copy.origin.LookVector)
+-- World CFrame at floor-frame point (x, z) on `floorIndex`, facing deeper.
+local function floorPoint(copy: Copy, floorIndex: number, x: number, z: number, facingBack: boolean?): CFrame
+	local floor = copy.dungeon.floors[floorIndex]
+	local local_ = DungeonBuilder.pointCFrame(floor, x, z)
+	local p = (copy.origin * local_).Position + Vector3.new(math.random(-4, 4), 4, 0)
+	local look = copy.origin.LookVector * (if facingBack then -1 else 1)
+	return CFrame.lookAt(p, p + Vector3.new(look.X, 0, look.Z))
 end
 
--- The copy a world position is inside (by slot bounds), if any.
+local function arrivalCFrame(copy: Copy, floorIndex: number): CFrame
+	local floor = copy.dungeon.floors[floorIndex]
+	return floorPoint(copy, floorIndex, floor.arrival[1], floor.arrival[2])
+end
+
+-- The floor and room a world position is in (nil outside the copy).
+local function locate(copy: Copy, position: Vector3): (number?, number?)
+	local p = copy.origin:PointToObjectSpace(position)
+	if math.abs(p.Y) > 200 then
+		return nil, nil
+	end
+	local floorIndex, fx = DungeonDefinitions.floorAt(copy.dungeon, p.X, -p.Z, 40)
+	if floorIndex == nil then
+		return nil, nil
+	end
+	return floorIndex, DungeonDefinitions.roomAt(copy.dungeon.floors[floorIndex], fx, -p.Z)
+end
+
 local function copyAt(position: Vector3): Copy?
 	for _, copy in copies do
-		local p = copy.origin:PointToObjectSpace(position)
-		local length = DungeonDefinitions.length(copy.dungeon)
-		if p.Z <= 40 and p.Z >= -(length + 40) and math.abs(p.X) <= 200 and math.abs(p.Y) <= 200 then
+		if (locate(copy, position)) ~= nil then
 			return copy
 		end
 	end
 	return nil
 end
 
--- Room index the player stands in (nil in a corridor).
-local function roomOf(copy: Copy, position: Vector3): number?
-	local p = copy.origin:PointToObjectSpace(position)
-	return DungeonDefinitions.roomAt(copy.dungeon, -p.Z)
+local function enemyName(id: string): string
+	local enemy = EnemyDefinitions.get(id)
+	return if enemy then enemy.name else id
+end
+
+local function campAlive(camp: BossCamp): boolean
+	local mob = camp.slot.mob
+	return mob ~= nil and not mob.dead
 end
 
 --------------------------------------------------------------------------------
@@ -181,11 +217,8 @@ end
 --------------------------------------------------------------------------------
 
 local function bossStatus(camp: BossCamp, now: number): string
-	local mob = camp.slot.mob
-	local name = camp.slot.enemy
-	local enemy = EnemyDefinitions.get(name)
-	local display = if enemy then enemy.name else name
-	if mob and not mob.dead then
+	local display = enemyName(camp.slot.enemy)
+	if campAlive(camp) then
 		return `{display}: awake`
 	end
 	local at = camp.slot.respawnAt
@@ -199,31 +232,54 @@ local function pushState(player: Player, copy: Copy?)
 	end
 	local now = os.clock()
 	local root = rootOf(player)
-	local roomIndex = if root then roomOf(copy, root.Position) else nil
-	local room = if roomIndex then copy.dungeon.rooms[roomIndex] else nil
-	local mini, boss = "", ""
+	local floorIndex, roomIndex = nil, nil
+	if root then
+		floorIndex, roomIndex = locate(copy, root.Position)
+	end
+	floorIndex = floorIndex or floorOfPlayer[player] or 1
+	local floor = copy.dungeon.floors[floorIndex :: number]
+	local room = if roomIndex then floor.rooms[roomIndex] else nil
+	local minis, miniAwake, mini = 0, 0, ""
+	local bossText = ""
+	local engaged: BossCamp? = nil
 	for _, camp in copy.bosses do
+		if camp.floor ~= floorIndex then
+			continue
+		end
 		if camp.class == "MiniBoss" then
+			minis += 1
+			miniAwake += if campAlive(camp) then 1 else 0
 			mini = bossStatus(camp, now)
 		else
-			boss = bossStatus(camp, now)
+			bossText = bossStatus(camp, now)
+		end
+		local b = camp.boss
+		if b and b.engaged and not b.mob.dead and camp.room == roomIndex then
+			engaged = camp
 		end
 	end
-	local active = copy.activeBoss
-	local engaged = active and active.engaged and not active.mob.dead
+	if minis > 1 then
+		mini = `Mini bosses awake: {miniAwake} / {minis}`
+	end
 	local party = PartyService:GetParty(player)
+	local active = engaged and engaged.boss
 	NetService:FireClient("DungeonState", player, {
 		phase = "Inside",
 		dungeon = copy.dungeon.name,
+		floor = floorIndex,
+		floorCount = #copy.dungeon.floors,
+		floorName = floor.name,
+		levels = `{floor.levels[1]}-{floor.levels[2]}`,
 		room = if room then room.name else "Passage",
 		roomIndex = roomIndex,
-		roomCount = #copy.dungeon.rooms,
+		roomCount = #floor.rooms,
 		miniBoss = mini,
-		bossStatus = boss,
-		members = if party then #party.members else 1,
+		bossStatus = bossText,
+		members = #PartyService:GetGroupMembers(player),
 		leader = if party then party.leader.DisplayName else nil,
-		bossName = if engaged then (active :: BossService.Boss).mob.enemy.name else nil,
-		bossHp = if engaged then CombatService:HpFraction((active :: BossService.Boss).mob.model) else nil,
+		bossName = if active then active.mob.enemy.name else nil,
+		bossHp = if active then CombatService:HpFraction(active.mob.model) else nil,
+		enraged = if active then active.enraged else nil,
 	})
 end
 
@@ -231,38 +287,16 @@ end
 -- Creatures
 --------------------------------------------------------------------------------
 
--- D-32: the killer's party members near the kill share its EXP.
-local function partyRecipients(mob: MobService.Mob): { Player }
-	local radius = config().XpShareRadius
-	local seen: { [Player]: boolean } = {}
-	local out = {}
-	local function consider(player: Player)
-		if seen[player] then
-			return
-		end
-		seen[player] = true
-		local root = rootOf(player)
-		if
-			root
-			and not CombatService:IsDefeated(player)
-			and (root.Position - mob.root.Position).Magnitude <= radius
-		then
-			table.insert(out, player)
-		end
-	end
-	for player in CombatService:GetContributors(mob.model) do
-		if player.Parent == Players then
-			consider(player)
-			for _, member in PartyService:GetMembers(player) do
-				consider(member)
-			end
-		end
-	end
-	return out
-end
+-- D-32 / D-48: the killer's party (or union) members near the kill share its EXP.
+local groupRecipients = MobService.groupRecipients(function(player)
+	return PartyService:GetGroupMembers(player)
+end)
 
-local function grantBossBonus(mob: MobService.Mob, class: "MiniBoss" | "Boss", copy: Copy)
-	local xp = if class == "Boss" then copy.dungeon.bossBonusXp else copy.dungeon.miniBossBonusXp
+local function grantBossBonus(mob: MobService.Mob, class: RespawnClass, copy: Copy)
+	local xp = copy.dungeon.bonusXp[class] or 0
+	if xp <= 0 then
+		return
+	end
 	counter += 1
 	local spawnId = DungeonRules.runId(serverId, counter)
 	for player in CombatService:GetContributors(mob.model) do
@@ -288,38 +322,70 @@ local function grantBossBonus(mob: MobService.Mob, class: "MiniBoss" | "Boss", c
 	)
 end
 
+-- Tells everyone on that floor of the copy.
+local function announcer(copy: Copy, floorIndex: number): (key: string, params: { [string]: string }?) -> ()
+	return function(key, params)
+		for player, inside in copyOfPlayer do
+			if inside == copy and floorOfPlayer[player] == floorIndex then
+				notify(player, "Warning", key, params)
+			end
+		end
+	end
+end
+
 local function spawnCamps(copy: Copy)
 	local floorY = copy.origin.Position.Y
 	local function groundAt(_x: number, _z: number): number
 		return floorY
 	end
-	for index, room in copy.dungeon.rooms do
-		for _, camp in room.camps do
-			local at = copy.origin * DungeonBuilder.spawnCFrame(copy.dungeon, index, camp.x, camp.z)
-			local class: DungeonDefinitions.RespawnClass = camp.class :: any
-			local slots = MobService:SpawnCamp(camp.enemy, at.Position, camp.count, copy.owner, groundAt, {
-				respawnSeconds = function()
-					return respawnSeconds(class)
-				end,
-				xpRecipients = partyRecipients,
-				onSpawn = function(mob)
-					if class == "Boss" and room.boss then
-						copy.activeBoss = BossService:Attach(mob, room.boss, copy.owner, function(key)
-							for player, inside in copyOfPlayer do
-								if inside == copy then
-									notify(player, "Warning", key)
-								end
+	for floorIndex, floor in copy.dungeon.floors do
+		for roomIndex, room in floor.rooms do
+			for _, camp in room.camps do
+				local at = copy.origin * DungeonBuilder.campCFrame(floor, room, camp.x, camp.z)
+				local class: RespawnClass = camp.class
+				local bossDef = DungeonDefinitions.boss(camp.enemy)
+				local bossCamp: BossCamp? = nil
+				local slots =
+					MobService:SpawnCamp(camp.enemy, at.Position, camp.count, copy.owner, groundAt, {
+						respawnSeconds = function()
+							return respawnSeconds(class)
+						end,
+						xpRecipients = groupRecipients,
+						level = camp.level,
+						onSpawn = function(mob)
+							if bossDef and bossCamp then
+								bossCamp.boss = BossService:Attach(
+									mob,
+									bossDef.id,
+									copy.owner,
+									announcer(copy, floorIndex)
+								)
 							end
-						end)
+						end,
+					})
+				if class ~= "Mob" then
+					for _, slot in slots do
+						local entry: BossCamp = {
+							class = class,
+							floor = floorIndex,
+							room = roomIndex,
+							slot = slot,
+							label = nil,
+							boss = nil,
+							emptySince = nil,
+						}
+						table.insert(copy.bosses, entry)
+						bossCamp = entry
+						-- The first spawn happened before the entry existed.
+						if bossDef and slot.mob and not slot.mob.dead then
+							entry.boss = BossService:Attach(
+								slot.mob,
+								bossDef.id,
+								copy.owner,
+								announcer(copy, floorIndex)
+							)
+						end
 					end
-				end,
-			})
-			if class ~= "Mob" then
-				for _, slot in slots do
-					table.insert(
-						copy.bosses,
-						{ class = class :: any, room = index, slot = slot, label = nil }
-					)
 				end
 			end
 		end
@@ -332,25 +398,24 @@ local function onMobDefeated(mob: MobService.Mob)
 			continue
 		end
 		for _, camp in copy.bosses do
-			if
-				camp.slot.mob == mob
-				or (camp.slot.mob == nil and camp.slot.enemy == mob.enemy.id and camp.slot.respawnAt)
-			then
+			if camp.slot.mob == mob or (camp.boss and camp.boss.mob == mob) then
 				grantBossBonus(mob, camp.class, copy)
-				if camp.class == "Boss" and copy.activeBoss and copy.activeBoss.mob == mob then
-					for _, add in copy.activeBoss.adds do
+				local boss = camp.boss
+				if boss and boss.mob == mob then
+					for _, add in boss.adds do
 						MobService:Despawn(add)
 					end
 					BossService:Detach(mob)
-					copy.activeBoss = nil
+					camp.boss = nil
 				end
+				camp.emptySince = nil
 				return
 			end
 		end
 	end
 end
 
--- Altar billboards over the bosses' posts with their status / countdown.
+-- Billboards over the bosses' posts with their status / countdown.
 local function buildAltars(copy: Copy)
 	for _, camp in copy.bosses do
 		local holder = Instance.new("Part")
@@ -361,11 +426,11 @@ local function buildAltars(copy: Copy)
 		holder.CanTouch = false
 		holder.Transparency = 1
 		holder.Size = Vector3.new(1, 1, 1)
-		holder.CFrame = camp.slot.at + Vector3.new(0, if camp.class == "Boss" then 26 else 16, 0)
+		holder.CFrame = camp.slot.at + Vector3.new(0, if camp.class == "MiniBoss" then 16 else 26, 0)
 		holder.Parent = copy.map
 		local gui = Instance.new("BillboardGui")
-		gui.Size = UDim2.fromOffset(260, 34)
-		gui.MaxDistance = 140
+		gui.Size = UDim2.fromOffset(280, 34)
+		gui.MaxDistance = if camp.class == "MiniBoss" then 80 else 140
 		gui.LightInfluence = 0
 		gui.AlwaysOnTop = false
 		local label = Instance.new("TextLabel")
@@ -383,7 +448,7 @@ local function buildAltars(copy: Copy)
 end
 
 --------------------------------------------------------------------------------
--- Entering and leaving
+-- Entering, leaving and moving between floors
 --------------------------------------------------------------------------------
 
 local function onGate(player: Player, gateRace: string, gate: BasePart)
@@ -411,7 +476,7 @@ local function onGate(player: Player, gateRace: string, gate: BasePart)
 		action = "EnterDungeon",
 		target = `{copy.dungeon.id}:{gateRace}`,
 	})
-	TravelService:Teleport(player, entranceCFrame(copy))
+	TravelService:Teleport(player, arrivalCFrame(copy, 1))
 end
 
 local function leave(player: Player)
@@ -422,6 +487,98 @@ local function leave(player: Player)
 	local outside = gateFrontCFrame(copy.race) or TravelService:GetHomeCFrame(player)
 	if outside then
 		TravelService:Teleport(player, outside)
+	end
+end
+
+-- A portal on `floorIndex` was used: only by a living player of this copy
+-- standing at it (T-15).
+local function atPortal(player: Player, copy: Copy, surface: BasePart): boolean
+	local root = rootOf(player)
+	return root ~= nil
+		and alive(player)
+		and copyOfPlayer[player] == copy
+		and (root.Position - surface.Position).Magnitude <= PORTAL_REACH
+end
+
+local function goDown(player: Player, copy: Copy, floorIndex: number, surface: BasePart)
+	if not atPortal(player, copy, surface) then
+		return
+	end
+	local next = copy.dungeon.floors[floorIndex + 1]
+	if next == nil then
+		notify(player, "Warning", "dungeon.noFloor")
+		return
+	end
+	TravelService:Teleport(player, arrivalCFrame(copy, floorIndex + 1))
+end
+
+local function goUp(player: Player, copy: Copy, floorIndex: number, surface: BasePart)
+	if not atPortal(player, copy, surface) then
+		return
+	end
+	local above = copy.dungeon.floors[floorIndex - 1]
+	if above == nil or above.downPortal == nil then
+		notify(player, "Warning", "dungeon.noFloor")
+		return
+	end
+	-- In front of the floor above's way down (its lair).
+	local p = above.downPortal
+	TravelService:Teleport(player, floorPoint(copy, floorIndex - 1, p[1], p[2] - 18, true))
+end
+
+local function addPrompt(surface: BasePart, action: string, object: string): ProximityPrompt
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = action
+	prompt.ObjectText = object
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = surface
+	return prompt
+end
+
+local function wirePortals(copy: Copy)
+	for floorIndex, floor in copy.dungeon.floors do
+		local leaveSurface = mapPart(copy, `Leave_{floorIndex}`)
+		if leaveSurface then
+			addPrompt(leaveSurface, "Leave dungeon", copy.dungeon.name).Triggered:Connect(function(player)
+				if atPortal(player, copy, leaveSurface) then
+					leave(player)
+				end
+			end)
+		end
+		local up = mapPart(copy, `Up_{floorIndex}`)
+		if up then
+			addPrompt(up, `Up to Floor {floorIndex - 1}`, floor.name).Triggered:Connect(function(player)
+				goUp(player, copy, floorIndex, up)
+			end)
+		end
+		local down = mapPart(copy, `Down_{floorIndex}`)
+		if down then
+			local nextFloor = copy.dungeon.floors[floorIndex + 1]
+			addPrompt(down, `Down to Floor {floorIndex + 1}`, if nextFloor then nextFloor.name else "").Triggered:Connect(
+				function(player)
+					goDown(player, copy, floorIndex, down)
+				end
+			)
+			local gui = Instance.new("BillboardGui")
+			gui.Size = UDim2.fromOffset(300, 46)
+			gui.StudsOffset = Vector3.new(0, 14, 0)
+			gui.MaxDistance = 120
+			gui.LightInfluence = 0
+			local label = Instance.new("TextLabel")
+			label.BackgroundTransparency = 1
+			label.Size = UDim2.fromScale(1, 1)
+			label.TextSize = 16
+			label.FontFace = Font.fromEnum(Enum.Font.GothamBold)
+			label.TextColor3 = Color3.fromRGB(150, 255, 170)
+			label.TextStrokeTransparency = 0.25
+			label.Text = if nextFloor
+				then `Floor {floorIndex + 1}: {nextFloor.name} (Lv {nextFloor.levels[1]}-{nextFloor.levels[2]})`
+				else ""
+			label.Parent = gui
+			gui.Parent = down
+		end
 	end
 end
 
@@ -465,6 +622,7 @@ local function resolveRespawn(player: Player): CFrame?
 		return target
 	end
 	copyOfPlayer[player] = nil
+	floorOfPlayer[player] = nil
 	return gateFrontCFrame(copy.race)
 end
 
@@ -472,12 +630,15 @@ end
 -- Ticking
 --------------------------------------------------------------------------------
 
-local function livingPlayersInRoom(copy: Copy, index: number): number
+local function livingPlayersInRoom(copy: Copy, floorIndex: number, roomIndex: number): number
 	local n = 0
 	for player, inside in copyOfPlayer do
 		local root = rootOf(player)
-		if inside == copy and root and alive(player) and roomOf(copy, root.Position) == index then
-			n += 1
+		if inside == copy and root and alive(player) then
+			local f, r = locate(copy, root.Position)
+			if f == floorIndex and r == roomIndex then
+				n += 1
+			end
 		end
 	end
 	return n
@@ -493,33 +654,47 @@ local function tick(now: number)
 			copy = was
 		end
 		copyOfPlayer[player] = copy :: any
+		if copy and root then
+			local floorIndex = locate(copy, root.Position)
+			if floorIndex and floorIndex ~= floorOfPlayer[player] then
+				floorOfPlayer[player] = floorIndex
+				local floor = copy.dungeon.floors[floorIndex]
+				notify(player, "Info", "dungeon.floor", {
+					floor = tostring(floorIndex),
+					name = floor.name,
+					levels = `{floor.levels[1]}-{floor.levels[2]}`,
+				})
+			end
+		elseif copy == nil then
+			floorOfPlayer[player] = nil
+		end
 		if copy or was then
 			pushState(player, copy)
 		end
 	end
+	local wipeSeconds = config().WipeResetSeconds
 	for _, copy in copies do
 		for _, camp in copy.bosses do
 			if camp.label then
 				camp.label.Text = bossStatus(camp, now)
 			end
-		end
-		local boss = copy.activeBoss
-		if boss and boss.engaged and not boss.mob.dead then
-			local index = nil
-			for _, camp in copy.bosses do
-				if camp.class == "Boss" then
-					index = camp.room
+			-- An engaged boss with nobody left alive in its room resets.
+			local boss = camp.boss
+			if boss and boss.engaged and not boss.mob.dead then
+				if livingPlayersInRoom(copy, camp.floor, camp.room) == 0 then
+					camp.emptySince = camp.emptySince or now
+					if now - (camp.emptySince :: number) >= wipeSeconds then
+						camp.emptySince = nil
+						BossService:Reset(boss)
+						log:Info(
+							"%s in the %s dungeon reset (no one left in its room)",
+							boss.def.id,
+							copy.race
+						)
+					end
+				else
+					camp.emptySince = nil
 				end
-			end
-			if index and livingPlayersInRoom(copy, index) == 0 then
-				copy.emptyBossRoomSince = copy.emptyBossRoomSince or now
-				if now - (copy.emptyBossRoomSince :: number) >= config().WipeResetSeconds then
-					copy.emptyBossRoomSince = nil
-					BossService:Reset(boss)
-					log:Info("the %s dungeon's boss reset (no one left in its room)", copy.race)
-				end
-			else
-				copy.emptyBossRoomSince = nil
 			end
 		end
 	end
@@ -552,7 +727,7 @@ local function openGates()
 		gate.Transparency = 0.15
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = `Enter {dungeon.name}`
-		prompt.ObjectText = `Rift Dungeons · Lv {dungeon.minLevel}+`
+		prompt.ObjectText = `Rift Dungeons · {#dungeon.floors} floors · Lv {dungeon.minLevel}+`
 		prompt.HoldDuration = 0.3
 		prompt.MaxActivationDistance = 16
 		prompt.RequiresLineOfSight = false
@@ -577,21 +752,9 @@ local function buildCopy(folder: Folder, race: string, dungeon: DungeonDefinitio
 		map = map,
 		owner = `dungeon:{race}`,
 		bosses = {},
-		activeBoss = nil,
-		emptyBossRoomSince = nil,
 	}
 	copies[race] = copy
-	local exit = mapPart(copy, "Exit")
-	if exit then
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.ActionText = "Leave dungeon"
-		prompt.ObjectText = dungeon.name
-		prompt.HoldDuration = 0.4
-		prompt.MaxActivationDistance = 12
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = exit
-		prompt.Triggered:Connect(leave)
-	end
+	wirePortals(copy)
 	spawnCamps(copy)
 	buildAltars(copy)
 end
@@ -618,6 +781,7 @@ function DungeonService:Start()
 	openGates()
 	Players.PlayerRemoving:Connect(function(player)
 		copyOfPlayer[player] = nil
+		floorOfPlayer[player] = nil
 	end)
 	task.spawn(function()
 		while true do
@@ -628,7 +792,11 @@ function DungeonService:Start()
 			end
 		end
 	end)
-	log:Info("dungeons ready (%s, one per realm)", dungeon.name)
+	local bossCount = 0
+	for _, copy in copies do
+		bossCount = #copy.bosses
+	end
+	log:Info("dungeons ready (%s: %d floors, %d bosses per realm)", dungeon.name, #dungeon.floors, bossCount)
 end
 
 -- Whether the player is inside a dungeon.

@@ -9,8 +9,10 @@
 	    actually moving; it falls back to Walk when Focus runs out.
 	  - Publishes the character attribute "Stance" ("Sprint" / "Crouch" / nil)
 	    so every client plays the right loop (AnimationController).
-	  - Slowing down (sprint -> walk/crouch) grants a short speed allowance so
-	    deceleration is never flagged as a speed hack.
+	  - Skill statuses scale the speed: stunned / rooted 0, slowed by its %
+	    (CombatService.StatusChanged).
+	  - Slowing down (sprint -> walk/crouch, a stun) grants a short speed
+	    allowance so deceleration is never flagged as a speed hack.
 ]]
 
 local Players = game:GetService("Players")
@@ -52,16 +54,22 @@ local function speedFor(mode: string): number
 	return config.WalkSpeed
 end
 
+-- The mode's speed after stuns, roots and slows (skills, Phase 5).
+local function controlledSpeed(player: Player, mode: string): number
+	local entity = CombatService:GetPlayerEntity(player)
+	local scale = if entity then CombatService:ControlOf(entity).speedScale else 1
+	return speedFor(mode) * scale
+end
+
 local function apply(player: Player, mode: string)
-	local previous = modes[player] or "Walk"
 	modes[player] = mode
 	local character = player.Character
 	local humanoid = humanoidOf(player)
 	if character == nil or humanoid == nil or CombatService:IsDefeated(player) then
 		return
 	end
-	local oldSpeed = speedFor(previous)
-	local newSpeed = speedFor(mode)
+	local oldSpeed = humanoid.WalkSpeed
+	local newSpeed = controlledSpeed(player, mode)
 	if newSpeed < oldSpeed then
 		-- The body still carries momentum for a moment.
 		AntiExploitService:GrantSpeedAllowance(player, oldSpeed - newSpeed, 1)
@@ -105,6 +113,13 @@ end
 
 function MovementService:Init()
 	NetService:Handle("SetMovementMode", onSetMode)
+	-- Stun / root / slow started or ended: re-apply the speed.
+	CombatService.StatusChanged:Connect(function(entity)
+		local player = entity.player
+		if entity.kind == "Player" and player and player.Character == entity.model then
+			apply(player, modes[player] or "Walk")
+		end
+	end)
 end
 
 function MovementService:Start()

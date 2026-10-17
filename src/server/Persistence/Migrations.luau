@@ -7,7 +7,10 @@
 	pure and idempotent. Migration runs on a deep copy; the caller only adopts the
 	result on success, so a failing step never corrupts saved data.
 
-	Schema v1 is the initial version, so there are no steps yet.
+	v1 -> v2 (Phase 5, D-45): skills become a tree with ranks. v1 skill
+	grants (every skill of the job, owned for free) are refunded: OwnedSkills
+	and the skill bar start empty and every skill point is available again
+	(points come from the level, so nothing is lost).
 
 	Pure module: no engine APIs beyond requires (tests load it via tests/pure/loader).
 ]]
@@ -22,7 +25,13 @@ local Migrations = {}
 Migrations.CURRENT_VERSION = ProfileTemplate.SCHEMA_VERSION
 
 -- [fromVersion] = function(data) -> data (now at fromVersion + 1)
-Migrations.STEPS = table.freeze({} :: { [number]: Step })
+Migrations.STEPS = table.freeze({
+	[1] = function(data)
+		data.OwnedSkills = {}
+		data.EquippedSkills = { Regular = {} }
+		return data
+	end,
+} :: { [number]: Step })
 
 local function deepCopy(value: any): any
 	if type(value) ~= "table" then
