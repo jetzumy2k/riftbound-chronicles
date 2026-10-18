@@ -203,10 +203,28 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 **Importing the sculpted creatures** (once per shape; `python tools/creatures/build.py` regenerates them):
 1. Studio: **File > Import 3D** (or Avatar tab > Import 3D), pick `build/creatures/Hound.gltf`.
 2. Keep the importer's defaults (rig and skinning on); if it asks for the file's units, choose **studs**. The hound should come in about 5 studs long and 3.5 tall (Cerberus a bit bigger, the serpent about 13 long, the hydra about 8).
-3. **Import**. A model appears; rename it exactly `Hound` if needed.
-4. Right-click it > **Save to File...** > `src/server/CreatureModels/Hound.rbxm`, then delete it from the Workspace.
-5. Repeat for `Cerberus`, `Serpent`, `Hydra`, then sync / rebuild the place.
-A creature with no imported model keeps its old procedural body, so this can be done one shape at a time.
+3. **Import**. The model lands in the **Workspace** (expand it in the Explorer); rename it exactly `Hound` if needed.
+4. Right-click it > **Save to File...** > `src/server/CreatureModels/Hound.rbxm`, then delete it from the Workspace. (Rojo only syncs files into Studio, so the model must be saved to the folder on disk.)
+5. Repeat for `Cerberus`, `Serpent`, `Hydra` (batch A), `Beetle`, `Spider`, `Golem`, `Knight`, `Lion`, `Chimera` (batch B, D-57) and `Dragon`, `Griffin`, `Steed`, `Bat`, `Harpy`, `Gorgon`, `Sprite` (batch C, D-58), then sync / rebuild the place. Batch B's `Lion` must be re-imported if it was imported before D-58 (it gained Nian's horns and split wings).
+A creature with no imported model keeps its old procedural body, so this can be done one shape at a time. Previews of every shape: `build/creatures/<Name>.png`.
+
+**Batch B checks (D-57)**
+1. **Spider** (Arachne, Scylla, Charybdis): eight legs arched high, stepping in two alternating sets of four; fangs spread in the wind-up and snap on the strike; the abdomen sways as it walks.
+2. **Beetle** (Crystal Beetle, Sand / Cinder Scarab, Thorncrawler, Abyss Crawler, and the beetle-bodied bosses): a glossy domed shell with glowing spots, a horn, six legs in alternating tripods; the front pair waves when it rears.
+3. **Golem** (all golems, Oasis Colossus): craggy stone slabs, a glowing core, huge fists; arms swing against the legs, feet planted; the jaw drops to roar. Grendel, Mapinguari and the Oasis Colossus wear glassy crystal spikes; the others none.
+4. **Knight** (Abyssal Knight, Rift Guardian, Minotaur): plate armour, cloak, sword and shield; the sword arm rises overhead and slams down. Only the Minotaur has horns on its helm.
+5. **Lion** (Nemean Lion, Sphinx, Manticore): a maned lion. The Sphinx has feathered wings that fold along its back at rest and spread when it runs or strikes; the Manticore has a segmented sting instead of a tail tuft; the Nemean Lion has neither.
+6. **Chimera**: lion with a goat's head rising from its back (both look at you), bat wings, and a serpent tail whose head looks round and snaps with the strike.
+
+**Batch C checks (D-58)** -- every enemy now has a sculpted body.
+1. **Dragon** (Fafnir, Wyvern, Typhon): horned head on a long neck (Wyvern without horns), bat wings folded at rest and spreading at a run or strike, a spined tail ending in a blade that sways.
+2. **Griffin** (Griffin, Anzu, Cockatrice): eagle's head with a hooked beak (opens on the strike), feather ruff and crest, lion's body and tufted tail; Griffin and Anzu have feathered wings, the Cockatrice none.
+3. **Steed** (Kelpie, Peryton): a horse with an arched neck, flowing mane and tail, hooves; the Peryton has antlers and feathered wings, the Kelpie neither. Long-legged walk and gallop, hooves planted.
+4. **Bat** (Camazotz): wolf-bat with great ears, fangs, leathery wings and glassy spines.
+5. **Harpy** (Harpy Queen): armoured bird-woman, wings of long feathers along her arms that swing as she strides and rise overhead for the strike; taloned bird feet.
+6. **Gorgon**: armoured torso rising from a serpent body that slithers like the serpents; snakes for hair; arms spread and rise in the wind-up and sweep forward on the strike.
+7. **Sprite** (Rift Sprite): glowing heart in a shell of glassy crystal shards, petal wings beating fast, wisps trailing below; it hovers and bobs.
+8. **Lion** now also covers **Nian** (with curved horns) and **Taotie**; **Ahuizotl** uses the hound.
 
 **Checks**
 1. Rift Hollow floor 1 (Rift Wolves) and Cerberus's Gate; floor 3 Basilisk; Jungle Rift Hydra (level 45) and Desert Apophis: the new bodies, one smooth skin, coloured per creature.
@@ -215,6 +233,8 @@ A creature with no imported model keeps its old procedural body, so this can be 
 4. Hydra: four sprawling legs trot; three necks sway and strike a beat apart.
 5. Golems / knights **charge** if you keep your distance; beetles **zig-zag** in.
 6. **Portals:** walk into any portal surface (capital gates, dungeon Leave / Up / Down, Desert / Jungle gates and Return Home): you travel at once, no prompt. Arriving next to a portal never sends you on again until you step out.
+
+**Streaming (D-56):** walk 200+ studs away from a group of creatures and come back, several times: every creature still steps with its legs (none glides with still legs).
 
 ## Creature overhaul, stage 1: skeletons and walking (D-51)
 Offline first: `lune run tools/world/check_gait all` (every legged creature at a walk and a run: planted feet must not slide; 0 failed). One creature with a pose strip: `lune run tools/world/check_gait RiftWolf 16 build/gait/wolf.json` then `python tools/world/render_gait.py build/gait/wolf.json build/gait/wolf.png`.

@@ -306,27 +306,95 @@ end
 --[[
 	Sculpted mesh (Animation/CreatureMeshes, imported model
 	CreatureModels/<shape>) an enemy uses, when one carries all of its
-	anatomy; nil keeps the procedural body (D-52, batch A: hounds, Cerberus,
-	serpents, hydras). Traits the mesh does not model (wings, manes...)
+	anatomy; nil keeps the procedural body (D-52 batch A: hounds, Cerberus,
+	serpents, hydras; D-57 batch B: beetles, spiders, golems, knights,
+	lions, the chimera; D-58 batch C: dragons, griffins, steeds, the bat,
+	the harpy, the gorgon, the sprite). Traits the mesh does not model
 	keep the procedural body until their mesh exists.
 ]]
 local MESH_TRAITS: { [string]: { [string]: boolean } } = {
-	Hound = { Mane = true, Spikes = true },
+	-- Ahuizotl's serpent tail is drawn as the hound's tail.
+	Hound = { Mane = true, Spikes = true, SerpentTail = true },
 	Cerberus = { ThreeHeads = true, Mane = true, Spikes = true },
 	Serpent = { Crest = true, Spikes = true },
 	Hydra = { ThreeHeads = true, Spikes = true },
+	Beetle = {},
+	Spider = {},
+	Golem = { Spikes = true },
+	Knight = { Horns = true },
+	Lion = { Mane = true, Wings = true, SerpentTail = true, Horns = true },
+	Chimera = { Mane = true, Horns = true, Wings = true, SerpentTail = true },
+	Dragon = { Wings = true, Horns = true, SerpentTail = true },
+	Griffin = { Wings = true },
+	Steed = { Wings = true, Horns = true },
+	Bat = { Wings = true, Spikes = true },
+	Harpy = { Wings = true },
+	Gorgon = { SerpentTail = true },
+	Sprite = {},
 }
 
-function CreatureRigs.meshShapeFor(body: string, traits: { string }?): string?
+-- Enemies whose shape is not the default for their body.
+local SHAPE_BY_ENEMY: { [string]: string } = {
+	Arachne = "Spider",
+	Scylla = "Spider",
+	Charybdis = "Spider",
+	NemeanLion = "Lion",
+	Sphinx = "Lion",
+	Manticore = "Lion",
+	Chimera = "Chimera",
+	Nian = "Lion",
+	Taotie = "Lion",
+	Ahuizotl = "Hound",
+	Fafnir = "Dragon",
+	Wyvern = "Dragon",
+	Typhon = "Dragon",
+	Griffin = "Griffin",
+	Anzu = "Griffin",
+	Cockatrice = "Griffin",
+	Kelpie = "Steed",
+	Peryton = "Steed",
+	Camazotz = "Bat",
+	HarpyQueen = "Harpy",
+	Gorgon = "Gorgon",
+}
+
+--[[
+	Optional parts of a mesh (a region with its own MeshPart): kept only
+	when the enemy has the trait (wings on a lion, the Manticore's sting,
+	helm horns, crystal spikes), or (`MESH_REPLACED_REGIONS`) only when it
+	does not (a lion's tail tuft gives way to the sting).
+]]
+CreatureRigs.MESH_OPTIONAL_REGIONS = table.freeze({
+	Wing = "Wings",
+	Sting = "SerpentTail",
+	Horns = "Horns",
+	Spikes = "Spikes",
+}) :: { [string]: string }
+
+CreatureRigs.MESH_REPLACED_REGIONS = table.freeze({
+	Tuft = "SerpentTail",
+}) :: { [string]: string }
+
+function CreatureRigs.meshShapeFor(body: string, traits: { string }?, enemyId: string?): string?
 	local has: { [string]: boolean } = {}
 	for _, trait in (traits or {}) :: { string } do
 		has[trait] = true
 	end
-	local shape: string? = nil
-	if body == "Wolf" then
+	local shape: string? = if enemyId then SHAPE_BY_ENEMY[enemyId] else nil
+	if shape then
+		-- Named above.
+	elseif body == "Wolf" then
 		shape = if has.ThreeHeads then "Cerberus" else "Hound"
 	elseif body == "Serpent" then
 		shape = if has.ThreeHeads then "Hydra" else "Serpent"
+	elseif body == "Beetle" then
+		shape = "Beetle"
+	elseif body == "Golem" then
+		shape = "Golem"
+	elseif body == "Guardian" then
+		shape = "Knight"
+	elseif body == "Sprite" then
+		shape = "Sprite"
 	end
 	if shape == nil then
 		return nil
@@ -346,6 +414,19 @@ CreatureRigs.MESH_ROOT_SIZE = table.freeze({
 	Cerberus = Vector3.new(2.4, 2.2, 3.8),
 	Serpent = Vector3.new(1.6, 1.2, 3),
 	Hydra = Vector3.new(3, 2, 4.2),
+	Beetle = Vector3.new(2, 1.2, 3),
+	Spider = Vector3.new(2, 1.2, 2.6),
+	Golem = Vector3.new(2.4, 2.4, 1.8),
+	Knight = Vector3.new(1.8, 2.2, 1.4),
+	Lion = Vector3.new(2, 2, 3.8),
+	Chimera = Vector3.new(2.2, 2.2, 4),
+	Dragon = Vector3.new(2.4, 2, 4.2),
+	Griffin = Vector3.new(2, 2, 3.8),
+	Steed = Vector3.new(1.8, 2.4, 3.6),
+	Bat = Vector3.new(2, 2, 3.6),
+	Harpy = Vector3.new(1.4, 2, 1.2),
+	Gorgon = Vector3.new(1.6, 1.2, 3),
+	Sprite = Vector3.new(1.2, 1.2, 1.2),
 }) :: { [string]: Vector3 }
 
 -- Ground height in the Body frame at rest (unscaled).

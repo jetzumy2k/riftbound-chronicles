@@ -708,6 +708,17 @@ local function beetle(rig: Rig, now: number, rear: number, strike: number, hit: 
 		CFrame.new(0, 0, strike * -1.1)
 			* CFrame.Angles(math.rad(rear * 22 - strike * 26 + look.Y * 0.5), math.rad(look.X * 0.6), 0)
 	)
+	-- Meshes: mandibles / fangs spread in the wind-up and snap shut on the
+	-- strike, twitch at rest; a spider's abdomen sways with the steps.
+	local twitch = math.sin(now * 5.3) * 4 * (1 - moving)
+	local open = rear * 28 - strike * 12 + twitch + rig.alert * 6
+	set(rig, "MandL", angles(0, -open, 0))
+	set(rig, "MandR", angles(0, open, 0))
+	set(
+		rig,
+		"Abdomen",
+		angles(math.sin(cycle * 2) * 4 * moving + breathe * 3 - rear * 8, math.sin(cycle) * 6 * moving, 0)
+	)
 end
 
 local function biped(rig: Rig, now: number, rear: number, strike: number, hit: number, down: number)
@@ -783,6 +794,8 @@ local function biped(rig: Rig, now: number, rear: number, strike: number, hit: n
 			0
 		)
 	)
+	-- Meshes: the golem's jaw drops to roar.
+	jaw(rig, "", roar * 30 + rear * 8)
 end
 
 local serpentNecks: (
@@ -868,6 +881,16 @@ local function serpent(rig: Rig, now: number, rear: number, strike: number, hit:
 	-- The neck turns back against the weave: the head holds its heading.
 	rig.neckCounter = -weaveYaw * 0.75
 	serpentNecks(rig, now, rear, strike, hit, down, moving, rise, hiss, sweep, lunge)
+	-- A gorgon's arms (meshes): spread and raised in the wind-up, sweeping
+	-- forward on the strike, swaying at rest.
+	if rig.motors["ArmL"] then
+		local reach = rear * 70 - strike * 40 + rise * 30
+		local spread = 15 + rear * 35 + hiss * 20 + down * 30
+		set(rig, "ArmL", angles(reach + math.sin(now * 1.2) * 6 * still, 0, -spread))
+		set(rig, "ArmR", angles(reach + math.sin(now * 1.2 + 1) * 6 * still, 0, spread))
+		set(rig, "ArmL2", rx(20 + rear * 30 + hit * 15))
+		set(rig, "ArmR2", rx(20 + rear * 30 + hit * 15))
+	end
 	-- The body follows the chest's trail; at rest it sways and coils a little.
 	slither(rig, function(i: number): number
 		return (math.sin(now * 0.8 - i * 0.6) * 3 + coil * 10 + rig.alert * 1.5) * still * (1 - down * 0.6)
@@ -1041,6 +1064,17 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 	-- simulates creatures, so the replicated velocity can read ~0 here
 	-- (the legs would then stand still while the body glides). A jump of
 	-- many studs in one frame is a teleport / respawn, not a step.
+	if rig.root.Parent == nil then
+		-- The root was re-sent by streaming: follow the new one (the old
+		-- one stays where it was, which reads as standing still).
+		local root = rig.model:FindFirstChild("HumanoidRootPart")
+		if root == nil or not root:IsA("BasePart") then
+			return
+		end
+		rig.root = root
+		rig.lastPosition = root.Position
+		rig.legs = nil
+	end
 	local position = rig.root.Position
 	local moved = Vector3.new(position.X - rig.lastPosition.X, 0, position.Z - rig.lastPosition.Z).Magnitude
 	rig.lastPosition = position
@@ -1108,7 +1142,14 @@ end
 -- Records a joint and what it says about the rig's anatomy.
 local function addMotor(rig: Rig, motor: any)
 	local name = motor.Name
+	local replaced = rig.motors[name]
 	rig.motors[name] = motor
+	if replaced and replaced ~= motor then
+		-- Re-sent by streaming: the legs and the serpent body hold the old
+		-- joints, so they are rebuilt from the new ones.
+		rig.legs = nil
+		rig.slither = nil
+	end
 	if motor:IsA("Bone") then
 		if motor.Parent and motor.Parent:IsA("Bone") then
 			rig.boneParent[name] = motor.Parent.Name
@@ -1155,9 +1196,13 @@ local function track(model: Model)
 	local plan = CreatureRigs.plan(body)
 	local gait = CreatureRigs.gaitFor(body, rigScale)
 	if mesh then
-		body = if mesh.bodyPlan == "Quadruped"
+		local meshPlan = mesh.bodyPlan
+		body = if meshPlan == "Quadruped"
 			then "Wolf"
-			elseif mesh.bodyPlan == "Sprawler" then "Hydra"
+			elseif meshPlan == "Sprawler" then "Hydra"
+			elseif meshPlan == "Hexapod" or meshPlan == "Octopod" then "Beetle"
+			elseif meshPlan == "Biped" then (if body == "Guardian" then "Guardian" else "Golem")
+			elseif meshPlan == "Sprite" then "Sprite"
 			else "Serpent"
 		plan = if #mesh.legs > 0
 			then { bodyCenter = Vector3.zero, height = mesh.height, legs = mesh.legs :: any } :: any
@@ -1299,6 +1344,10 @@ function MobVisualController:Start()
 			local distance = (rig.root.Position - origin).Magnitude
 			if distance <= UPDATE_DISTANCE then
 				animate(rig, dt, now, distance <= GROUND_DETAIL_DISTANCE)
+			else
+				-- Out of range: keep its position current so the first step
+				-- back in range does not read a burst of speed.
+				rig.lastPosition = rig.root.Position
 			end
 		end
 	end)

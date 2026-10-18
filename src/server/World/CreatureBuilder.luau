@@ -1186,9 +1186,15 @@ local function meshTemplate(shape: string): Model?
 	return if template and template:IsA("Model") then template else nil
 end
 
+-- The skin's material by body plan: fur, chitin, stone / scales.
+local SKIN_MATERIAL: { [string]: Enum.Material } = {
+	Quadruped = Enum.Material.Fabric,
+	Hexapod = Enum.Material.SmoothPlastic,
+	Octopod = Enum.Material.Fabric,
+}
+
 -- Colour and material of each mesh region for an enemy's palette.
-local function regionStyle(region: string, ctx: Ctx, scaly: boolean): (Color3, Enum.Material)
-	local skin = if scaly then Enum.Material.Slate else Enum.Material.Fabric
+local function regionStyle(region: string, ctx: Ctx, skin: Enum.Material): (Color3, Enum.Material)
 	if region == "Under" then
 		return ctx.color:Lerp(Color3.new(1, 0.95, 0.85), 0.35), skin
 	elseif region == "Dark" then
@@ -1197,8 +1203,23 @@ local function regionStyle(region: string, ctx: Ctx, scaly: boolean): (Color3, E
 		return BONE, Enum.Material.SmoothPlastic
 	elseif region == "Eye" or region == "Glow" then
 		return ctx.glow, Enum.Material.Neon
-	elseif region == "Mane" then
+	elseif region == "Mane" or region == "Tuft" then
 		return ctx.dark:Lerp(ctx.glow, 0.3), Enum.Material.Fabric
+	elseif region == "Horns" then
+		return BONE, Enum.Material.SmoothPlastic
+	elseif region == "Metal" then
+		-- Armour: steel tinted with the creature's colour.
+		return ctx.color:Lerp(Color3.fromRGB(150, 154, 164), 0.5), Enum.Material.Metal
+	elseif region == "Blade" then
+		return Color3.fromRGB(206, 212, 222):Lerp(ctx.glow, 0.12), Enum.Material.Metal
+	elseif region == "Cloth" then
+		return ctx.dark:Lerp(ctx.glow, 0.25), Enum.Material.Fabric
+	elseif region == "Wing" then
+		return ctx.color:Lerp(ctx.dark, 0.45), skin
+	elseif region == "Sting" then
+		return ctx.dark, Enum.Material.SmoothPlastic
+	elseif region == "Spikes" or region == "Petal" then
+		return ctx.glow:Lerp(Color3.new(1, 1, 1), 0.35), Enum.Material.Glass
 	end
 	return ctx.color, skin
 end
@@ -1218,6 +1239,14 @@ local function buildFromMesh(
 	local data = CreatureMeshes.Shapes[shape]
 	local model = template:Clone()
 	model.Name = enemy.name
+	-- The importer's extras: our animator drives the bones, and the pose
+	-- backup (~100 values) would only be replicated to every player.
+	for _, extra in { "AnimationController", "InitialPoses" } do
+		local found = model:FindFirstChild(extra)
+		if found then
+			found:Destroy()
+		end
+	end
 	local color = rgb(enemy.color)
 	local ctx: Ctx = {
 		model = model,
@@ -1229,7 +1258,22 @@ local function buildFromMesh(
 		traits = {},
 		elite = enemy.elite,
 	}
-	local scaly = data.bodyPlan ~= "Quadruped"
+	local skin = SKIN_MATERIAL[data.bodyPlan] or Enum.Material.Slate
+	local has: { [string]: boolean } = {}
+	for _, trait in ((enemy.traits :: any) or {}) :: { string } do
+		has[trait] = true
+	end
+	-- Optional parts this enemy does not have (wings, sting, horns...).
+	for _, d in model:GetChildren() do
+		if d:IsA("BasePart") then
+			local region = string.gsub(d.Name, "%d+$", "")
+			local needs = CreatureRigs.MESH_OPTIONAL_REGIONS[region]
+			local replacedBy = CreatureRigs.MESH_REPLACED_REGIONS[region]
+			if (needs and not has[needs]) or (replacedBy and has[replacedBy]) then
+				d:Destroy()
+			end
+		end
+	end
 	local parts: { BasePart } = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -1239,7 +1283,12 @@ local function buildFromMesh(
 			d.CanTouch = false
 			d.Massless = true
 			local region = string.gsub(d.Name, "%d+$", "")
-			d.Color, d.Material = regionStyle(region, ctx, scaly)
+			d.Color, d.Material = regionStyle(region, ctx, skin)
+			if region == "Spikes" then
+				d.Transparency = 0.15
+			elseif region == "Petal" then
+				d.Transparency = 0.3
+			end
 			d.CastShadow = region ~= "Eye" and region ~= "Glow"
 			if d:IsA("MeshPart") then
 				-- Region colour and material instead of a texture.
@@ -1258,19 +1307,15 @@ local function buildFromMesh(
 		end
 		return nil
 	end
-	-- Stand the Body bone on `at`, at its height, facing -Z of `at`: the
-	-- sculpt's head is forward of its Body bone, which also corrects an
-	-- import that turned the model round.
+	-- Stand the Body bone on `at`, at its height, facing -Z of `at`.
 	local bodyBone = bone("Body")
-	local headBone = bone("Head")
 	local bonePosition = if bodyBone then bodyBone.WorldPosition else model:GetPivot().Position
 	local facing = CFrame.identity
-	if bodyBone and headBone then
-		local ahead = headBone.WorldPosition - bodyBone.WorldPosition
-		local flatAhead = Vector3.new(ahead.X, 0, ahead.Z)
-		if flatAhead.Magnitude > 0.05 then
-			facing = CFrame.lookAt(Vector3.zero, flatAhead)
-		end
+	if bodyBone then
+		-- The sculpt binds the Body bone facing -Z; the importer turns it
+		-- (and the model) round, so its yaw now is the model's facing.
+		local look = bodyBone.WorldCFrame.LookVector
+		facing = CFrame.Angles(0, math.atan2(-look.X, -look.Z), 0)
 	end
 	local target = at * CFrame.new(0, data.height * s, 0)
 	local offset = target * (CFrame.new(bonePosition) * facing):Inverse()
@@ -1328,7 +1373,7 @@ function CreatureBuilder.build(enemyId: string, at: CFrame): Model?
 		return nil
 	end
 	-- A sculpted mesh when its model has been imported (D-52).
-	local shape = CreatureRigs.meshShapeFor(enemy.body, enemy.traits :: any)
+	local shape = CreatureRigs.meshShapeFor(enemy.body, enemy.traits :: any, enemy.id)
 	local template = if shape then meshTemplate(shape) else nil
 	if shape and template then
 		local meshModel, meshRoot = buildFromMesh(enemy, shape, template, at)
@@ -1337,6 +1382,7 @@ function CreatureBuilder.build(enemyId: string, at: CFrame): Model?
 		meshModel:SetAttribute("RC_Scale", enemy.scale)
 		local height = CreatureMeshes.Shapes[shape].height * enemy.scale
 		newHumanoid(enemy, height - meshRoot.Size.Y / 2).Parent = meshModel
+		meshModel.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 		return meshModel
 	end
 	local model = Instance.new("Model")
@@ -1390,6 +1436,9 @@ function CreatureBuilder.build(enemyId: string, at: CFrame): Model?
 	model:PivotTo(at * CFrame.new(0, height * s, 0))
 
 	newHumanoid(enemy, height * s - root.Size.Y / 2).Parent = model
+	-- Streams to a player whole (and leaves whole): a creature never shows
+	-- up with some of its joints, which the client animator would miss.
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 	return model
 end
 

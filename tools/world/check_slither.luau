@@ -87,113 +87,120 @@ if id == "all" then
 	if not meshResult.ok then
 		failed += 1
 	end
-	print(`{#ids} serpents checked slow and fast, and the Serpent mesh: {failed} failed`)
+	print(`{#ids} serpents checked slow and fast, and the Serpent and Gorgon meshes: {failed} failed`)
 	process.exit(if failed == 0 then 0 else 1)
 end
 
--- "mesh": the sculpted Serpent's skeleton (build/creatures/Serpent.gltf
--- bones; Bone joints instead of Motor6Ds), at sizes 1 and 3.
+-- "mesh": the sculpted serpent bodies' skeletons (build/creatures/
+-- Serpent.gltf, Gorgon.gltf bones; Bone joints instead of Motor6Ds), at
+-- sizes 1 and 3.
 if id == "mesh" then
 	local fs = require("@lune/fs")
 	local serde = require("@lune/serde")
-	local gltf = serde.decode("json", fs.readFile("build/creatures/Serpent.gltf"))
-	local offsets = {}
-	for _, node in gltf.nodes do
-		if node.name and node.translation then
-			offsets[node.name] = Vector3.new(node.translation[1], node.translation[2], node.translation[3])
-		end
-	end
-	local function fakeBone(offset: any): any
-		return {
-			CFrame = CFrame.new(offset),
-			Transform = CFrame.identity,
-			IsA = function(_, class: string): boolean
-				return class == "Bone"
-			end,
-		}
-	end
 	local failed = 0
-	for _, s in { 1, 3 } do
-		for _, speed in { 4, 12 } do
-			local motors: { [string]: any } = {}
-			local count = 0
-			while offsets[`Seg{count + 1}`] do
-				count += 1
-				motors[`Seg{count}`] = fakeBone(offsets[`Seg{count}`] * s)
+	for _, shapeName in { "Serpent", "Gorgon" } do
+		local gltf = serde.decode("json", fs.readFile(`build/creatures/{shapeName}.gltf`))
+		local offsets = {}
+		for _, node in gltf.nodes do
+			if node.name and node.translation then
+				offsets[node.name] =
+					Vector3.new(node.translation[1], node.translation[2], node.translation[3])
 			end
-			-- The root sits on the Body bone, which stands `height` up.
-			local height = offsets.Body.Y * s
-			local layout = assert(CreatureSlither.layout(motors, count, CFrame.identity))
-			local trail = {}
-			local distance = 0
-			local dt = 1 / 60
-			local last = {}
-			local slip, heightErr, weaveMin, weaveMax = 0, 0, math.huge, -math.huge
-			local function ground(z: number): number
-				return (math.sin(z * 0.35 / s) * 0.8 + math.sin(z * 0.9 / s) * 0.25) * s * 0.5
-			end
-			local warmup = (layout.total + 4 * s) / speed
-			for frame = 0, math.floor((warmup + 6) / dt) do
-				local z = -distance
-				local rootCF = CFrame.new(0, height + ground(z), z)
-				local weaveX = CreatureSlither.weave(layout, distance)
-				local yaw = CreatureSlither.heading(layout, trail, rootCF, weaveX) or 0
-				local body = CFrame.new(weaveX, 0, 0) * CFrame.Angles(0, yaw, 0)
-				CreatureSlither.step(layout, motors, body, rootCF, trail, s, function()
-					return 0
-				end)
-				local joints = {}
-				local parent = body
-				for i = 1, count do
-					local bone = motors[`Seg{i}`]
-					local jointFrame = parent * bone.CFrame
-					joints[i] = rootCF * jointFrame.Position
-					parent = jointFrame * bone.Transform
+		end
+		local function fakeBone(offset: any): any
+			return {
+				CFrame = CFrame.new(offset),
+				Transform = CFrame.identity,
+				IsA = function(_, class: string): boolean
+					return class == "Bone"
+				end,
+			}
+		end
+		for _, s in { 1, 3 } do
+			for _, speed in { 4, 12 } do
+				local motors: { [string]: any } = {}
+				local count = 0
+				while offsets[`Seg{count + 1}`] do
+					count += 1
+					motors[`Seg{count}`] = fakeBone(offsets[`Seg{count}`] * s)
 				end
-				joints[count + 1] = rootCF * (parent * CFrame.new(layout.restDir[count])).Position
-				if frame * dt > warmup then
-					for i = 2, count + 1 do
-						local p = joints[i]
-						heightErr =
-							math.max(heightErr, math.abs((p.Y - ground(p.Z)) - (height + layout.restY[i])))
-						local middle = (joints[i - 1] + p) / 2
-						if last[i] then
-							local v = (middle - last[i]) / dt
-							local along = joints[i - 1] - p
-							local flat = Vector3.new(along.X, 0, along.Z)
-							if flat.Magnitude > 1e-3 then
-								local t = flat.Unit
-								local flatV = Vector3.new(v.X, 0, v.Z)
-								slip = math.max(slip, (flatV - t * flatV:Dot(t)).Magnitude / speed)
+				-- The root sits on the Body bone, which stands `height` up.
+				local height = offsets.Body.Y * s
+				local layout = assert(CreatureSlither.layout(motors, count, CFrame.identity))
+				local trail = {}
+				local distance = 0
+				local dt = 1 / 60
+				local last = {}
+				local slip, heightErr, weaveMin, weaveMax = 0, 0, math.huge, -math.huge
+				local function ground(z: number): number
+					return (math.sin(z * 0.35 / s) * 0.8 + math.sin(z * 0.9 / s) * 0.25) * s * 0.5
+				end
+				local warmup = (layout.total + 4 * s) / speed
+				for frame = 0, math.floor((warmup + 6) / dt) do
+					local z = -distance
+					local rootCF = CFrame.new(0, height + ground(z), z)
+					local weaveX = CreatureSlither.weave(layout, distance)
+					local yaw = CreatureSlither.heading(layout, trail, rootCF, weaveX) or 0
+					local body = CFrame.new(weaveX, 0, 0) * CFrame.Angles(0, yaw, 0)
+					CreatureSlither.step(layout, motors, body, rootCF, trail, s, function()
+						return 0
+					end)
+					local joints = {}
+					local parent = body
+					for i = 1, count do
+						local bone = motors[`Seg{i}`]
+						local jointFrame = parent * bone.CFrame
+						joints[i] = rootCF * jointFrame.Position
+						parent = jointFrame * bone.Transform
+					end
+					joints[count + 1] = rootCF * (parent * CFrame.new(layout.restDir[count])).Position
+					if frame * dt > warmup then
+						for i = 2, count + 1 do
+							local p = joints[i]
+							heightErr = math.max(
+								heightErr,
+								math.abs((p.Y - ground(p.Z)) - (height + layout.restY[i]))
+							)
+							local middle = (joints[i - 1] + p) / 2
+							if last[i] then
+								local v = (middle - last[i]) / dt
+								local along = joints[i - 1] - p
+								local flat = Vector3.new(along.X, 0, along.Z)
+								if flat.Magnitude > 1e-3 then
+									local t = flat.Unit
+									local flatV = Vector3.new(v.X, 0, v.Z)
+									slip = math.max(slip, (flatV - t * flatV:Dot(t)).Magnitude / speed)
+								end
 							end
 						end
+						local mid = joints[math.floor(count / 2)]
+						weaveMin, weaveMax = math.min(weaveMin, mid.X), math.max(weaveMax, mid.X)
 					end
-					local mid = joints[math.floor(count / 2)]
-					weaveMin, weaveMax = math.min(weaveMin, mid.X), math.max(weaveMax, mid.X)
+					for i = 2, count + 1 do
+						last[i] = (joints[i - 1] + joints[i]) / 2
+					end
+					distance += speed * dt
 				end
-				for i = 2, count + 1 do
-					last[i] = (joints[i - 1] + joints[i]) / 2
+				local weave = weaveMax - weaveMin
+				local ok = slip < 0.08 and heightErr < 0.25 * s and weave > 0.5 * s
+				if not ok then
+					failed += 1
 				end
-				distance += speed * dt
-			end
-			local weave = weaveMax - weaveMin
-			local ok = slip < 0.08 and heightErr < 0.25 * s and weave > 0.5 * s
-			if not ok then
-				failed += 1
-			end
-			print(
-				string.format(
-					"%-4s Serpent mesh (size %d, %d bones, %.1f studs long) at %d studs/s: slip %.1f%% of speed, height error %.2f, weave %.2f studs",
-					if ok then "ok" else "FAIL",
-					s,
-					count,
-					layout.total,
-					speed,
-					slip * 100,
-					heightErr,
-					weave
+				print(
+					string.format(
+						"%-4s %s mesh (size %d, %d bones, %.1f studs long) at %d studs/s: slip %.1f%% of speed, height error %.2f, weave %.2f studs",
+						if ok then "ok" else "FAIL",
+						shapeName,
+						s,
+						count,
+						layout.total,
+						speed,
+						slip * 100,
+						heightErr,
+						weave
+					)
 				)
-			)
+			end
 		end
 	end
 	process.exit(if failed == 0 then 0 else 1)

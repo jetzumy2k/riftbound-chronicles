@@ -337,6 +337,15 @@ class Creature:
         self.solids.append(prim)
         return prim
 
+    def group(self, prims):
+        """
+        Pieces blended with each other but not with the body: their own
+        surface (and MeshPart per region), so the game can remove them
+        (optional wings, stingers, horns) without leaving a hole.
+        """
+        self.solids.append(list(prims))
+        return prims
+
     def _field(self, pts, prims):
         d = None
         for prim in prims:
@@ -345,16 +354,17 @@ class Creature:
         return d
 
     def build(self):
-        lo = np.min([p.bounds()[0] for p in self.prims + self.solids], axis=0) - 0.3
-        hi = np.max([p.bounds()[1] for p in self.prims + self.solids], axis=0) + 0.3
         step = self.step
-        shape = np.ceil((hi - lo) / step).astype(int) + 1
-        gx, gy, gz = [lo[i] + np.arange(shape[i]) * step for i in range(3)]
-        pts = np.stack(np.meshgrid(gx, gy, gz, indexing="ij"), -1).reshape(-1, 3)
         meshes = []
-        # The body (blended) and each solid separately (own region / mesh).
-        groups = [("blend", self.prims)] + [("solid", [s]) for s in self.solids]
+        # The body (blended) and each solid / group separately (own region /
+        # mesh), each sampled over its own bounds.
+        groups = [("blend", self.prims)] + [("solid", s if isinstance(s, list) else [s]) for s in self.solids]
         for kind, prims in groups:
+            lo = np.min([p.bounds()[0] for p in prims], axis=0) - 0.3
+            hi = np.max([p.bounds()[1] for p in prims], axis=0) + 0.3
+            shape = np.ceil((hi - lo) / step).astype(int) + 1
+            gx, gy, gz = [lo[i] + np.arange(shape[i]) * step for i in range(3)]
+            pts = np.stack(np.meshgrid(gx, gy, gz, indexing="ij"), -1).reshape(-1, 3)
             field = self._field(pts, prims).reshape(shape)
             verts, quads = surface_nets(field, lo, step)
             tris = quads_to_tris(quads, verts)
@@ -520,6 +530,16 @@ PREVIEW_COLORS = {
     "Glow": (1.0, 0.45, 0.15),
     "Scale": (0.3, 0.42, 0.28),
     "Mane": (0.3, 0.12, 0.08),
+    "Metal": (0.55, 0.56, 0.6),
+    "Blade": (0.82, 0.84, 0.88),
+    "Cloth": (0.35, 0.08, 0.1),
+    "Wing": (0.28, 0.24, 0.3),
+    "Wing2": (0.28, 0.24, 0.3),
+    "Tuft": (0.3, 0.12, 0.08),
+    "Sting": (0.2, 0.18, 0.16),
+    "Spikes": (0.55, 0.85, 0.95),
+    "Horns": (0.88, 0.84, 0.74),
+    "Petal": (0.6, 0.85, 1.0),
 }
 
 

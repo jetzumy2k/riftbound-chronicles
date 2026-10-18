@@ -9,7 +9,15 @@ import numpy as np
 # Step-cycle phase offsets (walk, run, trot) by leg.
 QUAD_PHASES = {"LegFL": (0, 0, 0), "LegFR": (0.5, 0.12, 0.5), "LegBL": (0.75, 0.55, 0.5), "LegBR": (0.25, 0.65, 0)}
 SPRAWL_PHASES = {"LegFL": (0, 0, 0), "LegBR": (0, 0, 0), "LegFR": (0.5, 0.5, 0.5), "LegBL": (0.5, 0.5, 0.5)}
-GAITS = {"Quadruped": ("Predator", "Heavy"), "Sprawler": ("Heavy", "Heavy"), "Serpent": (None, None)}
+GAITS = {
+    "Quadruped": ("Predator", "Heavy"),
+    "Sprawler": ("Heavy", "Heavy"),
+    "Serpent": (None, None),
+    "Hexapod": ("Crawler", "Crawler"),
+    "Octopod": ("Crawler", "Crawler"),
+    "Biped": ("Biped", "HeavyBiped"),
+    "Sprite": (None, None),
+}
 
 HEADER = '''--!strict
 --[[
@@ -19,7 +27,8 @@ HEADER = '''--!strict
 
 	Per shape (studs at size 1; "root space" is centred on the Body bone,
 	which the creature's HumanoidRootPart sits on, facing -Z):
-	  bodyPlan   how it moves (Quadruped / Sprawler / Serpent)
+	  bodyPlan   how it moves (Quadruped / Sprawler / Serpent / Hexapod /
+	             Octopod / Biped / Sprite)
 	  gait       CreatureRigs gait (heavyGait for giant sizes)
 	  height     Body bone's height above the ground
 	  heads      head tags (bones Neck<tag>, Head<tag>, Jaw<tag>)
@@ -101,12 +110,19 @@ def shape(name, creature, meta):
     out.append(f"\t\tsegments = {strings(meta.get('segments', []))},")
     out.append("\t\tlegs = {")
     phases = SPRAWL_PHASES if meta["plan"] == "Sprawler" else QUAD_PHASES
-    for leg, (pts, angles, bend, splay) in meta.get("legs", {}).items():
+    for leg, spec in meta.get("legs", {}).items():
+        # (points, rest angles, bend, splay[, overrides]): the overrides set
+        # the walk / run / trot phases and front / side of legs not named
+        # LegF* / LegB* ... L / R (insects, spiders, bipeds).
+        pts, angles, bend, splay = spec[:4]
+        extra = spec[4] if len(spec) > 4 else {}
         pts = [np.asarray(q, float) for q in pts]
         lengths = [float(np.linalg.norm(pts[k + 1] - pts[k])) for k in range(3)]
         hip = pts[0] - body
         reach = pts[3] - pts[0]
-        walk, run, trot = phases.get(leg, (0, 0, 0))
+        walk, run, trot = extra.get("phases", phases.get(leg, (0, 0, 0)))
+        front = extra.get("front", leg.startswith("LegF"))
+        side = extra.get("side", -1 if leg.endswith("L") else 1)
         out += [
             "\t\t\t{",
             f'\t\t\t\tname = "{leg}",',
@@ -122,8 +138,8 @@ def shape(name, creature, meta):
             f"\t\t\t\twalk = {walk},",
             f"\t\t\t\trun = {run},",
             f"\t\t\t\ttrot = {trot},",
-            f"\t\t\t\tfront = {'true' if leg.startswith('LegF') else 'false'},",
-            f"\t\t\t\tside = {-1 if leg.endswith('L') else 1},",
+            f"\t\t\t\tfront = {'true' if front else 'false'},",
+            f"\t\t\t\tside = {side},",
             "\t\t\t},",
         ]
     out.append("\t\t},")
