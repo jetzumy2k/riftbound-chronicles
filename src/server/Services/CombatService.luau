@@ -182,6 +182,9 @@ local CombatService = {
 	CombatLogged = Signal.new(),
 	-- (entity) a status started or ended (speed effects). Handlers must not yield.
 	StatusChanged = Signal.new(),
+	-- (model, amount, crit) a creature took a hit and is still standing
+	-- (MobService: stagger, enrage). Handlers must not yield.
+	NpcHurt = Signal.new(),
 }
 
 -- "Why didn't my attack do anything?" toasts: at most this often per player.
@@ -478,6 +481,8 @@ local function applyDamage(
 	})
 	if target.hp <= 0 then
 		defeat(target, attacker, "Combat")
+	elseif target.kind == "Npc" and amount > 0 then
+		CombatService.NpcHurt:Fire(target.model, amount, crit)
 	end
 end
 

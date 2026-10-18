@@ -62,6 +62,8 @@ local UPDATE_DISTANCE = 160
 local STRIKE_SECONDS = 0.16
 local RECOVER_SECONDS = 0.4
 local HIT_SECONDS = 0.3
+-- A stagger (server attribute RC_Stagger, D-61): a bigger recoil.
+local STAGGER_SECONDS = 0.6
 local DEFEAT_SECONDS = 0.9
 -- Watching players: how often the nearest one is looked up, and how far.
 local TRACK_SECONDS = 0.25
@@ -164,6 +166,9 @@ type Rig = {
 	windup: number,
 	move: string,
 	hitStart: number?,
+	-- Stagger (D-61): when it began, and the server stamp last seen.
+	staggerStart: number?,
+	staggerStamp: any,
 	defeatStart: number?,
 }
 
@@ -1131,6 +1136,18 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 	end
 	rig.look = rig.look:Lerp(rig.lookTarget, 1 - math.exp(-2.5 * dt))
 	watch(rig, dt, now)
+	-- Enraged (low health, or a boss out of patience): locked on, never at ease.
+	if rig.model:GetAttribute("RC_Enraged") then
+		rig.alert = 1
+	end
+	-- Staggered by a heavy hit: a big recoil, and the wind-up is broken.
+	local stagger = rig.model:GetAttribute("RC_Stagger")
+	if stagger ~= rig.staggerStamp then
+		rig.staggerStamp = stagger
+		rig.staggerStart = now
+		rig.attackStart = nil
+		rig.idle = nil
+	end
 	idleActions(rig, now)
 	-- Moving or fighting ends an idle action early.
 	if rig.idle and (rig.speed > 2.5 or rig.attackStart or rig.defeatStart) then
@@ -1138,7 +1155,8 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 	end
 
 	local rear, strike = attackWeights(rig, now)
-	local hit = pulse(rig.hitStart, now, HIT_SECONDS)
+	local hit =
+		math.max(pulse(rig.hitStart, now, HIT_SECONDS), pulse(rig.staggerStart, now, STAGGER_SECONDS) * 1.8)
 	local down = if rig.defeatStart then smooth((now - rig.defeatStart) / DEFEAT_SECONDS) else 0
 	if rig.body == "Wolf" then
 		quadruped(rig, now, rear, strike, hit, down)
@@ -1282,6 +1300,8 @@ local function track(model: Model)
 		windup = 0.5,
 		move = "Strike",
 		hitStart = nil,
+		staggerStart = nil,
+		staggerStamp = model:GetAttribute("RC_Stagger"),
 		defeatStart = nil,
 	}
 	-- Joints hang off the root and off other limbs (chains); with streaming

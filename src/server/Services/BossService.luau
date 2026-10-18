@@ -54,6 +54,8 @@ export type Boss = {
 	engaged: boolean,
 	engagedAt: number,
 	enraged: boolean,
+	-- The follow-up of a signature combo, used next (D-61).
+	pendingCombo: string?,
 }
 
 local BossService = {}
@@ -209,8 +211,10 @@ local function stepBoss(boss: Boss, now: number)
 		if boss.enraged then
 			-- Gave up the fight (leashed home): the rage passes.
 			boss.enraged = false
+			mob.model:SetAttribute("RC_Enraged", nil)
 			CombatService:SetOutgoingScale(mob.model, 1)
 		end
+		boss.pendingCombo = nil
 		return
 	end
 	if not boss.engaged then
@@ -221,6 +225,7 @@ local function stepBoss(boss: Boss, now: number)
 	-- Enrage (D-47): too slow a fight and the boss overwhelms whoever is left.
 	if not boss.enraged and now - boss.engagedAt >= boss.def.enrageSeconds then
 		boss.enraged = true
+		mob.model:SetAttribute("RC_Enraged", true)
 		CombatService:SetOutgoingScale(mob.model, ENRAGE_DAMAGE)
 		mob.speedScale = math.max(mob.speedScale, 1.4)
 		boss.announce("boss.enraged", { name = mob.enemy.name })
@@ -249,10 +254,23 @@ local function stepBoss(boss: Boss, now: number)
 		return
 	end
 	local phase = boss.def.phases[boss.phase]
-	boss.abilityIndex = boss.abilityIndex % #phase.abilities + 1
-	local ability = boss.def.abilities[phase.abilities[boss.abilityIndex]]
+	local ability: DungeonDefinitions.Ability?
 	local cooldown = if boss.enraged then phase.cooldown * 0.5 else phase.cooldown
+	local pending = boss.pendingCombo
+	boss.pendingCombo = nil
+	if pending then
+		ability = boss.def.abilities[pending]
+	else
+		boss.abilityIndex = boss.abilityIndex % #phase.abilities + 1
+		ability = boss.def.abilities[phase.abilities[boss.abilityIndex]]
+	end
 	boss.nextAbilityAt = now + cooldown + (if ability then ability.telegraph else 0)
+	-- Signature combo (second phase on): the follow-up comes straight after.
+	local combo = boss.def.combo
+	if ability and not pending and combo and boss.phase >= 2 and ability.id == combo.first then
+		boss.pendingCombo = combo.second
+		boss.nextAbilityAt = now + ability.telegraph + 0.5
+	end
 	if ability then
 		useAbility(boss, ability, now)
 	end
@@ -307,6 +325,8 @@ function BossService:Reset(boss: Boss)
 	boss.abilityIndex = 0
 	boss.engaged = false
 	boss.enraged = false
+	boss.pendingCombo = nil
+	boss.mob.model:SetAttribute("RC_Enraged", nil)
 	boss.nextAbilityAt = math.huge
 	boss.mob.speedScale = 1
 	CombatService:SetOutgoingScale(boss.mob.model, 1)

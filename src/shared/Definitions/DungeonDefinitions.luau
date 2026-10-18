@@ -107,6 +107,10 @@ export type Ability = {
 	count: number?,
 }
 
+-- Signature combo: from the second phase on, `first` is followed straight
+-- away by `second` (D-61).
+export type Combo = { first: string, second: string }
+
 export type Phase = {
 	untilHpFraction: number,
 	abilities: { string },
@@ -120,6 +124,7 @@ export type Boss = {
 	enemy: string,
 	abilities: { [string]: Ability },
 	phases: { Phase },
+	combo: Combo?,
 	enrageSeconds: number,
 }
 
@@ -243,6 +248,14 @@ local function abilitiesFor(archetype: Archetype, size: number): { [string]: Abi
 	}
 end
 
+-- Each archetype's signature combo: its frontal attack, then the follow-up.
+local COMBO_OF: { [Archetype]: Combo } = {
+	Beast = { first = "Maul", second = "Pounce" },
+	Crawler = { first = "Lash", second = "Spit" },
+	Colossus = { first = "Sweep", second = "Quake" },
+	Titan = { first = "Cleave", second = "Shockwave" },
+}
+
 local function abilityIds(archetype: Archetype): { string }
 	if archetype == "Beast" then
 		return { "Pounce", "Maul", "Rampage" }
@@ -317,6 +330,7 @@ local function makeBoss(enemyId: string, adds: Adds?): Boss
 		enemy = enemyId,
 		abilities = abilities,
 		phases = phases,
+		combo = COMBO_OF[archetype],
 		enrageSeconds = EnemyDefinitions.ENRAGE_SECONDS[enemy.tier :: any],
 	}
 	bosses[enemyId] = boss

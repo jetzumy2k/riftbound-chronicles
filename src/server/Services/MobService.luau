@@ -20,6 +20,15 @@
 	    shareXp over the recipients, D-32), then the body fades and is
 	    removed; spawners respawn their mob after a delay.
 	  - Training Grounds: Rift Sprites roam each capital's yard (Quest 1).
+	  - Behaviour and attacks (D-61): a creature that notices a player
+	    turns and roars (Alert) before the chase; each kind has its own
+	    attack set (Logic/MobAttacks: bites, claws, pounces, smashes,
+	    sweeps, stomps, rams) and keeps turning to its target through the
+	    wind-up, so a strike only lands in front of it (area moves hit
+	    everyone they cover); it stands open for a moment after each
+	    strike; a heavy hit (a crit or 12% of its health) staggers it and
+	    breaks its wind-up; below 30% health it enrages (faster, attacks
+	    more often). A creature stuck on a rock jumps and side-steps.
 	  - Winged creatures fly (Logic/MobFlight, D-60): they take off while
 	    chasing, wheel overhead, mark a spot on the ground and dive onto
 	    it (players still inside are hit), then land and fight on foot for
@@ -36,6 +45,7 @@ local Shared = ReplicatedStorage.Shared
 local DungeonRules = require(Shared.Logic.DungeonRules)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local MobBrain = require(Shared.Logic.MobBrain)
+local MobAttacks = require(Shared.Logic.MobAttacks)
 local MobFlight = require(Shared.Logic.MobFlight)
 local MobTactics = require(Shared.Logic.MobTactics)
 local Telegraph = require(Shared.Logic.Telegraph)
@@ -63,6 +73,21 @@ local TURN_STEP = math.rad(35)
 local ELITE_TURN_STEP = math.rad(22)
 local wanderRng = Random.new()
 local CORPSE_SECONDS = 2.6
+-- Turn per tick while winding up: a player who circles fast can slip out
+-- of the strike's arc.
+local WINDUP_TURN_STEP = math.rad(16)
+-- Stagger: a hit of this share of max health (or a crit) staggers a
+-- creature for STAGGER_SECONDS, at most once per STAGGER_COOLDOWN.
+local STAGGER_SHARE = 0.12
+local STAGGER_SECONDS = 0.6
+local STAGGER_COOLDOWN = 4
+-- Enrage: below this share of health, faster and quicker to attack.
+local ENRAGE_SHARE = 0.3
+local ENRAGE_SPEED = 1.15
+local ENRAGE_COOLDOWN = 0.7
+-- Stuck: chasing but barely moving for this long, it jumps and side-steps.
+local STUCK_SECONDS = 1.2
+local DETOUR_SECONDS = 1
 
 local log = Log.new("MobService")
 
@@ -86,6 +111,21 @@ export type Mob = {
 	-- How it closes in while chasing (Logic/MobTactics).
 	tacticKind: MobTactics.Kind,
 	tactic: MobTactics.State,
+	-- Its attack set (Logic/MobAttacks), the move being wound up and the
+	-- last one used.
+	attackSet: MobAttacks.SetName,
+	move: MobAttacks.Move?,
+	lastMoveId: string?,
+	alertEndsAt: number,
+	-- Stagger, enrage (D-61).
+	staggerReadyAt: number,
+	enraged: boolean,
+	-- Getting unstuck: where it was last tick, how long it has barely
+	-- moved, and a side-step in progress.
+	lastPosition: Vector3,
+	stuckFor: number,
+	detourUntil: number,
+	detourSide: number,
 	-- Winged creatures (Logic/MobFlight); the spot a dive is aimed at.
 	flight: MobFlight.State?,
 	divePoint: Vector3?,
@@ -181,6 +221,16 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 			then MobFlight.initial(os.clock(), wanderRng:NextNumber())
 			else nil,
 		divePoint = nil,
+		attackSet = MobAttacks.setFor(enemy.body, model:GetAttribute("RC_Shape") :: string?),
+		move = nil,
+		lastMoveId = nil,
+		alertEndsAt = 0,
+		staggerReadyAt = 0,
+		enraged = false,
+		lastPosition = root.Position,
+		stuckFor = 0,
+		detourUntil = 0,
+		detourSide = 1,
 		lastMoveGoal = nil,
 		busyUntil = 0,
 		speedScale = 1,
@@ -593,6 +643,7 @@ local function stepMob(mob: Mob, now: number)
 		distanceFromHome = distanceFromHome,
 		attackReadyAt = mob.attackReadyAt,
 		windupEndsAt = mob.windupEndsAt,
+		alertEndsAt = mob.alertEndsAt,
 	}, { aggroRadius = enemy.aggroRadius, leashRadius = enemy.leashRadius, attackRange = enemy.attackRange })
 	mob.state = state :: MobBrain.State
 
@@ -616,9 +667,26 @@ local function stepMob(mob: Mob, now: number)
 			local mode: MobTactics.Mode = mob.tactic.mode
 			local speedScale = MobTactics.speedScale(mob.tacticKind, mode)
 			mob.humanoid.WalkSpeed *= speedScale
+			-- Stuck on a rock: jump and side-step for a moment.
+			local moved = flat(mob.root.Position - mob.lastPosition).Magnitude
+			if mode ~= "Hold" and moved < 0.25 and offset.Magnitude > reach * 1.5 then
+				mob.stuckFor += 1 / config().TickHz
+			else
+				mob.stuckFor = 0
+			end
+			if mob.stuckFor >= STUCK_SECONDS then
+				mob.stuckFor = 0
+				mob.detourUntil = now + DETOUR_SECONDS
+				mob.detourSide = if wanderRng:NextNumber() < 0.5 then -1 else 1
+				mob.humanoid.Jump = true
+			end
 			if mob.flight and stepFlight(mob, now, false) then
 				-- Took off.
 				return
+			elseif now < mob.detourUntil then
+				local side = Vector3.new(-away.Z, 0, away.X) * mob.detourSide
+				mob.nextMoveAt = 0
+				moveTo(mob, mob.root.Position + side * 8 - away * 3, now)
 			elseif mode == "Hold" then
 				-- Coiled, watching: turn to face, don't move.
 				mob.humanoid:Move(Vector3.zero)
@@ -647,33 +715,89 @@ local function stepMob(mob: Mob, now: number)
 		if targetRoot then
 			face(mob, targetRoot.Position, if enemy.elite then ELITE_TURN_STEP else TURN_STEP)
 		end
+	elseif action == "StartAlert" then
+		-- Noticed a player: turn to it and roar before the chase.
+		mob.alertEndsAt = now + MobBrain.ALERT_SECONDS
+		mob.humanoid:Move(Vector3.zero)
+		local targetRoot = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if targetRoot then
+			face(mob, targetRoot.Position, TURN_STEP * 2)
+		end
+		CombatService:Broadcast(mob.model, {
+			kind = "MobAttack",
+			target = mob.model,
+			windup = MobBrain.ALERT_SECONDS,
+			move = "Roar",
+		})
+	elseif action == "None" and state == "Alert" then
+		mob.humanoid:Move(Vector3.zero)
+		local targetRoot = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if targetRoot then
+			face(mob, targetRoot.Position, TURN_STEP)
+		end
 	elseif action == "StartWindup" and target then
+		local move = MobAttacks.choose(
+			mob.attackSet,
+			targetDistance or 0,
+			enemy.attackRange,
+			wanderRng:NextNumber(),
+			mob.lastMoveId
+		)
+		mob.move = move
+		mob.lastMoveId = move.id
 		mob.target = target
-		mob.windupEndsAt = now + enemy.windup
+		local windup = enemy.windup * move.windup
+		mob.windupEndsAt = now + windup
 		mob.humanoid:Move(Vector3.zero)
 		local targetRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if targetRoot then
-			face(mob, targetRoot.Position)
+			face(mob, targetRoot.Position, TURN_STEP * 1.5)
 		end
 		CombatService:Broadcast(mob.model, {
 			kind = "MobAttack",
 			target = mob.model,
 			aim = target,
-			windup = enemy.windup,
+			windup = windup,
+			move = move.anim,
 		})
+	elseif action == "None" and state == "Windup" then
+		-- Keeps turning to its target through the wind-up, but not instantly.
+		local aimed = mob.target
+		local aimedRoot = aimed and aimed:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if aimedRoot then
+			face(mob, aimedRoot.Position, WINDUP_TURN_STEP)
+		end
 	elseif action == "Strike" then
-		mob.attackReadyAt = now + enemy.attackCooldown
+		local move = mob.move or MobAttacks.Sets[mob.attackSet][1]
+		mob.move = nil
+		local cooldown = enemy.attackCooldown * (if mob.enraged then ENRAGE_COOLDOWN else 1)
+		mob.attackReadyAt = now + cooldown
+		-- Open for a moment after the strike.
+		mob.busyUntil = math.max(mob.busyUntil, now + move.recover)
 		local aimed = mob.target
 		mob.target = nil
-		if aimed and aimed.Parent then
-			-- Reach slack: the target may have stepped back during the wind-up.
-			CombatService:NpcStrike(
-				mob.model,
-				aimed,
-				enemy.attackCoefficient,
-				enemy.attackRange * 1.4 + 2,
-				enemy.elite
-			)
+		-- Reach slack: the target may have stepped back during the wind-up.
+		local reach = enemy.attackRange * move.reach * 1.25 + 2
+		local look = mob.root.CFrame.LookVector
+		local facing = flat(look)
+		facing = if facing.Magnitude > 0.1 then facing.Unit else Vector3.new(0, 0, -1)
+		local function covers(model: Model): boolean
+			local entityRoot = model:FindFirstChild("HumanoidRootPart")
+			if entityRoot == nil or not entityRoot:IsA("BasePart") then
+				return false
+			end
+			local to = flat(entityRoot.Position - mob.root.Position)
+			return MobAttacks.inArc({ facing.X, facing.Z }, { to.X, to.Z }, move.arc)
+		end
+		local coefficient = enemy.attackCoefficient * move.damage
+		if move.area then
+			for _, entity in CombatService:LivePlayers() do
+				if covers(entity.model) then
+					CombatService:NpcStrike(mob.model, entity.model, coefficient, reach, enemy.elite)
+				end
+			end
+		elseif aimed and aimed.Parent and covers(aimed) then
+			CombatService:NpcStrike(mob.model, aimed, coefficient, reach, enemy.elite)
 		end
 	elseif action == "None" and state == "Idle" then
 		-- Idle creatures amble around their post instead of standing frozen;
@@ -696,6 +820,50 @@ local function stepMob(mob: Mob, now: number)
 	elseif action == "Restore" then
 		mob.humanoid:Move(Vector3.zero)
 		CombatService:RestoreNpc(mob.model)
+		if mob.enraged then
+			mob.enraged = false
+			mob.speedScale /= ENRAGE_SPEED
+			mob.model:SetAttribute("RC_Enraged", nil)
+		end
+	end
+	mob.lastPosition = mob.root.Position
+end
+
+--[[
+	A creature took a hit (D-61): a heavy one (a crit, or STAGGER_SHARE of
+	its health) staggers it and breaks its wind-up; below ENRAGE_SHARE of
+	its health it enrages. Bosses (control immune) don't stagger; their
+	enrage is BossService's.
+]]
+local function onNpcHurt(model: Model, amount: number, crit: boolean)
+	local mob = mobs[model]
+	if mob == nil or mob.dead then
+		return
+	end
+	local now = os.clock()
+	local boss = model:GetAttribute("RC_Boss") ~= nil
+	local maxHp = model:GetAttribute("MaxHP")
+	local share = if type(maxHp) == "number" and maxHp > 0 then amount / maxHp else 0
+	if
+		not boss
+		and not MobService:IsAirborne(mob)
+		and now >= mob.staggerReadyAt
+		and (crit or share >= STAGGER_SHARE)
+	then
+		mob.staggerReadyAt = now + STAGGER_COOLDOWN
+		mob.busyUntil = math.max(mob.busyUntil, now + STAGGER_SECONDS)
+		if mob.state == "Windup" then
+			mob.state = "Chase"
+			mob.target = nil
+			mob.move = nil
+			mob.attackReadyAt = math.max(mob.attackReadyAt, now + STAGGER_SECONDS)
+		end
+		mob.model:SetAttribute("RC_Stagger", now)
+	end
+	if not boss and not mob.enraged and CombatService:HpFraction(model) <= ENRAGE_SHARE then
+		mob.enraged = true
+		mob.speedScale *= ENRAGE_SPEED
+		mob.model:SetAttribute("RC_Enraged", true)
 	end
 end
 
@@ -913,6 +1081,7 @@ end
 
 function MobService:Init()
 	CombatService.Defeated:Connect(onDefeated)
+	CombatService.NpcHurt:Connect(onNpcHurt)
 	MobService.MobDefeated:Connect(function(mob)
 		local slot = campSlots[mob.model]
 		if slot then

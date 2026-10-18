@@ -30,12 +30,23 @@ end
 
 return function(t)
 	t.describe("MobBrain", function()
-		t.it("idles until a player comes within aggro range", function()
+		t.it("idles until a player comes within aggro range, then sizes them up before the chase", function()
 			t.eq(select(2, MobBrain.step(input({}), PROFILE)), "None")
 			t.eq(select(2, MobBrain.step(input({ targetDistance = 40 }), PROFILE)), "None")
 			local state, action = MobBrain.step(input({ targetDistance = 20 }), PROFILE)
+			t.eq(state, "Alert")
+			t.eq(action, "StartAlert")
+			state, action =
+				MobBrain.step(input({ state = "Alert", targetDistance = 20, alertEndsAt = 10.5 }), PROFILE)
+			t.eq(state, "Alert")
+			t.eq(action, "None")
+			state, action =
+				MobBrain.step(input({ state = "Alert", targetDistance = 20, alertEndsAt = 9.9 }), PROFILE)
 			t.eq(state, "Chase")
 			t.eq(action, "MoveToTarget")
+			-- The player slipped away during the alert.
+			state = MobBrain.step(input({ state = "Alert", alertEndsAt = 10.5 }), PROFILE)
+			t.eq(state, "Idle")
 		end)
 
 		t.it("winds up in range when ready, waits when not", function()
@@ -103,6 +114,18 @@ return function(t)
 			t.eq(PartyRules.respawnChoice(true, false), "Leader")
 			t.eq(PartyRules.respawnChoice(false, true), "Ally")
 			t.eq(PartyRules.respawnChoice(false, false), "Gate")
+		end)
+
+		t.it("every boss has a signature combo of two of its own abilities (D-61)", function()
+			for id, boss in DungeonDefinitions.Bosses do
+				local combo = boss.combo
+				t.ok(combo ~= nil, id)
+				if combo then
+					t.ok(boss.abilities[combo.first] ~= nil, `{id} combo first`)
+					t.ok(boss.abilities[combo.second] ~= nil, `{id} combo second`)
+					t.ok(combo.first ~= combo.second, `{id} combo is two moves`)
+				end
+			end
 		end)
 
 		t.it("boss phases follow HP", function()

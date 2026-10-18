@@ -199,6 +199,16 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Creature AI and attacks (D-61)
+1. **Alert:** walk up to an idle creature: it turns to you and roars briefly before it charges.
+2. **Attack variety:** fight a wolf (bites, wide claw rakes, a long pounce from further out), a golem / knight (overhead smash, wide swing, a stomp that hits everyone close), a serpent (bite, tail sweep that hits behind it too), a beetle / spider (pincers, a ram from range), a dragon (bite, trample, tail sweep). Heavier moves have longer wind-ups.
+3. **Dodging by moving:** circle quickly behind a creature during its wind-up: a bite or smash misses you (it turns, but not instantly). Sweeps and stomps still hit all round.
+4. **Openings:** after each strike it pauses for a moment: a window to hit back.
+5. **Stagger:** land a critical or very heavy hit: the creature recoils hard and its wind-up is cancelled (not more than once every 4 s; bosses never stagger).
+6. **Enrage:** bring a creature below 30% health: it becomes visibly agitated, faster, and attacks more often. A boss that enrages on its timer shows the same posture.
+7. **Unstuck:** lure a creature round a war-zone rock: if it snags, it hops and side-steps instead of running in place.
+8. **Boss combos:** in a boss's second phase its frontal attack (cone) is followed at once by its follow-up (e.g. Cerberus: Maul then Pounce; golem bosses: Sweep then Quake).
+
 ## Creature flight (D-60)
 Fliers: Fafnir, Wyvern, Typhon, Griffin, Anzu, Peryton, Camazotz, Harpy Queen, the Sphinx and the Chimera (war zones / dungeons where they spawn). Pure rules: `lune run tests/pure/run` (mob_flight).
 1. Get a flier to chase you in the open: after a few seconds it **takes off** (wings beating, legs tucked), climbs, and **wheels round you** overhead.
