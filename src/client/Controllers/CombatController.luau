@@ -18,6 +18,12 @@
 	    to it first (any movement input cancels).
 	  - Turns to face the target immediately; melee steps lunge in a little
 	    toward a target that is just out of reach.
+	  - Auto Attack (a basic skill on the skill bar, SkillBarController):
+	    targets the selected enemy or, with none, the nearest creature
+	    around you (any direction), walks into reach and keeps chaining the
+	    normal attack until it falls. Steering, pressing it again, clearing
+	    the target or selecting a friend stops it; selecting another enemy
+	    switches to it.
 
 	Input:
 	  Desktop  left mouse (click an enemy to target it) or F
@@ -54,6 +60,8 @@ local LUNGE_SECONDS = 0.14 -- CombatService.LUNGE_SECONDS
 local LUNGE_STOP_DISTANCE = 3.2
 -- With nothing selected, an attack looks this far for an enemy to walk to.
 local SEARCH_STUDS = 30
+-- Auto Attack looks this far around the character for a creature.
+local AUTO_SEARCH_STUDS = 60
 
 local CombatController = {}
 
@@ -63,6 +71,8 @@ local queued = false
 local pips: { Frame } = {}
 local button: TextButton? = nil
 local glyph: TextLabel? = nil
+-- Auto Attack: the enemy being attacked automatically (nil = off).
+local autoTarget: Model? = nil
 
 local function currentAttack(): BasicAttacks.BasicAttack?
 	return BasicAttacks.forJob(PlayerDataController:Get().Job)
@@ -307,6 +317,7 @@ function CombatController:Start()
 		combo = ComboMath.new()
 		holding = {}
 		queued = false
+		autoTarget = nil
 	end)
 
 	UserInputService.InputBegan:Connect(function(input, processed)
@@ -338,6 +349,26 @@ function CombatController:Start()
 
 	-- Buffered presses and hold-to-attack fire the moment the next step is allowed.
 	RunService.Heartbeat:Connect(function()
+		local auto = autoTarget
+		if auto then
+			local selected = TargetController.current()
+			if selected ~= auto and selected ~= nil and TargetController.isHostile(selected) then
+				-- The player picked another enemy: attack that one instead.
+				autoTarget = selected
+				auto = selected
+			end
+			if
+				not TargetController.isHostile(auto)
+				or selected ~= auto
+				or (TargetController.steering() and not TargetController.approaching())
+			then
+				-- It fell, the selection was cleared or moved to a friend, or
+				-- the player took over.
+				autoTarget = nil
+			elseif ComboMath.waitTime(combo, os.clock()) == 0 and not TargetController.approaching() then
+				attack(auto)
+			end
+		end
 		if (queued or anyHeld()) and ComboMath.waitTime(combo, os.clock()) == 0 then
 			attack(nil)
 		end
@@ -350,6 +381,34 @@ end
 --------------------------------------------------------------------------------
 -- For SkillBarController (Phase 5).
 --------------------------------------------------------------------------------
+
+--[[
+	Auto Attack (the basic skill): starts attacking the selected enemy or
+	the nearest creature around you, or stops if it is already on. Returns
+	whether it is on now, and "none" when there was nothing to attack.
+]]
+function CombatController.toggleAutoAttack(): (boolean, string?)
+	if autoTarget then
+		autoTarget = nil
+		return false, nil
+	end
+	local selected = TargetController.current()
+	local target = if selected and TargetController.isHostile(selected)
+		then selected
+		else TargetController.nearestCreature(AUTO_SEARCH_STUDS)
+	if target == nil then
+		return false, "none"
+	end
+	TargetController.set(target)
+	autoTarget = target
+	attack(target)
+	return true, nil
+end
+
+-- Is Auto Attack on (for the skill button)?
+function CombatController.autoAttacking(): boolean
+	return autoTarget ~= nil
+end
 
 -- A skill was cast: the basic-attack chain restarts after `seconds`.
 function CombatController.holdAttacks(seconds: number)

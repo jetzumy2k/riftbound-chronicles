@@ -58,6 +58,7 @@ local STRINGS: { [string]: string } = {
 	["skill.reset.done"] = "Skill tree reset: every point is back.",
 	["skill.notAlly"] = "That skill only works on players of your realm.",
 	["skill.loadoutInvalid"] = "That skill can't go in that slot.",
+	["skill.auto.none"] = "No creature nearby to attack.",
 	["dungeon.full"] = "Too many players for this dungeon.",
 	["dungeon.level"] = "You need level {level} for this dungeon. Train on the Rift Sprites in the Training Grounds.",
 	["dungeon.busy"] = "All dungeon instances are busy. Try again in a moment.",

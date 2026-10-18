@@ -214,7 +214,10 @@ local function repairSkills(data: Data, note: (string) -> ())
 	local clean, seen = {}, {}
 	local function owns(id: any, slotType: string): boolean
 		local skill = SkillDefinitions.get(id)
-		return skill ~= nil and skill.type == slotType and data.OwnedSkills[id] ~= nil
+		-- Basic skills (Auto Attack) are known without being owned.
+		return skill ~= nil
+			and skill.type == slotType
+			and (data.OwnedSkills[id] ~= nil or SkillDefinitions.isBasic(skill))
 	end
 	for index = 1, Constants.Loadout.RegularSlots do
 		local id = equipped.Regular[index]

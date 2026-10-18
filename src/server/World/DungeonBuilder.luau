@@ -20,7 +20,7 @@
 	  Leave_<f>          portal surface: leave the dungeon
 	  Up_<f>             portal surface: back to floor f-1 (floors 2-4)
 	  Down_<f>           portal surface: down to floor f+1 (in the lair)
-	(ProximityPrompts are added by DungeonService.)
+	(DungeonService makes the portal surfaces walk-through.)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

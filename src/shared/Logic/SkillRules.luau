@@ -27,6 +27,10 @@
 	                  boss immunity and the PvP scale
 	  describe        player-facing lines for the skill info panel
 
+	Basic skills (Auto Attack, SkillDefinitions.isBasic) are known by every
+	class at rank 1 without points: they can't be learned or ranked, they
+	go on a regular slot, and they are never cast on the server.
+
 	Pure module.
 ]]
 
@@ -114,6 +118,9 @@ function SkillRules.available(owned: Owned, level: number, bonus: number?): numb
 end
 
 function SkillRules.rankOf(owned: Owned, id: string): number
+	if SkillDefinitions.isBasic(SkillDefinitions.get(id)) then
+		return 1
+	end
 	local rank = owned[id]
 	return if type(rank) == "number" then rank else 0
 end
@@ -150,6 +157,8 @@ function SkillRules.canLearn(
 	local skill = SkillDefinitions.get(id)
 	if job == nil then
 		return false, "noJob"
+	elseif SkillDefinitions.isBasic(skill) then
+		return false, "basic"
 	elseif
 		skill == nil
 		or skill.job ~= job
@@ -208,6 +217,9 @@ end
 --------------------------------------------------------------------------------
 
 local function usable(skill: Skill?, job: string?, owned: Owned): boolean
+	if SkillDefinitions.isBasic(skill) then
+		return job ~= nil
+	end
 	return skill ~= nil
 		and job ~= nil
 		and skill.job == job
@@ -261,7 +273,10 @@ end
 -- Returns (ok, reason) for casting skill `id` (T-03 / T-04).
 function SkillRules.canCast(id: any, facts: CastFacts): (boolean, string?)
 	local skill = SkillDefinitions.get(id)
-	if skill == nil or not usable(skill, facts.job, facts.owned) then
+	if SkillDefinitions.isBasic(skill) then
+		-- Driven by the client's normal attack; never a server cast.
+		return false, "basic"
+	elseif skill == nil or not usable(skill, facts.job, facts.owned) then
 		return false, "notLearned"
 	elseif not SkillRules.isEquipped(facts.loadout, skill.id) then
 		return false, "notEquipped"
@@ -286,6 +301,12 @@ end
 function SkillRules.autoFill(job: string?, owned: Owned, loadout: Loadout): Loadout
 	local regular = table.clone(loadout.Regular)
 	local special = loadout.Special
+	-- Auto Attack first: a new character starts with it in slot 1.
+	for _, skill in SkillDefinitions.Basics do
+		if job ~= nil and #regular < SkillRules.REGULAR_SLOTS and table.find(regular, skill.id) == nil then
+			table.insert(regular, skill.id)
+		end
+	end
 	for _, skill in SkillDefinitions.forJob(job) do
 		if not usable(skill, job, owned) then
 			continue
@@ -535,6 +556,20 @@ export type Description = {
 }
 
 function SkillRules.describe(skill: Skill, rank: number): Description
+	if SkillDefinitions.isBasic(skill) then
+		return {
+			header = "BASIC · Free · every class",
+			stats = "No Focus  ·  No cooldown  ·  No skill point",
+			target = "Nearest creature",
+			effects = {
+				"Targets the nearest creature around you (any direction)",
+				"Walks into reach, then attacks with your normal attack combo",
+				"Keeps attacking until it falls; moving or pressing again stops",
+			},
+			combo = nil,
+			nextRank = nil,
+		}
+	end
 	local shown = math.max(rank, 1)
 	local category = (JobDefinitions.CategoryNames :: any)[skill.category] or skill.category
 	local stats = { `Focus {skill.focusCost}`, `Cooldown {secs(skill.cooldown)}` }

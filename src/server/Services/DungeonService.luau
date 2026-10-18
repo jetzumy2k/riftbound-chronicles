@@ -19,7 +19,7 @@
 	  works. The way there is guarded: rooms full of creature packs, guards
 	  around the lair, and the floor boss in front of the portal.
 	Entering / leaving:
-	  The capital "Rift Dungeons" gate (ProximityPrompt resolved on the
+	  The capital "Rift Dungeons" gate (walk-through portal resolved on the
 	  server, so no remote) takes you to floor 1's landing; you need the
 	  dungeon's minLevel and must be within reach of the gate. Portals and
 	  the tracker's Leave button act only for players inside that copy.
@@ -526,22 +526,11 @@ local function goUp(player: Player, copy: Copy, floorIndex: number, surface: Bas
 	TravelService:Teleport(player, floorPoint(copy, floorIndex - 1, p[1], p[2] - 18, true))
 end
 
-local function addPrompt(surface: BasePart, action: string, object: string): ProximityPrompt
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = action
-	prompt.ObjectText = object
-	prompt.HoldDuration = 0.4
-	prompt.MaxActivationDistance = 14
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = surface
-	return prompt
-end
-
 local function wirePortals(copy: Copy)
-	for floorIndex, floor in copy.dungeon.floors do
+	for floorIndex in copy.dungeon.floors do
 		local leaveSurface = mapPart(copy, `Leave_{floorIndex}`)
 		if leaveSurface then
-			addPrompt(leaveSurface, "Leave dungeon", copy.dungeon.name).Triggered:Connect(function(player)
+			TravelService:AddWalkPortal(leaveSurface, function(player)
 				if atPortal(player, copy, leaveSurface) then
 					leave(player)
 				end
@@ -549,18 +538,16 @@ local function wirePortals(copy: Copy)
 		end
 		local up = mapPart(copy, `Up_{floorIndex}`)
 		if up then
-			addPrompt(up, `Up to Floor {floorIndex - 1}`, floor.name).Triggered:Connect(function(player)
+			TravelService:AddWalkPortal(up, function(player)
 				goUp(player, copy, floorIndex, up)
 			end)
 		end
 		local down = mapPart(copy, `Down_{floorIndex}`)
 		if down then
 			local nextFloor = copy.dungeon.floors[floorIndex + 1]
-			addPrompt(down, `Down to Floor {floorIndex + 1}`, if nextFloor then nextFloor.name else "").Triggered:Connect(
-				function(player)
-					goDown(player, copy, floorIndex, down)
-				end
-			)
+			TravelService:AddWalkPortal(down, function(player)
+				goDown(player, copy, floorIndex, down)
+			end)
 			local gui = Instance.new("BillboardGui")
 			gui.Size = UDim2.fromOffset(300, 46)
 			gui.StudsOffset = Vector3.new(0, 14, 0)
@@ -705,7 +692,6 @@ end
 --------------------------------------------------------------------------------
 
 local function openGates()
-	local dungeon = DungeonDefinitions.get(DUNGEON_ID) :: DungeonDefinitions.Dungeon
 	for race in WorldLayout.Realms :: { [string]: any } do
 		local gate = WorldService:GetGate(race, GATE_ID)
 		if gate == nil then
@@ -725,14 +711,8 @@ local function openGates()
 			end
 		end
 		gate.Transparency = 0.15
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.ActionText = `Enter {dungeon.name}`
-		prompt.ObjectText = `Rift Dungeons · {#dungeon.floors} floors · Lv {dungeon.minLevel}+`
-		prompt.HoldDuration = 0.3
-		prompt.MaxActivationDistance = 16
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = gate
-		prompt.Triggered:Connect(function(player)
+		-- Walk through the gate to enter (no prompt).
+		TravelService:AddWalkPortal(gate, function(player)
 			onGate(player, race, gate)
 		end)
 	end

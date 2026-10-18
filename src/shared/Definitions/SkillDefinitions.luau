@@ -56,6 +56,14 @@
 	  fx           visual recipe for CombatVfx / SkillVfx (element palette,
 	               cast, travel, impact, area)
 
+	Basic skills (creator request 2026-10-18): every class has them from the
+	start, they cost no skill points and have no rank. Auto Attack goes on a
+	regular slot like any skill; pressing it targets the nearest creature
+	and attacks it with the class's normal attack (CombatController) until
+	it falls. It is not a cast: the server never runs it
+	(SkillRules.canCast refuses it); the normal attack it drives is checked
+	as usual.
+
 	Numbers are first-pass balance (Phase 20 tunes them). The server owns all
 	of them; clients only display them. Display-safe data only. Pure module.
 ]]
@@ -160,6 +168,8 @@ export type SkillSpec = {
 	effects: { Effect },
 	combo: Combo?,
 	fx: Fx,
+	-- Basic skills: every class, always known, no points (Auto Attack).
+	basic: boolean?,
 }
 
 export type Skill = SkillSpec & {
@@ -2515,6 +2525,36 @@ for _, skill in skills :: { any } do
 	table.insert(ids, skill.id)
 end
 
+-- Basic skills (not in any tree column, not in All): every class has them.
+SkillDefinitions.AUTO_ATTACK = "AutoAttack"
+local basics: { any } = {
+	{
+		id = SkillDefinitions.AUTO_ATTACK,
+		name = "Auto Attack",
+		job = "Any",
+		branch = "Basic",
+		tier = 0,
+		type = "Regular",
+		category = "Basic",
+		description = "Finds the nearest creature, targets it and attacks it with your normal attack, walking into reach first. Keeps attacking until it falls; moving or pressing again stops.",
+		icon = "target",
+		target = "Enemy",
+		range = 0,
+		cooldown = 0,
+		focusCost = 0,
+		effects = {},
+		fx = fx("Steel", "Weapon", "None", "Slash"),
+		basic = true,
+		maxRank = 1,
+		unlockLevel = 0,
+	},
+}
+for _, skill in basics do
+	byId[skill.id] = skill
+	table.insert(ids, skill.id)
+end
+SkillDefinitions.Basics = deepFreeze(basics) :: { Skill }
+
 -- Every skill, in definition order (per job: branch by branch, tier by tier).
 SkillDefinitions.All = deepFreeze(skills) :: any
 SkillDefinitions.IDS = table.freeze(ids)
@@ -2584,6 +2624,11 @@ local HOSTILE_KINDS = {
 	Taunt = true,
 }
 SkillDefinitions.HOSTILE_KINDS = table.freeze(HOSTILE_KINDS)
+
+-- Basic skills: every class, always known, no points.
+function SkillDefinitions.isBasic(skill: Skill?): boolean
+	return skill ~= nil and skill.basic == true
+end
 
 -- Hostile skills target enemies, break your spawn protection and tag you
 -- for combat; the rest support yourself and your realm.

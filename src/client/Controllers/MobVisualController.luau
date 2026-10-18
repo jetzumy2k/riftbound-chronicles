@@ -11,12 +11,25 @@
 	scaled by the creature's size (RC_Scale), so a giant boss moves as much
 	as a wolf does for its size:
 
-	  Locomotion  speed is smoothed and the gait phase advances with the
-	              distance actually walked (stride length per body plan), so
-	              feet don't slide. Quadrupeds blend a 4-beat walk into a
-	              gallop; beetles walk in alternating tripods; golems take
-	              heavy swaying strides; serpents slither (a wave travels
-	              down the body); sprites hover.
+	  Locomotion  (D-51) legs are three bones solved by inverse kinematics
+	              (Logic/CreatureIK) to reach foot targets: each foot is
+	              planted through its stance and lifted along an arc through
+	              its swing, the step cycle advancing with the distance
+	              walked (Animation/CreatureRigs gaits), so feet never
+	              slide. Wolves walk in a 4-beat sequence and gallop; giant
+	              beasts walk long and trot, dropping their weight on every
+	              footfall; beetles step in alternating tripods; golems
+	              stride with swaying hips and counter-swinging arms and
+	              elbows. Near the camera each foot follows the ground
+	              (raycasts) and the body pitches with the slope. Serpents
+	              slither (a wave travels down the body); sprites hover.
+	  Meshes      (D-52) sculpted creatures (RC_Shape: Hound, Cerberus,
+	              Serpent, Hydra) are skinned meshes on Bones; the same
+	              motions drive the bones (Bone.Transform), legs solved from
+	              the bone they hang from (forward kinematics through the
+	              Body / Chest / Hips bones), with the generated skeleton
+	              data (Animation/CreatureMeshes). Hounds flex the spine at a
+	              gallop; hydras sprawl, trot and sway three necks.
 	  Turning     the body banks into turns and the head leads them; it
 	              pitches back when speeding up and forward when braking.
 	  Awareness   heads turn to watch the nearest player in range; a
@@ -35,8 +48,15 @@
 ]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+
+local CreatureRigs = require(ReplicatedStorage.Shared.Animation.CreatureRigs)
+local CreatureIK = require(ReplicatedStorage.Shared.Logic.CreatureIK)
+local CreatureSlither = require(ReplicatedStorage.Shared.Animation.CreatureSlither)
+local CreatureGait = require(ReplicatedStorage.Shared.Animation.CreatureGait)
+local CreatureMeshes = require(ReplicatedStorage.Shared.Animation.CreatureMeshes)
 
 local UPDATE_DISTANCE = 160
 local STRIKE_SECONDS = 0.16
@@ -48,21 +68,76 @@ local TRACK_SECONDS = 0.25
 local TRACK_BASE_RANGE = 26
 local TRACK_RANGE_PER_SCALE = 10
 local TRACK_MAX_RANGE = 90
+-- Feet follow the ground (raycasts) within this distance of the camera.
+local GROUND_DETAIL_DISTANCE = 70
 
 local MobVisualController = {}
+
+type LegState = {
+	spec: CreatureRigs.Leg,
+	upper: any,
+	lower: any,
+	foot: any,
+	-- The joint whose frame the leg hangs from ("Body", or a mesh's
+	-- "Chest" / "Hips").
+	parent: string,
+	-- Upper joint's C0 without its rest bend, and the rest angles.
+	base: CFrame,
+	rest: Vector3,
+	bend: number,
+	splay: number,
+	-- Scaled bone lengths; foot home on flat ground (root space, studs).
+	lengths: { number },
+	home: Vector3,
+	-- Step cycle position (0..1), smoothed ground offset (studs), and the
+	-- body plan's action offset this frame (up, forward; size-1 studs).
+	t: number,
+	ground: number,
+	mod: Vector2,
+}
 
 type Rig = {
 	model: Model,
 	root: BasePart,
 	body: string,
 	scale: number,
-	motors: { [string]: Motor6D },
+	-- Joints by name: Motor6Ds (procedural bodies) or Bones (meshes).
+	motors: { [string]: any },
+	-- Meshes: the generated skeleton and each bone's parent bone.
+	mesh: CreatureMeshes.Shape?,
+	boneParent: { [string]: string },
+	-- Root-space frames of bones this frame (forward kinematics cache), and
+	-- where root bones rest relative to the root (measured when tracked).
+	frames: { [string]: CFrame },
+	boneRest: { [string]: CFrame },
 	-- Anatomy found on the rig ("" / "L" / "R" heads, tail and body chains).
 	heads: { string },
 	tailCount: number,
 	segments: number,
+	-- Legged body plans: skeleton, gait and per-frame gait state.
+	plan: CreatureRigs.Plan?,
+	gait: CreatureRigs.Gait?,
+	legs: { LegState }?,
+	run: number,
+	stepAmp: number,
+	stride: number,
+	duty: number,
+	lift: number,
+	footfall: number,
+	slope: number,
+	groundLift: number,
 	-- Smoothed state.
 	speed: number,
+	-- Root position last frame (speed is measured from it).
+	lastPosition: Vector3,
+	-- Serpents: where the body has been (world, newest first), the body's
+	-- rest layout, and the neck's counter-turn against the weave (degrees).
+	trail: { Vector3 },
+	slither: CreatureSlither.Layout?,
+	neckCounter: number,
+	-- Serpents: studs travelled (the weave's phase); this frame's dt.
+	travel: number,
+	dt: number,
 	phase: number,
 	yaw: number,
 	turnRate: number,
@@ -94,9 +169,10 @@ local rng = Random.new()
 
 -- Stride length (studs per full gait cycle) per body plan, before scaling.
 local STRIDE: { [string]: number } =
-	{ Wolf = 4.2, Beetle = 2.4, Golem = 4.6, Guardian = 4.6, Sprite = 6, Serpent = 7 }
+	{ Wolf = 4.2, Beetle = 2.4, Golem = 4.6, Guardian = 4.6, Sprite = 6, Serpent = 7, Hydra = 6 }
 
 local IDLE_ACTIONS: { [string]: { string } } = {
+	Hydra = { "Rise", "Hiss", "Coil" },
 	Wolf = { "Sniff", "Howl", "Shake" },
 	Beetle = { "Rear" },
 	Golem = { "Roar", "Stretch" },
@@ -248,13 +324,229 @@ local function tailMotion(rig: Rig, now: number, rear: number, strike: number, d
 end
 
 --------------------------------------------------------------------------------
+-- Legs: gait cycle, ground following and inverse kinematics (D-51)
+--------------------------------------------------------------------------------
+
+local function lerp(a: number, b: number, t: number): number
+	return a + (b - a) * t
+end
+
+-- Finds the leg bones once they have streamed in.
+local function buildLegs(rig: Rig): { LegState }?
+	local plan = rig.plan
+	if plan == nil then
+		return nil
+	end
+	local s = rig.scale
+	local out: { LegState } = {}
+	for _, spec in plan.legs do
+		local upper = rig.motors[spec.name]
+		local lower = rig.motors[`{spec.name}b`]
+		local foot = rig.motors[`{spec.name}c`]
+		if not upper or not lower or not foot then
+			return nil
+		end
+		local meshRest = (spec :: any).rest
+		local rest = if typeof(meshRest) == "Vector3" then meshRest else upper:GetAttribute("RestAngles")
+		if typeof(rest) ~= "Vector3" then
+			local forward, down = CreatureRigs.restReach(plan, spec)
+			local a1, a2, a3 =
+				CreatureIK.solve(spec.lengths, spec.bend, math.rad(spec.footAngle), forward, down)
+			rest = Vector3.new(a1, a2, a3)
+		end
+		local restAngles = rest :: Vector3
+		local hipRoot = plan.bodyCenter + spec.hip
+		table.insert(out, {
+			spec = spec,
+			upper = upper,
+			lower = lower,
+			foot = foot,
+			parent = (spec :: any).parent or "Body",
+			-- The upper joint's offset from its parent, without its rest bend.
+			base = (if upper:IsA("Bone") then upper.CFrame else upper.C0)
+				* CFrame.Angles(-restAngles.X, 0, 0),
+			rest = restAngles,
+			bend = spec.bend,
+			splay = spec.splay,
+			lengths = { spec.lengths[1] * s, spec.lengths[2] * s, spec.lengths[3] * s },
+			home = Vector3.new(
+				hipRoot.X + spec.reach.X,
+				-plan.height + CreatureRigs.FOOT_CLEARANCE,
+				hipRoot.Z + spec.reach.Y
+			) * s,
+			t = 0,
+			ground = 0,
+			mod = Vector2.zero,
+		})
+	end
+	return out
+end
+
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.RespectCanCollide = true
+local rayFilterAt = 0
+local npcFolder: Instance? = nil
+
+-- Creatures and player characters never count as ground.
+local function refreshRayFilter(now: number)
+	if now < rayFilterAt then
+		return
+	end
+	rayFilterAt = now + 2
+	local list: { Instance } = {}
+	if npcFolder then
+		table.insert(list, npcFolder)
+	end
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(list, player.Character)
+		end
+	end
+	rayParams.FilterDescendantsInstances = list
+end
+
+--[[
+	Advances the step cycle from the distance walked (and turned), works out
+	each foot's phase, the footfall pulse, and (near the camera) how far the
+	ground under each foot is above / below flat, from which the body takes
+	its slope.
+]]
+local function gaitPrep(rig: Rig, dt: number, detailed: boolean)
+	local gait = rig.gait :: CreatureRigs.Gait
+	local legs = rig.legs :: { LegState }
+	local s = rig.scale
+	local speed = rig.speed + math.abs(rig.turnRate) * 1.2 * s
+	local state = CreatureGait.state(gait, rig.plan :: CreatureRigs.Plan, s, speed)
+	local run, duty = state.run, state.duty
+	rig.run = run
+	rig.duty = duty
+	rig.stride = state.stride
+	rig.lift = state.lift
+	rig.stepAmp = state.amp
+	rig.phase = (rig.phase + speed * dt / state.cycle) % 1
+	local footfall = 0
+	local frontSum, frontCount, backSum, backCount, liftSum = 0, 0, 0, 0, 0
+	local frontZ, backZ = 0, 0
+	for _, leg in legs do
+		local spec = leg.spec
+		local offset = lerp(spec.walk, if gait.trot then spec.trot else spec.run, run)
+		leg.t = (rig.phase + offset) % 1
+		if leg.t < duty then
+			footfall = math.max(footfall, math.exp(-((leg.t / duty) / 0.14) ^ 2))
+		end
+		leg.mod = Vector2.zero
+		local groundTarget = 0
+		if detailed then
+			local origin = rig.root.CFrame * Vector3.new(leg.home.X, 0, leg.home.Z)
+			local reach = leg.lengths[1] + leg.lengths[2] + leg.lengths[3]
+			local result =
+				Workspace:Raycast(origin, Vector3.new(0, -(rig.root.Size.Y + reach * 2), 0), rayParams)
+			if result then
+				local localY = rig.root.CFrame:PointToObjectSpace(result.Position).Y
+				groundTarget = math.clamp(
+					localY - (leg.home.Y - CreatureRigs.FOOT_CLEARANCE * s),
+					-reach * 0.5,
+					reach * 0.5
+				)
+			end
+		end
+		leg.ground = approach(leg.ground, groundTarget, 14, dt)
+		liftSum += leg.ground
+		if leg.home.Z < 0 then
+			frontSum += leg.ground
+			frontCount += 1
+			frontZ += leg.home.Z
+		elseif leg.home.Z > 0 then
+			backSum += leg.ground
+			backCount += 1
+			backZ += leg.home.Z
+		end
+	end
+	rig.footfall = footfall * rig.stepAmp
+	-- Uneven ground lifts the body; at a run it also sinks so the legs
+	-- reach long strides (CreatureGait.state).
+	rig.groundLift = liftSum / #legs * 0.6 - state.crouch
+	if frontCount > 0 and backCount > 0 then
+		local span = backZ / backCount - frontZ / frontCount
+		local rise = frontSum / frontCount - backSum / backCount
+		rig.slope = math.clamp(math.deg(math.atan2(rise, span)), -25, 25)
+	else
+		rig.slope = 0
+	end
+end
+
+--[[
+	Root-space frame of joint `name` with this frame's Transforms. Motor6D
+	bodies: the Body part (C0 * Transform * C1^-1). Meshes: forward
+	kinematics down the bones; the root bone (Body) rests on the root.
+]]
+local function frameOf(rig: Rig, name: string): CFrame
+	local cached = rig.frames[name]
+	if cached then
+		return cached
+	end
+	local joint = rig.motors[name]
+	local frame: CFrame
+	if joint == nil then
+		frame = CFrame.identity
+	elseif joint:IsA("Bone") then
+		local parent = rig.boneParent[name]
+		if parent then
+			frame = frameOf(rig, parent) * joint.CFrame * joint.Transform
+		else
+			frame = (rig.boneRest[name] or CFrame.identity) * joint.Transform
+		end
+	else
+		frame = joint.C0 * joint.Transform * joint.C1:Inverse()
+	end
+	rig.frames[name] = frame
+	return frame
+end
+
+--[[
+	Places every foot: on the ground and planted through its stance, lifted
+	along an arc through its swing (forelegs curl the paw), shifted by the
+	body plan's action offsets (`leg.mod`: up, forward), tucked in as the
+	creature falls. The bones are then solved to reach it, from wherever the
+	Body has moved to (so the body can bob, lean and lunge over planted feet).
+]]
+local function stepLegs(rig: Rig, down: number)
+	local legs = rig.legs
+	if legs == nil or not rig.motors["Body"] then
+		return
+	end
+	local s = rig.scale
+	table.clear(rig.frames)
+	local amp = rig.stepAmp
+	local duty = rig.duty
+	local curlScale = if rig.body == "Wolf" then 1 elseif rig.body == "Beetle" then 0 else 0.3
+	for _, leg in legs do
+		local spec = leg.spec
+		local body = frameOf(rig, leg.parent)
+		local target, curl =
+			CreatureGait.footTarget(leg.home, leg.t, duty, rig.stride, rig.lift, amp, leg.ground)
+		target += Vector3.new(0, leg.mod.X * s, -leg.mod.Y * s)
+		if down > 0 then
+			local total = leg.lengths[1] + leg.lengths[2] + leg.lengths[3]
+			local tucked = body:PointToWorldSpace(spec.hip * s + Vector3.new(0, -total * 0.45, 0))
+			target = target:Lerp(tucked, down)
+		end
+		local footAngle = math.rad(spec.footAngle + (if spec.front then -55 else 25) * curl * amp * curlScale)
+		leg.upper.Transform, leg.lower.Transform, leg.foot.Transform =
+			CreatureGait.solveLeg(body, leg :: any, target, footAngle)
+	end
+end
+
+--------------------------------------------------------------------------------
 -- Body plans
 --------------------------------------------------------------------------------
 
 local function quadruped(rig: Rig, now: number, rear: number, strike: number, hit: number, down: number)
-	local run = smooth((rig.speed - 6) / 8) -- 0 walk .. 1 gallop
-	local moving = math.clamp(rig.speed / 3, 0, 1)
+	local run = rig.run
+	local moving = rig.stepAmp
 	local cycle = rig.phase * math.pi * 2
+	local gait = rig.gait
 	local idle, w = idleWeight(rig, now)
 	local sniff = weightOf("Sniff", idle, w)
 	local howl = weightOf("Howl", idle, w)
@@ -265,39 +557,35 @@ local function quadruped(rig: Rig, now: number, rear: number, strike: number, hi
 	local roar = if rig.move == "Roar" then rear else 0
 	local sweep = if rig.move == "Sweep" then 1 else 0
 	local lunge = if rig.move == "Strike" then 1 else 0.35
-	-- Leg phase offsets: lateral-sequence walk -> rotary gallop.
-	local offsets: { [string]: number } = {
-		LegFL = 0,
-		LegFR = 0.5 * (1 - run) + 0.12 * run,
-		LegBL = 0.75 * (1 - run) + 0.55 * run,
-		LegBR = 0.25 * (1 - run) + 0.65 * run,
-	}
-	local swingDeg = (24 + 22 * run) * moving
-	for name, offset in offsets do
-		local a = cycle + offset * math.pi * 2
-		local swing = math.sin(a) * swingDeg
-		-- Lift the paw while the leg swings forward (cos > 0), plant it otherwise.
-		local lift = math.max(0, math.cos(a)) * (0.25 + 0.35 * run) * moving
-		local front = string.sub(name, 4, 4) == "F"
-		local brace = if front
-			then rear * -20 + strike * 25 * lunge - slam * 55 + slamDown * 30 + sniff * 8
-			else rear * 18 - strike * 10 + slam * 22
-		-- Front paws paw at the air while rearing.
-		local paw = if front then math.sin(now * 9 + (if name == "LegFL" then 0 else 2)) * 14 * slam else 0
-		set(rig, name, CFrame.new(0, lift, 0) * rx(swing + brace + paw - down * 70))
+	-- Feet: forepaws claw at the air while rearing, reach out on a lunge.
+	for _, leg in (rig.legs or {}) :: { LegState } do
+		local spec = leg.spec
+		if spec.front then
+			local paw = math.sin(now * 9 + (if spec.side > 0 then 2 else 0)) * 0.3 * slam
+			leg.mod = Vector2.new(
+				slam * 1.5 + paw + sniff * 0.05,
+				slam * 0.5 + strike * lunge * 0.9 - slamDown * 0.3 + rear * -0.15
+			)
+		else
+			leg.mod = Vector2.new(0, rear * 0.2)
+		end
 	end
 	local breathe = math.sin(now * 2.1) * (1 - moving)
 	local flex = math.sin(cycle * 2) * 5 * run
-	local bob = math.abs(math.sin(cycle)) * (0.08 + 0.18 * run) * moving
+	-- Weight drops onto each footfall; at a gallop the body also bounds.
+	local bob = -(gait and gait.bob or 0.08) * rig.footfall
+		+ math.abs(math.sin(cycle * 2)) * 0.18 * run * moving
+	local sway = math.sin(cycle) * (gait and gait.sway or 2) * moving * (1 - run)
 	local bank = math.clamp(-rig.turnRate * 9, -14, 14)
-	local pitch = math.clamp(-rig.accel * 0.8, -6, 6)
+	local pitch = math.clamp(-rig.accel * 0.8, -6, 6) + rig.slope
 	local shakeRoll = math.sin(now * 22) * 10 * shake
 	set(
 		rig,
 		"Body",
 		CFrame.new(
 			0,
-			bob
+			rig.groundLift / rig.scale
+				+ bob
 				+ breathe * 0.05
 				- rear * 0.35 * (1 - slam)
 				+ slam * 0.9
@@ -318,10 +606,27 @@ local function quadruped(rig: Rig, now: number, rear: number, strike: number, hi
 					+ roar * 6
 					- sniff * 5,
 				sweep * (rear * 12 - strike * 14),
-				bank + down * 75 + shakeRoll
+				bank + sway + down * 75 + shakeRoll
 			)
 	)
-	-- Heads lead turns, counter-bob at speed, watch players and look around.
+	-- Spine (meshes): chest and hips flex against each other at a gallop
+	-- and roll with the stride.
+	set(
+		rig,
+		"Chest",
+		angles(
+			math.sin(cycle * 2) * 7 * run - sniff * 6 + slam * 6,
+			math.clamp(rig.turnRate * 6, -10, 10),
+			-sway * 0.5
+		)
+	)
+	set(
+		rig,
+		"Hips",
+		angles(-math.sin(cycle * 2) * 8 * run - slam * 10, -math.clamp(rig.turnRate * 6, -10, 10), sway * 0.5)
+	)
+	-- Necks carry the heads: the neck takes part of each turn and nod, the
+	-- head the rest. Heads lead turns, counter-bob at speed, watch players.
 	local count = #rig.heads
 	for index, tag in rig.heads do
 		local look = headLook(rig, index, count, now, moving)
@@ -329,7 +634,7 @@ local function quadruped(rig: Rig, now: number, rear: number, strike: number, hi
 			+ rear * 16 * (1 - roar)
 			+ roar * 40
 			- strike * 28 * lunge
-			- math.sin(cycle) * 6 * run
+			- math.sin(cycle * 2) * 6 * run
 			+ hit * 12
 			+ breathe * 2
 			+ howl * 48
@@ -341,9 +646,14 @@ local function quadruped(rig: Rig, now: number, rear: number, strike: number, hi
 			+ math.sin(now * 3 + index) * 6 * sniff
 		set(
 			rig,
+			`Neck{tag}`,
+			CFrame.new(0, -bob * 0.4, -strike * 0.6 * lunge) * angles(headPitch * 0.4, headYaw * 0.4, 0)
+		)
+		set(
+			rig,
 			`Head{tag}`,
-			CFrame.new(0, -bob * 0.6 - sniff * 0.2, -strike * 1.2 * lunge)
-				* angles(headPitch, headYaw, math.sin(now * 22 + 0.6) * 12 * shake)
+			CFrame.new(0, -sniff * 0.1, -strike * 0.5 * lunge)
+				* angles(headPitch * 0.6, headYaw * 0.6, math.sin(now * 22 + 0.6) * 12 * shake)
 		)
 		jaw(rig, tag, rear * 18 + strike * 14 + roar * 30 + howl * 32 + hit * 8 + sniff * 4)
 	end
@@ -357,29 +667,36 @@ local function quadruped(rig: Rig, now: number, rear: number, strike: number, hi
 end
 
 local function beetle(rig: Rig, now: number, rear: number, strike: number, hit: number, down: number)
-	local moving = math.clamp(rig.speed / 2.5, 0, 1)
+	local moving = rig.stepAmp
 	local cycle = rig.phase * math.pi * 2
 	local idle, w = idleWeight(rig, now)
 	local rearUp = weightOf("Rear", idle, w) + (if rig.move == "Slam" then rear else 0)
-	for i = 1, 6 do
-		-- Alternating tripods: legs 1, 4, 5 and 2, 3, 6.
-		local group = if i == 1 or i == 4 or i == 5 then 0 else math.pi
-		local a = cycle + group
-		local swing = math.sin(a) * 26 * moving
-		local lift = math.max(0, math.cos(a)) * 0.35 * moving
-		local fold = down * (if i % 2 == 0 then 50 else -50)
-		-- Front legs wave while rearing up.
-		local wave = if i <= 2 then rearUp * (-40 + math.sin(now * 8 + i) * 15) else 0
-		set(rig, `Leg{i}`, CFrame.new(0, lift, 0) * rx(swing + wave) * CFrame.Angles(0, 0, math.rad(fold)))
+	-- Front legs wave in the air while rearing; all legs brace for the strike.
+	for _, leg in (rig.legs or {}) :: { LegState } do
+		if leg.spec.front then
+			leg.mod = Vector2.new(
+				rearUp * (1.3 + math.sin(now * 8 + leg.spec.side) * 0.3),
+				rearUp * 0.4 + strike * 0.5
+			)
+		end
 	end
-	local sway = math.sin(cycle) * 3 * moving
+	local sway = math.sin(cycle * 2) * 3 * moving
 	local breathe = math.sin(now * 1.6) * (1 - moving)
 	set(
 		rig,
 		"Body",
-		CFrame.new(0, breathe * 0.05 + rear * 0.35 + rearUp * 0.4 - down * 0.8, strike * -0.9 + hit * 0.4)
+		CFrame.new(
+			0,
+			rig.groundLift / rig.scale
+				+ breathe * 0.05
+				+ rear * 0.35
+				+ rearUp * 0.4
+				- rig.footfall * 0.04
+				- down * 0.8,
+			strike * -0.9 + hit * 0.4
+		)
 			* CFrame.Angles(
-				math.rad(rear * 10 + rearUp * 16 - strike * 6 - hit * 6),
+				math.rad(rig.slope + rear * 10 + rearUp * 16 - strike * 6 - hit * 6),
 				0,
 				math.rad(sway + math.clamp(-rig.turnRate * 6, -8, 8) + down * 160)
 			)
@@ -394,42 +711,53 @@ local function beetle(rig: Rig, now: number, rear: number, strike: number, hit: 
 end
 
 local function biped(rig: Rig, now: number, rear: number, strike: number, hit: number, down: number)
-	local moving = math.clamp(rig.speed / 3, 0, 1)
+	local moving = rig.stepAmp
 	local cycle = rig.phase * math.pi * 2
+	local gait = rig.gait
 	local idle, w = idleWeight(rig, now)
 	local roar = weightOf("Roar", idle, w) + (if rig.move == "Roar" then rear else 0)
 	local stretch = weightOf("Stretch", idle, w)
 	local slam = if rig.move == "Slam" then 1 else 0
 	local sweep = if rig.move == "Sweep" then 1 else 0
-	local swing = math.sin(cycle) * 28 * moving
-	local liftL = math.max(0, math.cos(cycle)) * 0.4 * moving
-	local liftR = math.max(0, -math.cos(cycle)) * 0.4 * moving
-	set(rig, "LegL", CFrame.new(0, liftL, 0) * rx(swing - down * 80))
-	set(rig, "LegR", CFrame.new(0, liftR, 0) * rx(-swing - down * 60))
+	-- Arms swing against the legs (left arm back as the left foot leads).
+	local armSwing = math.cos(cycle) * 26 * moving
 	local breathe = math.sin(now * 1.5)
 	-- Arms spread wide to roar; a slam brings both overhead and down.
 	local spread = roar * 55 + stretch * 30
 	set(
 		rig,
 		"ArmL",
-		rx(-swing * 0.7 + breathe * 2 - hit * 20 + slam * (rear * 165 + strike * 40) + stretch * 40)
+		rx(-armSwing + breathe * 2 - hit * 20 + slam * (rear * 150 + strike * 40) + stretch * 40)
 			* CFrame.Angles(0, 0, math.rad(-down * 40 - spread))
 	)
+	set(rig, "ArmL2", rx(15 + math.max(0, armSwing) * 0.5 + slam * rear * 30 - strike * slam * 20))
 	-- The weapon arm raises overhead in the wind-up and slams down; a sweep
 	-- swings it across the front.
 	set(
 		rig,
 		"ArmR",
-		rx(swing * 0.7 + rear * 165 * (1 - sweep) + rear * 85 * sweep + strike * 40 - hit * 20)
+		rx(armSwing + rear * 150 * (1 - sweep) + rear * 85 * sweep + strike * 40 - hit * 20)
 			* CFrame.Angles(0, math.rad(sweep * (rear * 50 - strike * 90)), math.rad(down * 40 + spread))
 	)
-	-- Heavy stride: weight shifts side to side and dips at each footfall.
-	local roll = math.sin(cycle) * 4 * moving + math.sin(now * 1.2) * 4 * stretch
-	local dip = -math.abs(math.cos(cycle)) * 0.18 * moving
+	set(rig, "ArmR2", rx(15 + math.max(0, -armSwing) * 0.5 + rear * 35 - strike * 25))
+	-- Heavy stride: weight shifts over the planted foot and drops at each
+	-- footfall; the hips counter-rotate with the step.
+	local roll = math.sin(cycle) * (gait and gait.sway or 3) * moving + math.sin(now * 1.2) * 4 * stretch
+	local dip = -(gait and gait.bob or 0.12) * rig.footfall
 	set(
 		rig,
 		"Body",
-		CFrame.new(0, dip + breathe * 0.06 - strike * 0.3 - strike * slam * 0.4 - down * 1.6, hit * 0.4)
+		CFrame.new(
+			0,
+			rig.groundLift / rig.scale
+				+ dip
+				+ breathe * 0.06
+				- rear * 0.25
+				- strike * 0.3
+				- strike * slam * 0.4
+				- down * 1.6,
+			hit * 0.4
+		)
 			* CFrame.Angles(
 				math.rad(
 					rear * 8
@@ -438,9 +766,10 @@ local function biped(rig: Rig, now: number, rear: number, strike: number, hit: n
 						- hit * 10
 						+ roar * 12
 						+ math.clamp(-rig.accel * 0.6, -5, 5)
+						+ moving * 4
 						- down * 35
 				),
-				math.rad(rear * -12 + sweep * (rear * -15 + strike * 25)),
+				math.rad(math.sin(cycle) * 6 * moving + rear * -12 + sweep * (rear * -15 + strike * 25)),
 				math.rad(roll + math.clamp(-rig.turnRate * 6, -8, 8))
 			)
 	)
@@ -449,60 +778,143 @@ local function biped(rig: Rig, now: number, rear: number, strike: number, hit: n
 		rig,
 		"Head",
 		CFrame.Angles(
-			math.rad(breathe * 2 + rear * 6 + look.Y * 0.6 + roar * 30 - down * 25),
-			math.rad(look.X * 0.8),
+			math.rad(breathe * 2 + rear * 6 + look.Y * 0.6 + roar * 30 - down * 25 - moving * 4),
+			math.rad(look.X * 0.8 - math.sin(cycle) * 6 * moving),
 			0
 		)
+	)
+end
+
+local serpentNecks: (
+	rig: Rig,
+	now: number,
+	rear: number,
+	strike: number,
+	hit: number,
+	down: number,
+	moving: number,
+	rise: number,
+	hiss: number,
+	sweep: number,
+	lunge: number
+) -> ()
+
+-- A serpent body's rest layout (Animation/CreatureSlither), once its
+-- segments have streamed in.
+local function slitherLayout(rig: Rig): CreatureSlither.Layout?
+	local body = rig.motors["Body"]
+	if rig.segments == 0 or body == nil then
+		return nil
+	end
+	local layout = rig.slither
+	if layout == nil or layout.count ~= rig.segments then
+		local bodyRest = if body:IsA("Bone")
+			then rig.boneRest["Body"] or CFrame.identity
+			else body.C0 * body.C1:Inverse()
+		layout = CreatureSlither.layout(rig.motors, rig.segments, bodyRest)
+		rig.slither = layout
+	end
+	return layout
+end
+
+-- Serpent bodies follow the chest's trail.
+local function slither(rig: Rig, sway: (number) -> number)
+	local layout = slitherLayout(rig)
+	if layout == nil then
+		return
+	end
+	table.clear(rig.frames)
+	CreatureSlither.step(
+		layout,
+		rig.motors,
+		frameOf(rig, "Body"),
+		rig.root.CFrame,
+		rig.trail,
+		rig.scale,
+		sway
 	)
 end
 
 local function serpent(rig: Rig, now: number, rear: number, strike: number, hit: number, down: number)
 	local moving = math.clamp(rig.speed / 3, 0, 1)
 	local still = 1 - moving
-	local cycle = rig.phase * math.pi * 2
 	local idle, w = idleWeight(rig, now)
 	local rise = weightOf("Rise", idle, w) + (if rig.move == "Slam" then rear else 0)
 	local hiss = weightOf("Hiss", idle, w) + (if rig.move == "Roar" then rear else 0)
 	local coil = weightOf("Coil", idle, w)
 	local sweep = if rig.move == "Sweep" then 1 else 0
 	local lunge = if rig.move == "Strike" or rig.move == "Slam" then 1 else 0.4
-	-- Slithering: a wave travels from the chest to the tail tip.
-	for i = 1, rig.segments do
-		local wave = math.sin(cycle - i * 0.9) * 17 * moving
-		local sway = math.sin(now * 0.8 - i * 0.6) * 6 * still
-		set(rig, `Seg{i}`, angles(0, (wave + sway + coil * 22 + rig.alert * 3) * (1 - down * 0.6), down * 4))
+	-- The chest weaves along an S as it travels, pointing along its trail
+	-- (Animation/CreatureSlither).
+	local layout = slitherLayout(rig)
+	local weaveX, weaveYaw = 0, 0
+	if layout then
+		rig.travel += rig.speed * rig.dt
+		weaveX = CreatureSlither.weave(layout, rig.travel)
+		local heading = CreatureSlither.heading(layout, rig.trail, rig.root.CFrame, weaveX)
+		weaveYaw = if heading then math.clamp(math.deg(heading), -50, 50) else 0
 	end
 	local breathe = math.sin(now * 1.5) * still
 	set(
 		rig,
 		"Body",
-		CFrame.new(0, breathe * 0.06 - down * 0.6, -strike * 1.2 * lunge + hit * 0.4)
+		CFrame.new(weaveX / rig.scale, breathe * 0.06 - down * 0.6, -strike * 1.2 * lunge + hit * 0.4)
 			* angles(
 				rear * 5 - strike * 4 - hit * 6,
-				math.sin(cycle) * 10 * moving
-					+ math.sin(now * 0.7) * 4 * still
-					+ sweep * (rear * 15 - strike * 25),
+				weaveYaw + math.sin(now * 0.7) * 4 * still + sweep * (rear * 15 - strike * 25),
 				math.clamp(-rig.turnRate * 8, -12, 12) + down * 80
 			)
 	)
+	-- The neck turns back against the weave: the head holds its heading.
+	rig.neckCounter = -weaveYaw * 0.75
+	serpentNecks(rig, now, rear, strike, hit, down, moving, rise, hiss, sweep, lunge)
+	-- The body follows the chest's trail; at rest it sways and coils a little.
+	slither(rig, function(i: number): number
+		return (math.sin(now * 0.8 - i * 0.6) * 3 + coil * 10 + rig.alert * 1.5) * still * (1 - down * 0.6)
+	end)
+end
+
+-- Raised serpent necks: rear back in an S for the wind-up, strike down and
+-- forward, sway and watch at rest (serpents and hydras).
+function serpentNecks(
+	rig: Rig,
+	now: number,
+	rear: number,
+	strike: number,
+	hit: number,
+	down: number,
+	moving: number,
+	rise: number,
+	hiss: number,
+	sweep: number,
+	lunge: number
+)
+	local still = 1 - moving
 	local count = #rig.heads
 	for index, tag in rig.heads do
 		local look = headLook(rig, index, count, now, moving)
 		local sway = math.sin(now * 1.3 + index * 1.9) * 5 * still
+		-- Each head of a hydra strikes a beat apart.
+		local beat = if count > 1 then math.sin(now * 2 + index * 2.1) * 6 * rig.alert else 0
 		-- Rear back (S-curve) in the wind-up, then strike down and forward.
 		set(
 			rig,
 			`Neck{tag}`,
 			angles(
 				rear * 22 - strike * 42 * lunge + rise * 18 + hit * 10 + sway - down * 45,
-				look.X * 0.45 + math.sin(cycle + 1) * 6 * moving + sweep * (rear * 30 - strike * 40),
+				look.X * 0.45 + rig.neckCounter + sweep * (rear * 30 - strike * 40),
 				0
 			)
 		)
 		set(
 			rig,
 			`NeckB{tag}`,
-			angles(rear * 20 - strike * 26 * lunge + rise * 10 - down * 30, look.X * 0.35, 0)
+			angles(rear * 20 - strike * 26 * lunge + rise * 10 - down * 30 + beat, look.X * 0.35, 0)
+		)
+		set(
+			rig,
+			`NeckC{tag}`,
+			angles(rear * 10 - strike * 14 * lunge + rise * 6 - down * 15, look.X * 0.2, 0)
 		)
 		set(
 			rig,
@@ -515,6 +927,41 @@ local function serpent(rig: Rig, now: number, rear: number, strike: number, hit:
 		)
 		jaw(rig, tag, rear * 25 + strike * 10 + hiss * 38 + hit * 8)
 	end
+end
+
+-- Hydra: a heavy sprawling body (legs by IK, trotting) carrying three
+-- swaying serpent necks; the tail drags and sways.
+local function hydraBody(rig: Rig, now: number, rear: number, strike: number, hit: number, down: number)
+	local moving = rig.stepAmp
+	local cycle = rig.phase * math.pi * 2
+	local idle, w = idleWeight(rig, now)
+	local rise = weightOf("Rise", idle, w) + (if rig.move == "Slam" then rear else 0)
+	local hiss = weightOf("Hiss", idle, w) + (if rig.move == "Roar" then rear else 0)
+	local sweep = if rig.move == "Sweep" then 1 else 0
+	local lunge = if rig.move == "Strike" or rig.move == "Slam" then 1 else 0.4
+	local breathe = math.sin(now * 1.3) * (1 - moving)
+	rig.neckCounter = math.sin(cycle + 1) * 6 * moving
+	-- The forelegs plant and brace while the necks strike.
+	for _, leg in (rig.legs or {}) :: { LegState } do
+		if leg.spec.front then
+			leg.mod = Vector2.new(rise * 0.4, strike * 0.3 * lunge)
+		end
+	end
+	set(
+		rig,
+		"Body",
+		CFrame.new(
+			0,
+			rig.groundLift / rig.scale + breathe * 0.06 - rig.footfall * 0.15 + rise * 0.3 - down * 0.9,
+			-strike * 0.5 * lunge + hit * 0.3
+		)
+			* angles(
+				rig.slope + rear * 6 + rise * 8 - strike * 6 * lunge - hit * 5,
+				math.sin(cycle) * 6 * moving + sweep * (rear * 10 - strike * 15),
+				math.sin(cycle) * 4 * moving + math.clamp(-rig.turnRate * 6, -8, 8) + down * 60
+			)
+	)
+	serpentNecks(rig, now, rear, strike, hit, down, moving, rise, hiss, sweep, lunge)
 end
 
 local function sprite(rig: Rig, now: number, rear: number, strike: number, hit: number, down: number)
@@ -589,15 +1036,32 @@ local function idleActions(rig: Rig, now: number)
 	rig.nextIdleAt = now + rig.idleLength + rng:NextNumber(4, 10) * (if rig.alert > 0.5 then 0.6 else 1)
 end
 
-local function animate(rig: Rig, dt: number, now: number)
-	local velocity = rig.root.AssemblyLinearVelocity
-	local measured = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
+	-- Speed from how far the root actually moved on this screen: the server
+	-- simulates creatures, so the replicated velocity can read ~0 here
+	-- (the legs would then stand still while the body glides). A jump of
+	-- many studs in one frame is a teleport / respawn, not a step.
+	local position = rig.root.Position
+	local moved = Vector3.new(position.X - rig.lastPosition.X, 0, position.Z - rig.lastPosition.Z).Magnitude
+	rig.lastPosition = position
+	rig.dt = dt
+	local measured = if moved > 8 then 0 else moved / math.max(dt, 1e-3)
 	local previous = rig.speed
 	rig.speed = approach(rig.speed, measured, 8, dt)
 	rig.accel = approach(rig.accel, (rig.speed - previous) / math.max(dt, 1e-3), 6, dt)
-	-- Gait phase from the distance walked (no foot sliding).
-	local stride = (STRIDE[rig.body] or 4) * rig.scale
-	rig.phase = (rig.phase + rig.speed * dt / stride) % 1
+	-- Legged plans: the step cycle and the ground (gaitPrep). Others: the
+	-- phase still advances with the distance moved.
+	if rig.gait and rig.legs == nil then
+		rig.legs = buildLegs(rig)
+	end
+	if rig.gait and rig.legs then
+		gaitPrep(rig, dt, detailed)
+	else
+		local stride = (STRIDE[rig.body] or 4) * rig.scale
+		rig.phase = (rig.phase + rig.speed * dt / stride) % 1
+		rig.stepAmp = math.clamp(rig.speed / 3, 0, 1)
+		rig.run = smooth((rig.speed - 6) / 8)
+	end
 	-- Turning rate (radians per second), smoothed.
 	local look = rig.root.CFrame.LookVector
 	local yaw = math.atan2(-look.X, -look.Z)
@@ -630,17 +1094,29 @@ local function animate(rig: Rig, dt: number, now: number)
 		biped(rig, now, rear, strike, hit, down)
 	elseif rig.body == "Serpent" then
 		serpent(rig, now, rear, strike, hit, down)
+	elseif rig.body == "Hydra" then
+		hydraBody(rig, now, rear, strike, hit, down)
 	else
 		sprite(rig, now, rear, strike, hit, down)
 	end
 	wingsMotion(rig, now, rear, strike, hit, down)
 	tailMotion(rig, now, rear, strike, down)
+	-- Last: the feet, from wherever the body ended up this frame.
+	stepLegs(rig, down)
 end
 
 -- Records a joint and what it says about the rig's anatomy.
-local function addMotor(rig: Rig, motor: Motor6D)
+local function addMotor(rig: Rig, motor: any)
 	local name = motor.Name
 	rig.motors[name] = motor
+	if motor:IsA("Bone") then
+		if motor.Parent and motor.Parent:IsA("Bone") then
+			rig.boneParent[name] = motor.Parent.Name
+		else
+			-- A root bone: its rest frame relative to the root (no Transform yet).
+			rig.boneRest[name] = rig.root.CFrame:ToObjectSpace(motor.WorldCFrame * motor.Transform:Inverse())
+		end
+	end
 	local headTag = string.match(name, "^Head(%u?)$")
 	if headTag and not table.find(rig.heads, headTag) then
 		table.insert(rig.heads, headTag)
@@ -669,17 +1145,57 @@ local function track(model: Model)
 		return
 	end
 	local scale = model:GetAttribute("RC_Scale")
+	local rigScale = if type(scale) == "number"
+		then math.clamp(scale, 0.3, 6)
+		else math.max(0.5, root.Size.Y / 2)
 	local look = root.CFrame.LookVector
+	-- Sculpted meshes (D-52): skeleton data, plan and gait from the shape.
+	local shapeName = model:GetAttribute("RC_Shape")
+	local mesh = if type(shapeName) == "string" then CreatureMeshes.Shapes[shapeName] else nil
+	local plan = CreatureRigs.plan(body)
+	local gait = CreatureRigs.gaitFor(body, rigScale)
+	if mesh then
+		body = if mesh.bodyPlan == "Quadruped"
+			then "Wolf"
+			elseif mesh.bodyPlan == "Sprawler" then "Hydra"
+			else "Serpent"
+		plan = if #mesh.legs > 0
+			then { bodyCenter = Vector3.zero, height = mesh.height, legs = mesh.legs :: any } :: any
+			else nil
+		local gaitName = if rigScale >= CreatureRigs.HEAVY_SCALE then mesh.heavyGait else mesh.gait
+		gait = if gaitName and plan then CreatureRigs.Gaits[gaitName] else nil
+	end
 	local rig: Rig = {
 		model = model,
 		root = root,
 		body = body,
-		scale = if type(scale) == "number" then math.clamp(scale, 0.3, 6) else math.max(0.5, root.Size.Y / 2),
+		scale = rigScale,
 		motors = {},
+		mesh = mesh,
+		boneParent = {},
+		frames = {},
+		boneRest = {},
 		heads = {},
 		tailCount = 0,
 		segments = 0,
+		plan = plan,
+		gait = gait,
+		legs = nil,
+		run = 0,
+		stepAmp = 0,
+		stride = 0,
+		duty = 0.6,
+		lift = 0,
+		footfall = 0,
+		slope = 0,
+		groundLift = 0,
 		speed = 0,
+		lastPosition = root.Position,
+		trail = {},
+		slither = nil,
+		neckCounter = 0,
+		travel = 0,
+		dt = 0,
 		phase = rng:NextNumber(),
 		yaw = math.atan2(-look.X, -look.Z),
 		turnRate = 0,
@@ -704,12 +1220,12 @@ local function track(model: Model)
 	-- Joints hang off the root and off other limbs (chains); with streaming
 	-- some arrive later.
 	for _, d in model:GetDescendants() do
-		if d:IsA("Motor6D") then
+		if d:IsA("Motor6D") or d:IsA("Bone") then
 			addMotor(rig, d)
 		end
 	end
 	model.DescendantAdded:Connect(function(d)
-		if d:IsA("Motor6D") then
+		if d:IsA("Motor6D") or d:IsA("Bone") then
 			addMotor(rig, d)
 		end
 	end)
@@ -761,6 +1277,7 @@ function MobVisualController:Start()
 		if npcs == nil then
 			return
 		end
+		npcFolder = npcs
 		npcs.ChildAdded:Connect(function(child)
 			if child:IsA("Model") and (child :: Model):GetAttribute("RC_Body") ~= nil then
 				task.spawn(track, child :: Model)
@@ -777,9 +1294,11 @@ function MobVisualController:Start()
 		local camera = Workspace.CurrentCamera
 		local origin = if camera then camera.CFrame.Position else Vector3.zero
 		local now = os.clock()
+		refreshRayFilter(now)
 		for _, rig in rigs do
-			if (rig.root.Position - origin).Magnitude <= UPDATE_DISTANCE then
-				animate(rig, dt, now)
+			local distance = (rig.root.Position - origin).Magnitude
+			if distance <= UPDATE_DISTANCE then
+				animate(rig, dt, now, distance <= GROUND_DETAIL_DISTANCE)
 			end
 		end
 	end)

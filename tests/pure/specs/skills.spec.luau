@@ -492,13 +492,61 @@ return function(t)
 
 		t.it("auto-fill adds learned skills to empty slots and never moves the player's choices", function()
 			local first = SkillRules.autoFill("Warrior", { ShieldBash = 1 }, { Regular = {}, Special = nil })
-			t.eq(table.concat(first.Regular, ","), "ShieldBash")
+			-- Auto Attack first (a new character's slot 1), then learned skills.
+			t.eq(table.concat(first.Regular, ","), "AutoAttack,ShieldBash")
 			local custom = SkillRules.autoFill("Warrior", owned, { Regular = { "Hamstring" }, Special = nil })
 			t.eq(custom.Regular[1], "Hamstring")
 			t.eq(#custom.Regular, 3)
 			t.ok(custom.Special ~= nil)
 			t.ok(SkillRules.validateLoadout("Warrior", owned, custom.Regular, custom.Special))
 		end)
+
+		t.it(
+			"Auto Attack: every class knows it free, slots in a regular slot, never learned or cast",
+			function()
+				local id = SkillDefinitions.AUTO_ATTACK
+				local skill = SkillDefinitions.get(id)
+				t.ok(skill ~= nil and SkillDefinitions.isBasic(skill), "defined and basic")
+				t.eq((skill :: any).type, "Regular")
+				t.ok(table.find(SkillDefinitions.IDS, id) ~= nil, "remotes accept it")
+				t.ok(table.find(SkillDefinitions.All, skill) == nil, "not in any class tree")
+				for _, job in { "Warrior", "Healer", "Archer", "Mage" } do
+					t.eq(SkillRules.rankOf({}, id), 1)
+					t.ok(SkillRules.validateLoadout(job, {}, { id }, nil), `{job} can slot it with no points`)
+					local ok, reason = SkillRules.canLearn(job, {}, 30, 0, false, id)
+					t.eq(ok, false)
+					t.eq(reason, "basic")
+				end
+				-- Free: it never uses a skill point.
+				t.eq(SkillRules.available({}, 0), SkillRules.pointsFor(0))
+				local ok, reason = SkillRules.canCast(
+					id,
+					{
+						job = "Warrior",
+						owned = {},
+						loadout = { Regular = { id }, Special = nil },
+						stunned = false,
+						silenced = false,
+						now = 10,
+						globalReadyAt = 0,
+						readyAt = nil,
+						slack = 0,
+						focus = 100,
+					} :: any
+				)
+				t.eq(ok, false)
+				t.eq(reason, "basic")
+				-- A full bar keeps the player's choices (no forced slot).
+				local full = SkillRules.autoFill(
+					"Warrior",
+					owned,
+					{ Regular = { "Hamstring", "ShieldBash", "Whirlwind" } }
+				)
+				t.ok(table.find(full.Regular, id) == nil, "not forced onto a full bar")
+				-- Pruning keeps it.
+				t.eq(SkillRules.prune("Warrior", {}, { Regular = { id }, Special = nil }).Regular[1], id)
+			end
+		)
 
 		t.it("a reset prunes skills that are no longer learned", function()
 			local pruned = SkillRules.prune(

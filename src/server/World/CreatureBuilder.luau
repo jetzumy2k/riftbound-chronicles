@@ -9,7 +9,12 @@
 	  limbs             body parts on Motor6D joints named after the part
 	                    ("LegFL", "Head", "WingL", ...) so the client can
 	                    animate them (MobVisualController) with Transform
-	Chains (tails, necks, wing tips, jaws) joint to the limb before them.
+	Skeleton (D-51): the "Body" part rides on the root; legs, necks, heads,
+	arms, tails and wings joint to the Body (or to the bone before them), so
+	the whole creature moves together. Legs are three bones (upper "LegFL",
+	lower "LegFLb", foot "LegFLc"; Animation/CreatureRigs) built in their
+	standing pose, solved by Logic/CreatureIK; the upper joint carries the
+	rest angles (attribute RestAngles) for the client's foot planting.
 	Body plans: Wolf, Beetle, Golem / Guardian (bipeds), Sprite, Serpent.
 	Traits (EnemyDefinitions.Trait) add a myth's anatomy: three heads, a
 	mane, horns, wings, a serpent tail, spines, a crest. Elites get fangs
@@ -22,6 +27,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EnemyDefinitions = require(ReplicatedStorage.Shared.Definitions.EnemyDefinitions)
+local CreatureRigs = require(ReplicatedStorage.Shared.Animation.CreatureRigs)
+local CreatureIK = require(ReplicatedStorage.Shared.Logic.CreatureIK)
+local CreatureMeshes = require(ReplicatedStorage.Shared.Animation.CreatureMeshes)
 
 local CreatureBuilder = {}
 
@@ -200,6 +208,69 @@ local function chain(
 	return round(part)
 end
 
+export type LegParts = { upper: Part, lower: Part, foot: Part }
+
+--[[
+	A three-bone leg on `body` from its CreatureRigs spec, in its standing
+	pose (foot on flat ground). Returns the bones for decoration.
+]]
+local function rigLeg(
+	ctx: Ctx,
+	body: BasePart,
+	plan: CreatureRigs.Plan,
+	leg: CreatureRigs.Leg,
+	color: Color3,
+	dark: Color3,
+	material: Enum.Material
+): LegParts
+	local l1, l2, l3 = leg.lengths[1], leg.lengths[2], leg.lengths[3]
+	local w = leg.widths
+	local forward, down = CreatureRigs.restReach(plan, leg)
+	local a1, a2, a3 = CreatureIK.solve(leg.lengths, leg.bend, math.rad(leg.footAngle), forward, down)
+	local upper = chain(
+		ctx,
+		body,
+		leg.name,
+		Vector3.new(w[1], l1 + w[1] * 0.3, w[1]),
+		CFrame.new(leg.hip) * CFrame.Angles(0, math.rad(leg.splay), 0) * CFrame.Angles(a1, 0, 0),
+		Vector3.new(0, -l1 / 2, 0),
+		color,
+		material
+	)
+	local lower = chain(
+		ctx,
+		upper,
+		`{leg.name}b`,
+		Vector3.new(w[2], l2 + w[2] * 0.4, w[2]),
+		CFrame.new(0, -l1 / 2, 0) * CFrame.Angles(a2, 0, 0),
+		Vector3.new(0, -l2 / 2, 0),
+		dark,
+		material
+	)
+	local foot = chain(
+		ctx,
+		lower,
+		`{leg.name}c`,
+		Vector3.new(w[3], l3 + w[3] * 0.5, w[3]),
+		CFrame.new(0, -l2 / 2, 0) * CFrame.Angles(a3, 0, 0),
+		Vector3.new(0, -l3 / 2, 0),
+		dark,
+		material
+	)
+	local motor = body:FindFirstChild(leg.name)
+	if motor then
+		motor:SetAttribute("RestAngles", Vector3.new(a1, a2, a3))
+	end
+	return { upper = upper, lower = lower, foot = foot }
+end
+
+-- At the foot bone's tip, level with the body whatever the foot's angle.
+local function soleFrame(leg: CreatureRigs.Leg, x: number, y: number, z: number): CFrame
+	return CFrame.new(0, -leg.lengths[3] / 2, 0)
+		* CFrame.Angles(-math.rad(leg.footAngle), 0, 0)
+		* CFrame.new(x, y, z)
+end
+
 local function has(ctx: Ctx, trait: string): boolean
 	return ctx.traits[trait] == true
 end
@@ -301,23 +372,21 @@ end
 	Bat-like wings on the root at `pivot`: an inner arm and a jointed tip,
 	each carrying a membrane. Motors WingL / WingL2 (and R) fold and beat.
 ]]
-local function wings(ctx: Ctx, pivot: Vector3, span: number)
+local function wings(ctx: Ctx, parent: BasePart, pivot: Vector3, span: number)
 	local membrane = ctx.dark:Lerp(ctx.glow, 0.12)
 	for _, side in { -1, 1 } do
 		local tag = if side < 0 then "L" else "R"
 		local inner = span * 0.55
 		local outer = span * 0.45
-		local arm = round(
-			limb(
-				ctx,
-				`Wing{tag}`,
-				Vector3.new(inner, 0.32, 0.36),
-				pivot + Vector3.new(side * 0.4, 0, 0),
-				Vector3.new(side * inner / 2, 0, 0),
-				ctx.dark,
-				Enum.Material.Slate,
-				CFrame.Angles(0, 0, math.rad(side * 18))
-			)
+		local arm = chain(
+			ctx,
+			parent,
+			`Wing{tag}`,
+			Vector3.new(inner, 0.32, 0.36),
+			CFrame.new(pivot + Vector3.new(side * 0.4, 0, 0)) * CFrame.Angles(0, 0, math.rad(side * 18)),
+			Vector3.new(side * inner / 2, 0, 0),
+			ctx.dark,
+			Enum.Material.Slate
 		)
 		oval(
 			ctx,
@@ -355,41 +424,32 @@ end
 	A serpent's tail: `count` jointed segments (Tail, Tail2, ...) tapering
 	back from `pivot` on the root and ending in a small snake head.
 ]]
-local function serpentTail(ctx: Ctx, pivot: Vector3, thickness: number, count: number, tilt: number)
+local function serpentTail(
+	ctx: Ctx,
+	parent: BasePart,
+	pivot: Vector3,
+	thickness: number,
+	count: number,
+	tilt: number
+)
 	local mat = Enum.Material.Slate
-	local prev: BasePart = ctx.root
+	local prev: BasePart = parent
 	local joint = CFrame.new(pivot) * CFrame.Angles(math.rad(tilt), 0, 0)
 	local size = thickness
 	local length = thickness * 1.8
 	for i = 1, count do
 		local name = if i == 1 then "Tail" else `Tail{i}`
 		local color = if i % 2 == 0 then ctx.dark else ctx.color
-		local seg: BasePart
-		if prev == ctx.root then
-			seg = round(
-				limb(
-					ctx,
-					name,
-					Vector3.new(size, size, length),
-					pivot,
-					Vector3.new(0, 0, length * 0.45),
-					color,
-					mat,
-					CFrame.Angles(math.rad(tilt), 0, 0)
-				)
-			)
-		else
-			seg = chain(
-				ctx,
-				prev,
-				name,
-				Vector3.new(size, size, length),
-				joint,
-				Vector3.new(0, 0, length * 0.45),
-				color,
-				mat
-			)
-		end
+		local seg = chain(
+			ctx,
+			prev,
+			name,
+			Vector3.new(size, size, length),
+			joint,
+			Vector3.new(0, 0, length * 0.45),
+			color,
+			mat
+		)
 		prev = seg
 		joint = CFrame.new(0, 0, length * 0.85) * CFrame.Angles(math.rad(-6), 0, 0)
 		size *= 0.86
@@ -429,20 +489,18 @@ end
 
 -- A wolf head on its joint (`name` Head / HeadL / HeadR), with a jaw that
 -- opens (Jaw / JawL / JawR) for bites, howls and roars.
-local function wolfHead(ctx: Ctx, name: string, pivot: Vector3, tilt: CFrame?): Part
+local function wolfHead(ctx: Ctx, parent: BasePart, name: string, joint: CFrame): Part
 	local fur = Enum.Material.Fabric
 	local light = ctx.color:Lerp(Color3.new(1, 1, 1), 0.18)
-	local head = round(
-		limb(
-			ctx,
-			name,
-			Vector3.new(1.45, 1.25, 1.45),
-			pivot,
-			Vector3.new(0, 0.25, -0.75),
-			ctx.color,
-			fur,
-			tilt
-		)
+	local head = chain(
+		ctx,
+		parent,
+		name,
+		Vector3.new(1.45, 1.25, 1.45),
+		joint,
+		Vector3.new(0, 0.25, -0.75),
+		ctx.color,
+		fur
 	)
 	oval(
 		ctx,
@@ -528,85 +586,115 @@ local function wolf(ctx: Ctx): (Vector3, number)
 		ctx.dark,
 		fur
 	)
-	if three then
-		-- Cerberus: three necks fanning out from a broad chest.
-		for _, x in { -0.85, 0, 0.85 } do
-			oval(
-				ctx,
-				body,
-				"Neck",
-				Vector3.new(1.2, 1.3, 1.7),
-				CFrame.new(x, 0.75, -2.2) * CFrame.Angles(math.rad(-32), math.rad(-x * 30), 0),
-				ctx.color,
-				fur
-			)
-		end
-		wolfHead(ctx, "Head", Vector3.new(0, 1.05, -2.05), nil)
-		wolfHead(ctx, "HeadL", Vector3.new(-1.0, 0.8, -1.8), CFrame.Angles(0, math.rad(28), 0))
-		wolfHead(ctx, "HeadR", Vector3.new(1.0, 0.8, -1.8), CFrame.Angles(0, math.rad(-28), 0))
-	else
-		oval(
+	-- Necks rise from the chest (Neck / NeckL / NeckR) and carry the heads.
+	local function neckAndHead(tag: string, at: Vector3, yaw: number)
+		local neck = chain(
 			ctx,
 			body,
-			"Neck",
-			Vector3.new(1.3, 1.35, 1.7),
-			CFrame.new(0, 0.75, -2.25) * CFrame.Angles(math.rad(-32), 0, 0),
+			`Neck{tag}`,
+			Vector3.new(1.25, 1.3, 1.5),
+			CFrame.new(at) * CFrame.Angles(0, math.rad(yaw), 0) * CFrame.Angles(math.rad(30), 0, 0),
+			Vector3.new(0, 0, -0.5),
 			ctx.color,
 			fur
 		)
-		wolfHead(ctx, "Head", Vector3.new(0, 0.95, -1.95), nil)
+		wolfHead(ctx, neck, `Head{tag}`, CFrame.new(0, 0, -0.45) * CFrame.Angles(math.rad(-30), 0, 0))
+	end
+	if three then
+		-- Cerberus: three necks fanning out from a broad chest.
+		neckAndHead("", Vector3.new(0, 0.5, -1.7), 0)
+		neckAndHead("L", Vector3.new(-0.95, 0.3, -1.55), 28)
+		neckAndHead("R", Vector3.new(0.95, 0.3, -1.55), -28)
+	else
+		neckAndHead("", Vector3.new(0, 0.45, -1.7), 0)
 	end
 	if has(ctx, "Mane") and three then
 		mane(ctx, body, CFrame.new(0, 0.5, -1.7), 1.15, 0.85)
 	end
 
-	local legs: { { any } } = {
-		{ "LegFL", -0.72, -1.4 },
-		{ "LegFR", 0.72, -1.4 },
-		{ "LegBL", -0.72, 1.4 },
-		{ "LegBR", 0.72, 1.4 },
-	}
-	for _, leg in legs do
-		local thigh = round(
-			limb(
+	local plan = CreatureRigs.Plans.Wolf
+	for _, leg in plan.legs do
+		local bones = rigLeg(ctx, body, plan, leg, ctx.color, ctx.color:Lerp(ctx.dark, 0.5), fur)
+		if leg.front then
+			-- Shoulder and forearm muscle.
+			oval(
 				ctx,
-				leg[1],
-				Vector3.new(0.75, 1.5, 0.9),
-				Vector3.new(leg[2], -0.2, leg[3]),
-				Vector3.new(0, -0.55, 0),
+				bones.upper,
+				"Shoulder",
+				Vector3.new(0.9, 1.0, 1.05),
+				CFrame.new(0, 0.3, 0),
 				ctx.color,
 				fur
 			)
+			oval(
+				ctx,
+				bones.lower,
+				"Forearm",
+				Vector3.new(0.55, 0.8, 0.6),
+				CFrame.new(0, 0.25, 0),
+				ctx.color,
+				fur
+			)
+		else
+			-- Heavy thigh and the point of the hock.
+			oval(
+				ctx,
+				bones.upper,
+				"Thigh",
+				Vector3.new(1.05, 1.45, 1.3),
+				CFrame.new(0, 0.15, -0.05),
+				ctx.color,
+				fur
+			)
+			oval(
+				ctx,
+				bones.foot,
+				"Hock",
+				Vector3.new(0.38, 0.4, 0.42),
+				CFrame.new(0, 0.38, 0.06),
+				ctx.dark,
+				fur
+			)
+		end
+		oval(
+			ctx,
+			bones.foot,
+			"Paw",
+			Vector3.new(0.6, 0.3, 0.85),
+			soleFrame(leg, 0, -0.02, -0.18),
+			ctx.dark,
+			fur
 		)
-		oval(ctx, thigh, "Shin", Vector3.new(0.42, 1.4, 0.48), CFrame.new(0, -1.25, 0.08), ctx.dark, fur)
-		oval(ctx, thigh, "Paw", Vector3.new(0.58, 0.32, 0.85), CFrame.new(0, -1.95, -0.1), ctx.dark, fur)
 		if ctx.elite then
 			for _, dx in { -0.18, 0, 0.18 } do
-				tooth(ctx, thigh, CFrame.new(dx, -2.0, -0.55) * CFrame.Angles(math.rad(-75), 0, 0), 0.3)
+				tooth(
+					ctx,
+					bones.foot,
+					soleFrame(leg, dx, -0.08, -0.62) * CFrame.Angles(math.rad(-75), 0, 0),
+					0.3
+				)
 			end
 		end
 	end
 
 	if has(ctx, "SerpentTail") then
-		serpentTail(ctx, Vector3.new(0, 0.65, 1.95), 0.55, 6, 20)
+		serpentTail(ctx, body, Vector3.new(0, 0.35, 1.75), 0.55, 6, 20)
 	else
-		local tail = round(
-			limb(
-				ctx,
-				"Tail",
-				Vector3.new(0.5, 0.5, 1.2),
-				Vector3.new(0, 0.65, 1.95),
-				Vector3.new(0, 0.1, 0.55),
-				ctx.color,
-				fur,
-				CFrame.Angles(math.rad(25), 0, 0)
-			)
+		local tail = chain(
+			ctx,
+			body,
+			"Tail",
+			Vector3.new(0.5, 0.5, 1.2),
+			CFrame.new(0, 0.35, 1.75) * CFrame.Angles(math.rad(25), 0, 0),
+			Vector3.new(0, 0.1, 0.55),
+			ctx.color,
+			fur
 		)
 		oval(ctx, tail, "TailMid", Vector3.new(0.44, 0.44, 1.0), CFrame.new(0, 0.1, 1.15), ctx.color, fur)
 		oval(ctx, tail, "TailTip", Vector3.new(0.32, 0.32, 0.8), CFrame.new(0, 0.15, 1.9), light, fur)
 	end
 	if has(ctx, "Wings") then
-		wings(ctx, Vector3.new(0, 1.2, -0.6), 5)
+		wings(ctx, body, Vector3.new(0, 0.9, -0.8), 5)
 	end
 	if has(ctx, "Spikes") then
 		spines(ctx, body, 0.75, -1.2, 1.5, 6, 0.9)
@@ -637,16 +725,15 @@ local function beetle(ctx: Ctx): (Vector3, number)
 	shell.Reflectance = 0.12
 	oval(ctx, shell, "Seam", Vector3.new(0.14, 2.24, 4.45), CFrame.identity, ctx.dark, slate)
 	oval(ctx, shell, "Underside", Vector3.new(3.1, 1.0, 3.9), CFrame.new(0, -0.65, 0), ctx.dark, slate)
-	local head = round(
-		limb(
-			ctx,
-			"Head",
-			Vector3.new(1.8, 1.15, 1.45),
-			Vector3.new(0, 0.2, -2.15),
-			Vector3.new(0, 0, -0.55),
-			ctx.dark,
-			slate
-		)
+	local head = chain(
+		ctx,
+		shell,
+		"Head",
+		Vector3.new(1.8, 1.15, 1.45),
+		CFrame.new(0, -0.25, -2.15),
+		Vector3.new(0, 0, -0.55),
+		ctx.dark,
+		slate
 	)
 	for _, side in { -1, 1 } do
 		oval(
@@ -669,32 +756,19 @@ local function beetle(ctx: Ctx): (Vector3, number)
 		)
 	end
 	eyes(ctx, head, 0.2, -0.6, 0.5, 0.28)
-	local index = 0
-	for _, z in { -1.2, 0, 1.2 } do
-		for _, side in { -1, 1 } do
-			index += 1
-			local femur = round(
-				limb(
-					ctx,
-					`Leg{index}`,
-					Vector3.new(0.34, 1.3, 0.34),
-					Vector3.new(side * 1.5, 0, z),
-					Vector3.new(0, -0.55, 0),
-					ctx.dark,
-					slate,
-					CFrame.Angles(0, 0, math.rad(side * 55))
-				)
-			)
-			oval(
-				ctx,
-				femur,
-				"Tibia",
-				Vector3.new(0.26, 1.4, 0.26),
-				CFrame.new(side * 0.45, -1.35, 0) * CFrame.Angles(0, 0, math.rad(side * -55)),
-				ctx.dark,
-				slate
-			)
-		end
+	local plan = CreatureRigs.Plans.Beetle
+	for _, leg in plan.legs do
+		local bones = rigLeg(ctx, shell, plan, leg, ctx.dark, ctx.dark, slate)
+		-- A hooked claw at the tip.
+		oval(
+			ctx,
+			bones.foot,
+			"Claw",
+			Vector3.new(0.18, 0.3, 0.14),
+			soleFrame(leg, 0, -0.05, -0.08),
+			ctx.glow:Lerp(ctx.dark, 0.6),
+			slate
+		)
 	end
 	if has(ctx, "Horns") then
 		horns(ctx, head, 0.4, 0.5, 0.9)
@@ -747,16 +821,15 @@ local function biped(ctx: Ctx, knight: boolean): (Vector3, number)
 			stone
 		)
 	end
-	local head = round(
-		limb(
-			ctx,
-			"Head",
-			Vector3.new(1.45, 1.4, 1.5),
-			Vector3.new(0, 2.65, 0),
-			Vector3.new(0, 0.7, 0),
-			ctx.dark,
-			stone
-		)
+	local head = chain(
+		ctx,
+		torso,
+		"Head",
+		Vector3.new(1.45, 1.4, 1.5),
+		CFrame.new(0, 1.05, 0),
+		Vector3.new(0, 0.7, 0),
+		ctx.dark,
+		stone
 	)
 	-- Heavy brow over the glowing eyes.
 	oval(ctx, head, "Brow", Vector3.new(1.5, 0.45, 0.8), CFrame.new(0, 0.25, -0.5), ctx.color, stone)
@@ -786,24 +859,33 @@ local function biped(ctx: Ctx, knight: boolean): (Vector3, number)
 	end
 	for _, side in { -1, 1 } do
 		local name = if side < 0 then "ArmL" else "ArmR"
-		local arm = round(
-			limb(
-				ctx,
-				name,
-				Vector3.new(1.2, 2.0, 1.2),
-				Vector3.new(side * 2.2, 2.1, 0),
-				Vector3.new(0, -0.8, 0),
-				ctx.color,
-				stone
-			)
+		local upperArm = chain(
+			ctx,
+			torso,
+			name,
+			Vector3.new(1.2, 1.9, 1.2),
+			CFrame.new(side * 2.2, 0.5, 0),
+			Vector3.new(0, -0.8, 0),
+			ctx.color,
+			stone
 		)
-		oval(ctx, arm, "Forearm", Vector3.new(1.3, 2.0, 1.3), CFrame.new(0, -1.4, 0), ctx.dark, stone)
-		oval(ctx, arm, "Fist", Vector3.new(1.5, 1.3, 1.5), CFrame.new(0, -2.6, 0), ctx.color, stone)
+		-- The forearm on an elbow (ArmL2 / ArmR2), slightly bent at rest.
+		local arm = chain(
+			ctx,
+			upperArm,
+			`{name}2`,
+			Vector3.new(1.3, 2.0, 1.3),
+			CFrame.new(0, -0.85, 0) * CFrame.Angles(math.rad(12), 0, 0),
+			Vector3.new(0, -0.9, 0),
+			ctx.dark,
+			stone
+		)
+		oval(ctx, arm, "Fist", Vector3.new(1.5, 1.3, 1.5), CFrame.new(0, -1.0, 0), ctx.color, stone)
 		if knight and side > 0 then
 			-- Stone greatsword held point-down and forward, with a glowing fuller.
 			local tilt = math.rad(70)
 			local length = 4.6
-			local along = CFrame.new(0, -2.6, -0.2) * CFrame.Angles(tilt, 0, 0)
+			local along = CFrame.new(0, -1.0, -0.2) * CFrame.Angles(tilt, 0, 0)
 			attach(
 				ctx,
 				arm,
@@ -835,21 +917,27 @@ local function biped(ctx: Ctx, knight: boolean): (Vector3, number)
 				false
 		end
 	end
-	for _, side in { -1, 1 } do
-		local name = if side < 0 then "LegL" else "LegR"
-		local thigh = round(
-			limb(
-				ctx,
-				name,
-				Vector3.new(1.4, 1.8, 1.4),
-				Vector3.new(side * 0.85, -0.2, 0),
-				Vector3.new(0, -0.7, 0),
-				ctx.color,
-				stone
-			)
+	local plan = CreatureRigs.Plans.Golem
+	for _, leg in plan.legs do
+		local bones = rigLeg(ctx, torso, plan, leg, ctx.color, ctx.dark, stone)
+		oval(
+			ctx,
+			bones.lower,
+			"Knee",
+			Vector3.new(1.2, 0.9, 1.2),
+			CFrame.new(0, leg.lengths[2] / 2, -0.1),
+			ctx.color,
+			stone
 		)
-		oval(ctx, thigh, "Shin", Vector3.new(1.3, 1.8, 1.3), CFrame.new(0, -1.3, 0), ctx.dark, stone)
-		oval(ctx, thigh, "Foot", Vector3.new(1.5, 0.6, 2.0), CFrame.new(0, -2.2, -0.3), ctx.color, stone)
+		oval(
+			ctx,
+			bones.foot,
+			"Foot",
+			Vector3.new(1.5, 0.6, 2.0),
+			soleFrame(leg, 0, 0.18, -0.35),
+			ctx.color,
+			stone
+		)
 	end
 	if has(ctx, "Horns") then
 		horns(ctx, head, 0.55, 0.5, 1.2)
@@ -858,10 +946,10 @@ local function biped(ctx: Ctx, knight: boolean): (Vector3, number)
 		mane(ctx, torso, CFrame.new(0, 1.9, 0) * CFrame.Angles(math.rad(90), 0, 0), 0.95, 0.8)
 	end
 	if has(ctx, "Wings") then
-		wings(ctx, Vector3.new(0, 2.4, 0.9), 6)
+		wings(ctx, torso, Vector3.new(0, 0.8, 0.9), 6)
 	end
 	if has(ctx, "SerpentTail") then
-		serpentTail(ctx, Vector3.new(0, -0.3, 0.9), 0.8, 6, 35)
+		serpentTail(ctx, torso, Vector3.new(0, -1.9, 0.9), 0.8, 6, 35)
 	end
 	if has(ctx, "Spikes") then
 		for _, y in { 1.3, 0.6, -0.1, -0.8 } do
@@ -1087,10 +1175,169 @@ end
 	Builds an unparented creature for `enemyId`, standing with its feet at
 	`at` (ground point, facing its -Z). Returns nil for unknown ids.
 ]]
+--------------------------------------------------------------------------------
+-- Sculpted meshes (D-52): imported skinned models in CreatureModels
+--------------------------------------------------------------------------------
+
+local MODELS = script.Parent.Parent:FindFirstChild("CreatureModels")
+
+local function meshTemplate(shape: string): Model?
+	local template = MODELS and MODELS:FindFirstChild(shape)
+	return if template and template:IsA("Model") then template else nil
+end
+
+-- Colour and material of each mesh region for an enemy's palette.
+local function regionStyle(region: string, ctx: Ctx, scaly: boolean): (Color3, Enum.Material)
+	local skin = if scaly then Enum.Material.Slate else Enum.Material.Fabric
+	if region == "Under" then
+		return ctx.color:Lerp(Color3.new(1, 0.95, 0.85), 0.35), skin
+	elseif region == "Dark" then
+		return ctx.dark, skin
+	elseif region == "Horn" then
+		return BONE, Enum.Material.SmoothPlastic
+	elseif region == "Eye" or region == "Glow" then
+		return ctx.glow, Enum.Material.Neon
+	elseif region == "Mane" then
+		return ctx.dark:Lerp(ctx.glow, 0.3), Enum.Material.Fabric
+	end
+	return ctx.color, skin
+end
+
+--[[
+	Clones the imported model for `shape`, sizes it, paints its regions and
+	stands its Body bone over `at` (ground point, facing -Z). Its MeshParts
+	ride the root by welds; the client drives the bones.
+]]
+local function buildFromMesh(
+	enemy: EnemyDefinitions.Enemy,
+	shape: string,
+	template: Model,
+	at: CFrame
+): (Model, BasePart)
+	local s = enemy.scale
+	local data = CreatureMeshes.Shapes[shape]
+	local model = template:Clone()
+	model.Name = enemy.name
+	local color = rgb(enemy.color)
+	local ctx: Ctx = {
+		model = model,
+		root = nil :: any,
+		scale = s,
+		color = color,
+		dark = color:Lerp(Color3.new(0, 0, 0), 0.35),
+		glow = rgb(enemy.glow),
+		traits = {},
+		elite = enemy.elite,
+	}
+	local scaly = data.bodyPlan ~= "Quadruped"
+	local parts: { BasePart } = {}
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			table.insert(parts, d)
+			d.Anchored = false
+			d.CanCollide = false
+			d.CanTouch = false
+			d.Massless = true
+			local region = string.gsub(d.Name, "%d+$", "")
+			d.Color, d.Material = regionStyle(region, ctx, scaly)
+			d.CastShadow = region ~= "Eye" and region ~= "Glow"
+			if d:IsA("MeshPart") then
+				-- Region colour and material instead of a texture.
+				d.TextureID = ""
+			end
+		end
+	end
+	if s ~= 1 then
+		model:ScaleTo(s)
+	end
+	local function bone(name: string): Bone?
+		for _, d in model:GetDescendants() do
+			if d:IsA("Bone") and d.Name == name then
+				return d
+			end
+		end
+		return nil
+	end
+	-- Stand the Body bone on `at`, at its height, facing -Z of `at`: the
+	-- sculpt's head is forward of its Body bone, which also corrects an
+	-- import that turned the model round.
+	local bodyBone = bone("Body")
+	local headBone = bone("Head")
+	local bonePosition = if bodyBone then bodyBone.WorldPosition else model:GetPivot().Position
+	local facing = CFrame.identity
+	if bodyBone and headBone then
+		local ahead = headBone.WorldPosition - bodyBone.WorldPosition
+		local flatAhead = Vector3.new(ahead.X, 0, ahead.Z)
+		if flatAhead.Magnitude > 0.05 then
+			facing = CFrame.lookAt(Vector3.zero, flatAhead)
+		end
+	end
+	local target = at * CFrame.new(0, data.height * s, 0)
+	local offset = target * (CFrame.new(bonePosition) * facing):Inverse()
+	for _, part in parts do
+		part.CFrame = offset * part.CFrame
+	end
+	local root = Instance.new("Part")
+	root.Name = "HumanoidRootPart"
+	root.Transparency = 1
+	root.CanCollide = true
+	root.CanTouch = false
+	root.Size = (CreatureRigs.MESH_ROOT_SIZE[shape] or Vector3.new(2, 2, 3)) * s
+	root.CFrame = target
+	root.Parent = model
+	for _, part in parts do
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = part
+		weld.Parent = part
+	end
+	model.PrimaryPart = root
+	model:SetAttribute("RC_Shape", shape)
+	return model, root
+end
+
+local function newHumanoid(enemy: EnemyDefinitions.Enemy, hipHeight: number): Humanoid
+	local humanoid = Instance.new("Humanoid")
+	humanoid.RigType = Enum.HumanoidRigType.R15
+	humanoid.HipHeight = hipHeight
+	humanoid.WalkSpeed = enemy.moveSpeed
+	humanoid.DisplayName = if enemy.elite then `{enemy.name} ★` else enemy.name
+	humanoid.NameDisplayDistance = 60
+	humanoid.HealthDisplayDistance = 60
+	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn
+	humanoid.BreakJointsOnDeath = false
+	humanoid.RequiresNeck = false
+	for _, state in
+		{
+			Enum.HumanoidStateType.FallingDown,
+			Enum.HumanoidStateType.Ragdoll,
+			Enum.HumanoidStateType.Climbing,
+			Enum.HumanoidStateType.Swimming,
+			Enum.HumanoidStateType.Seated,
+			Enum.HumanoidStateType.Dead,
+		}
+	do
+		humanoid:SetStateEnabled(state, false)
+	end
+	return humanoid
+end
+
 function CreatureBuilder.build(enemyId: string, at: CFrame): Model?
 	local enemy = EnemyDefinitions.get(enemyId)
 	if enemy == nil then
 		return nil
+	end
+	-- A sculpted mesh when its model has been imported (D-52).
+	local shape = CreatureRigs.meshShapeFor(enemy.body, enemy.traits :: any)
+	local template = if shape then meshTemplate(shape) else nil
+	if shape and template then
+		local meshModel, meshRoot = buildFromMesh(enemy, shape, template, at)
+		meshModel:SetAttribute("RC_Body", enemy.body)
+		meshModel:SetAttribute("RC_Enemy", enemy.id)
+		meshModel:SetAttribute("RC_Scale", enemy.scale)
+		local height = CreatureMeshes.Shapes[shape].height * enemy.scale
+		newHumanoid(enemy, height - meshRoot.Size.Y / 2).Parent = meshModel
+		return meshModel
 	end
 	local model = Instance.new("Model")
 	model.Name = enemy.name
@@ -1142,29 +1389,7 @@ function CreatureBuilder.build(enemyId: string, at: CFrame): Model?
 	model.PrimaryPart = root
 	model:PivotTo(at * CFrame.new(0, height * s, 0))
 
-	local humanoid = Instance.new("Humanoid")
-	humanoid.RigType = Enum.HumanoidRigType.R15
-	humanoid.HipHeight = height * s - root.Size.Y / 2
-	humanoid.WalkSpeed = enemy.moveSpeed
-	humanoid.DisplayName = if enemy.elite then `{enemy.name} ★` else enemy.name
-	humanoid.NameDisplayDistance = 60
-	humanoid.HealthDisplayDistance = 60
-	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn
-	humanoid.BreakJointsOnDeath = false
-	humanoid.RequiresNeck = false
-	for _, state in
-		{
-			Enum.HumanoidStateType.FallingDown,
-			Enum.HumanoidStateType.Ragdoll,
-			Enum.HumanoidStateType.Climbing,
-			Enum.HumanoidStateType.Swimming,
-			Enum.HumanoidStateType.Seated,
-			Enum.HumanoidStateType.Dead,
-		}
-	do
-		humanoid:SetStateEnabled(state, false)
-	end
-	humanoid.Parent = model
+	newHumanoid(enemy, height * s - root.Size.Y / 2).Parent = model
 	return model
 end
 

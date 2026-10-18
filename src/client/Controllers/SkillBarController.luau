@@ -17,6 +17,11 @@
 	  dashes         where you are moving (backwards when still), after the
 	                 server confirms the cast
 
+	Auto Attack (basic skill, free, any regular slot): pressing it targets
+	the nearest creature and keeps attacking it with the normal attack
+	(CombatController.toggleAutoAttack); pressing again stops. Its button
+	reads AUTO / ON instead of Focus and rank.
+
 	Input: desktop 1, 2, 3, Q (click works too) · gamepad X, Y, L1, R1 ·
 	touch: buttons around the attack button (CombatButtonsLayout).
 
@@ -231,6 +236,14 @@ function cast(slot: string)
 	end
 	local character = localCharacter()
 	if character == nil or character:GetAttribute("Defeated") == true then
+		return
+	end
+	if SkillDefinitions.isBasic(skill) then
+		-- Auto Attack: no Focus, no cooldown; the normal attack does the work.
+		local _, reason = CombatController.toggleAutoAttack()
+		if reason == "none" then
+			NotificationController:ShowKey("Warning", "skill.auto.none")
+		end
 		return
 	end
 	local now = os.clock()
@@ -531,6 +544,19 @@ local function render()
 			continue
 		end
 		button.glyph.Text = ""
+		if SkillDefinitions.isBasic(skill) then
+			-- Auto Attack: on / off in words and a bright outline.
+			local on = CombatController.autoAttacking()
+			button.cost.Text = ""
+			button.pips.Text = ""
+			button.shade.Size = UDim2.fromScale(1, 0)
+			button.timer.Text = ""
+			button.status.Text = if on then "AUTO · ON" else "AUTO"
+			button.stroke.Thickness = if on then 4 else 2
+			button.stroke.Color = if on then COMBO_COLOR else Color3.new(1, 1, 1)
+			button.dim.Visible = false
+			continue
+		end
 		button.cost.Text = tostring(skill.focusCost)
 		button.pips.Text = `R{rankOf(skill)}`
 		local left = math.max((readyAt[skill.id] or 0) - now, 0)

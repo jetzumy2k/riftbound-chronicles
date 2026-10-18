@@ -186,6 +186,46 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
    R.UnionRespond:FireServer(game.Players:GetPlayers()[2], true)  -- no pending invite
    ```
 
+## Auto Attack (D-53)
+1. A new character's skill bar has **Auto Attack** in slot 1. In the skill tree (K) the BASIC tile (left of the bar row) shows it: "Free · known", no Learn button, Put in slot 1 / 2 / 3; skill points are unchanged.
+2. Press its key (or tap its button) near creatures: the nearest one (even behind you) is targeted, you walk into reach and attack with your normal combo until it falls. The button reads **AUTO · ON** while it runs.
+3. It stops when the target falls, when you steer, press it again, press ✕ on the target frame, or select a friend; clicking another enemy switches to it.
+4. Nothing nearby: "No creature nearby to attack." In a war zone with no creature near, it goes for the nearest enemy player.
+5. Rejoin: Auto Attack is still on the bar.
+
+## Walking and slithering (D-54)
+1. Let a wolf / hound chase you: its legs step with the ground (feet planted while the body passes over them, no skating), and at full speed it lowers into a long gallop of about 3 strides a second, not a rapid patter.
+2. Beetles, golems and guardians: legs step at the speed they move; standing still, feet settle.
+3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
+4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
+
+## Creature meshes and behaviour (D-52)
+**Importing the sculpted creatures** (once per shape; `python tools/creatures/build.py` regenerates them):
+1. Studio: **File > Import 3D** (or Avatar tab > Import 3D), pick `build/creatures/Hound.gltf`.
+2. Keep the importer's defaults (rig and skinning on); if it asks for the file's units, choose **studs**. The hound should come in about 5 studs long and 3.5 tall (Cerberus a bit bigger, the serpent about 13 long, the hydra about 8).
+3. **Import**. A model appears; rename it exactly `Hound` if needed.
+4. Right-click it > **Save to File...** > `src/server/CreatureModels/Hound.rbxm`, then delete it from the Workspace.
+5. Repeat for `Cerberus`, `Serpent`, `Hydra`, then sync / rebuild the place.
+A creature with no imported model keeps its old procedural body, so this can be done one shape at a time.
+
+**Checks**
+1. Rift Hollow floor 1 (Rift Wolves) and Cerberus's Gate; floor 3 Basilisk; Jungle Rift Hydra (level 45) and Desert Apophis: the new bodies, one smooth skin, coloured per creature.
+2. Wolves: paws planted, spine flexes at a gallop; when you come near they **circle you, then pounce**.
+3. Serpents: the body slithers in a wave; they **stop coiled just out of reach, then lunge** (neck rears back, head strikes, jaw opens).
+4. Hydra: four sprawling legs trot; three necks sway and strike a beat apart.
+5. Golems / knights **charge** if you keep your distance; beetles **zig-zag** in.
+6. **Portals:** walk into any portal surface (capital gates, dungeon Leave / Up / Down, Desert / Jungle gates and Return Home): you travel at once, no prompt. Arriving next to a portal never sends you on again until you step out.
+
+## Creature overhaul, stage 1: skeletons and walking (D-51)
+Offline first: `lune run tools/world/check_gait all` (every legged creature at a walk and a run: planted feet must not slide; 0 failed). One creature with a pose strip: `lune run tools/world/check_gait RiftWolf 16 build/gait/wolf.json` then `python tools/world/render_gait.py build/gait/wolf.json build/gait/wolf.png`.
+1. **Training Grounds / Rift Hollow floor 1:** watch a Rift Wolf wander, then chase you. Its paws stay put on the ground while the body passes over them (no skating), knees and hocks bend, it walks in a 4-beat sequence and gallops when chasing.
+2. **Beetles:** six legs step in alternating tripods, reaching out sideways; when one rears (idle) its front legs wave in the air.
+3. **Golems / knights:** feet planted, knees bend, hips sway, arms swing against the legs with bent elbows.
+4. **Giant bosses** (Cerberus, Chimera, Typhon): long slow strides, the body drops a little on every footfall; turning on the spot makes them step round instead of spinning.
+5. **Slopes and steps:** walk a creature over uneven ground (war-zone dunes, dungeon stairs): feet land on the surface, the body tips with the slope.
+6. **Attacks and defeat:** wolves rear and claw the air before a slam, reach out with the forepaws on a lunge; a defeated creature folds its legs as it rolls over.
+7. **Mobile:** with 15+ creatures on screen the frame rate holds (ground raycasts only within 70 studs).
+
 ## Animation and movement checks
 Character animation is authored keyframe clips (`src/shared/Definitions/AnimationClips.luau`, PLAN.md D-36) played through each character's Animator by `AnimationController`. Until the clips are published (docs/ASSET_GUIDE.md Part D) they are registered for play-testing in Studio; Output then shows `[Animation] registered … for play-testing`. A warning `animation … is not published and could not be registered` means you are outside Studio and must publish first.
 

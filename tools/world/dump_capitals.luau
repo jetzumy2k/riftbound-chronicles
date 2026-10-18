@@ -108,6 +108,7 @@ local function dumpParts(container: any): { any }
 				t = d.Transparency,
 				shape = shape,
 				m = d.Material.Name,
+				n = d.Name,
 			})
 		end
 	end

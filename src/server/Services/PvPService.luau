@@ -3,7 +3,7 @@
 	PvPService (Layer 5) — war zone access and PvP records (Phases 12-13;
 	CLAUDE.md §13-§14, PLAN.md D-16, SECURITY_MODEL T-15, T-17, T-18).
 
-	Portals (ProximityPrompts resolved on the server; no remote):
+	Portals (walk-through, resolved on the server; no remote or prompt):
 	  - The capital "Desert Rift" / "Jungle Rift" gates take you to your
 	    realm's camp in that zone (D-41, D-43). They check
 	    reach, level (D-16; Studio uses PvP.StudioMinLevel), not being
@@ -221,17 +221,6 @@ end
 -- Lifecycle
 --------------------------------------------------------------------------------
 
-local function prompt(parent: BasePart, action: string, object: string): ProximityPrompt
-	local p = Instance.new("ProximityPrompt")
-	p.ActionText = action
-	p.ObjectText = object
-	p.HoldDuration = 0.4
-	p.MaxActivationDistance = 16
-	p.RequiresLineOfSight = false
-	p.Parent = parent
-	return p
-end
-
 local function openGate(race: string, zone: WorldLayout.WarZone)
 	local gate = WorldService:GetGate(race, zone.id)
 	if gate == nil then
@@ -251,11 +240,10 @@ local function openGate(race: string, zone: WorldLayout.WarZone)
 		end
 	end
 	gate.Transparency = 0.15
-	prompt(gate, `Enter {zone.name}`, `War zone · PvP · Lv {minLevel()}+`).Triggered:Connect(
-		function(player)
-			enterZone(player, zone, gate, race)
-		end
-	)
+	-- Walk through the gate to enter (no prompt).
+	TravelService:AddWalkPortal(gate, function(player)
+		enterZone(player, zone, gate, race)
+	end)
 end
 
 -- Seconds between "this is the other realm's camp" notices per player.
@@ -444,7 +432,7 @@ function PvPService:Start()
 		for race in zone.bases do
 			local portal = WorldService:GetReturnPortal(zone.id, race)
 			if portal then
-				prompt(portal, "Return home", `{zone.name} · {race} camp`).Triggered:Connect(function(player)
+				TravelService:AddWalkPortal(portal, function(player)
 					returnHome(player, portal, race)
 				end)
 			end

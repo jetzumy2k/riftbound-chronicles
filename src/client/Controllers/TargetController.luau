@@ -254,6 +254,33 @@ function TargetController.nearestEnemy(range: number): Model?
 end
 
 --[[
+	Auto Attack: the nearest creature around the character within `range`
+	(any direction), or, with none, the nearest enemy player (war zones).
+]]
+function TargetController.nearestCreature(range: number): Model?
+	local root = rootOf(localCharacter())
+	if root == nil then
+		return nil
+	end
+	local bestCreature: Model?, creatureDistance = nil, range
+	local bestPlayer: Model?, playerDistance = nil, range
+	for _, model in fighters() do
+		if not TargetController.isHostile(model) then
+			continue
+		end
+		local distance = ((rootOf(model) :: BasePart).Position - root.Position).Magnitude
+		if Players:GetPlayerFromCharacter(model) == nil then
+			if distance <= creatureDistance then
+				bestCreature, creatureDistance = model, distance
+			end
+		elseif distance <= playerDistance then
+			bestPlayer, playerDistance = model, distance
+		end
+	end
+	return bestCreature or bestPlayer
+end
+
+--[[
 	The enemy an attack / skill with `range` goes to: the selected target if
 	it is an enemy, else the nearest enemy (which becomes the selection).
 	`searchRange` is how far to look when picking a new one.
@@ -363,6 +390,11 @@ local function moveInput(): number
 		end
 	end
 	return 0
+end
+
+-- True while the player steers the character (stick / WASD / touch pad).
+function TargetController.steering(): boolean
+	return moveInput() > 0.1
 end
 
 -- True while the character is walking to a target to attack it.

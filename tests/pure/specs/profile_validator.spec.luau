@@ -190,6 +190,16 @@ return function(t)
 			t.eq(data.EquippedSkills.Extra, nil)
 		end)
 
+		t.it("keeps Auto Attack on the bar though it costs no point (never owned)", function()
+			local data = fresh()
+			data.Job = "Archer"
+			data.OwnedSkills = {}
+			data.EquippedSkills = { Regular = { "AutoAttack" }, Special = "AutoAttack" }
+			ProfileValidator.repair(data)
+			t.eq(table.concat(data.EquippedSkills.Regular, ","), "AutoAttack")
+			t.eq(data.EquippedSkills.Special, nil, "not a special")
+		end)
+
 		t.it("keeps only real skills of the character's own job, with their prerequisites (D-45)", function()
 			local data = fresh()
 			data.Job = "Healer"

@@ -10,6 +10,9 @@
 	    attack (MobAttack event, then CombatService:NpcStrike re-validates
 	    harm and reach), leash home and restore.
 	  - Mobs never target players they can't harm (safe zones, protection).
+	  - While chasing, each kind closes in its own way (Logic/MobTactics):
+	    wolves circle then pounce, serpents hold coiled then lunge, brutes
+	    charge, beetles zig-zag.
 	  - Skill statuses (Phase 5): stunned mobs freeze and lose their wind-up,
 	    rooted ones stay put, slowed ones move slower, taunted ones fight
 	    the taunter.
@@ -29,6 +32,7 @@ local Shared = ReplicatedStorage.Shared
 local DungeonRules = require(Shared.Logic.DungeonRules)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local MobBrain = require(Shared.Logic.MobBrain)
+local MobTactics = require(Shared.Logic.MobTactics)
 local StatFormulas = require(Shared.Logic.StatFormulas)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
@@ -72,6 +76,9 @@ export type Mob = {
 	-- Idle wandering around home.
 	nextWanderAt: number,
 	wandering: boolean,
+	-- How it closes in while chasing (Logic/MobTactics).
+	tacticKind: MobTactics.Kind,
+	tactic: MobTactics.State,
 	lastMoveGoal: Vector3?,
 	-- Bosses: BossService holds the mob still while it telegraphs.
 	busyUntil: number,
@@ -158,6 +165,8 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 		nextMoveAt = 0,
 		nextWanderAt = os.clock() + math.random() * 4,
 		wandering = false,
+		tacticKind = MobTactics.kindFor(enemy.body),
+		tactic = MobTactics.initial(),
 		lastMoveGoal = nil,
 		busyUntil = 0,
 		speedScale = 1,
@@ -297,15 +306,47 @@ local function stepMob(mob: Mob, now: number)
 	}, { aggroRadius = enemy.aggroRadius, leashRadius = enemy.leashRadius, attackRange = enemy.attackRange })
 	mob.state = state :: MobBrain.State
 
+	if state ~= "Chase" then
+		mob.tactic.mode = "Approach"
+	end
 	if action == "MoveToTarget" and target then
 		local targetRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if targetRoot then
-			-- Stop just inside reach rather than on top of the player.
+			local reach = enemy.attackRange
 			local offset = flat(mob.root.Position - targetRoot.Position)
-			local stand = targetRoot.Position
-				+ (if offset.Magnitude > 0.1 then offset.Unit else Vector3.zero)
-					* (enemy.attackRange * 0.6)
-			moveTo(mob, stand, now)
+			local away = if offset.Magnitude > 0.1 then offset.Unit else Vector3.new(0, 0, 1)
+			mob.tactic = MobTactics.step(
+				mob.tacticKind,
+				mob.tactic,
+				now,
+				offset.Magnitude,
+				reach,
+				wanderRng:NextNumber()
+			)
+			local mode: MobTactics.Mode = mob.tactic.mode
+			local speedScale = MobTactics.speedScale(mob.tacticKind, mode)
+			mob.humanoid.WalkSpeed *= speedScale
+			if mode == "Hold" then
+				-- Coiled, watching: turn to face, don't move.
+				mob.humanoid:Move(Vector3.zero)
+				face(mob, targetRoot.Position, ELITE_TURN_STEP)
+			elseif mode == "Circle" then
+				-- Stalk round the target, a little ahead on the orbit each tick.
+				local angle = math.atan2(away.X, away.Z) + mob.tactic.orbitDir * 0.9
+				local radius = reach * MobTactics.CIRCLE_RADIUS
+				local goal = targetRoot.Position + Vector3.new(math.sin(angle), 0, math.cos(angle)) * radius
+				mob.nextMoveAt = 0
+				moveTo(mob, goal, now)
+			else
+				-- Stop just inside reach rather than on top of the player;
+				-- beetles weave side to side on the way in.
+				local stand = targetRoot.Position + away * (reach * 0.6)
+				if mob.tacticKind == "Skitter" and offset.Magnitude > reach * 1.5 then
+					local side = Vector3.new(-away.Z, 0, away.X)
+					stand += side * math.sin(now * 3 + mob.id) * reach * 0.9
+				end
+				moveTo(mob, stand, now)
+			end
 		end
 	elseif action == "Stop" then
 		mob.humanoid:Move(Vector3.zero)

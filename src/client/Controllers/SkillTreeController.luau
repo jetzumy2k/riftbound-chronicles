@@ -13,7 +13,8 @@
 	    damage, effects, durations, combo, next rank) with buttons to learn /
 	    rank it up (1 skill point) and to put it on the skill bar.
 	  - The skill bar row (3 regular + 1 special) sits on top; tap a slot to
-	    inspect its skill.
+	    inspect its skill. Left of it, the BASIC tile: Auto Attack, free for
+	    every class (no point, no rank); tap it to put it in a slot.
 	  - Header: skill points left and Reset (refunds every point; only in a
 	    safe zone, out of combat).
 
@@ -235,6 +236,9 @@ local function drawDetail(parent: Instance, skill: Skill?)
 	SkillInfo.fill(info, skill, rank, {
 		note = if equippedAt
 			then `On your skill bar: {equippedAt}`
+			elseif
+				SkillDefinitions.isBasic(skill)
+			then "Free: put it in a slot, then press its key (1, 2 or 3)."
 			elseif why and why ~= "Max rank" then why
 			else nil,
 		noteColor = if equippedAt then LEARNABLE else nil,
@@ -255,22 +259,31 @@ local function drawDetail(parent: Instance, skill: Skill?)
 		Parent = actions,
 	})
 	flow.FillDirectionMaxCells = 0
-	local learnText = if rank >= skill.maxRank
-		then "Max rank"
-		elseif rank == 0 then "Learn (1 pt)"
-		else `Rank {rank + 1} (1 pt)`
-	local learn = smallButton(learnText, 112, if why == nil then Theme.Colors.Gold else nil)
-	learn.LayoutOrder = 1
-	learn.Parent = actions
-	learn.Activated:Connect(function()
-		if rank >= skill.maxRank then
-			return
+	local basic = SkillDefinitions.isBasic(skill)
+	if basic then
+		-- Free for every class: no Learn button, just the slots.
+		local free = smallButton("✓ Free · known", 112)
+		free.LayoutOrder = 1
+		free.TextColor3 = LEARNABLE
+		free.Parent = actions
+	else
+		local learnText = if rank >= skill.maxRank
+			then "Max rank"
+			elseif rank == 0 then "Learn (1 pt)"
+			else `Rank {rank + 1} (1 pt)`
+		local learn = smallButton(learnText, 112, if why == nil then Theme.Colors.Gold else nil)
+		learn.LayoutOrder = 1
+		learn.Parent = actions
+		learn.Activated:Connect(function()
+			if rank >= skill.maxRank then
+				return
+			end
+			-- When it can't be learned yet the server explains why.
+			NetClient.fire("LearnSkill", skill.id)
+		end)
+		if why then
+			learn.TextColor3 = Theme.Colors.TextMuted
 		end
-		-- When it can't be learned yet the server explains why.
-		NetClient.fire("LearnSkill", skill.id)
-	end)
-	if why then
-		learn.TextColor3 = Theme.Colors.TextMuted
 	end
 	if rank >= 1 then
 		if skill.type == "Special" then
@@ -455,6 +468,50 @@ local function drawBar(parent: Instance, layout: SkillTreeLayout.Layout)
 		Parent = parent,
 	})
 	Kit.list(row, Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center)
+	-- Basic skills first (free for every class): tap to inspect and slot.
+	for order, basic in SkillDefinitions.Basics do
+		local holder = Kit.new("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(layout.barSlot + 16, layout.barSlot + 16),
+			LayoutOrder = -10 + order,
+			Parent = row,
+		})
+		local tile = Kit.new("TextButton", {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0),
+			Size = UDim2.fromOffset(layout.barSlot, layout.barSlot),
+			BackgroundColor3 = Theme.Colors.Ink,
+			Text = "",
+			Parent = holder,
+		})
+		Kit.corner(tile, 10)
+		SkillIcon.forSkill(basic, layout.barSlot, {}).Parent = tile
+		Kit.goldStroke(tile, if selected == basic.id then 3 else 1.5, 0.2)
+		Kit.new("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(0, layout.barSlot + 1),
+			Size = UDim2.new(1, 0, 0, 14),
+			Text = `BASIC · {basic.name}`,
+			TextSize = 10,
+			FontFace = Theme.Fonts.BodyBold,
+			TextColor3 = LEARNABLE,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = holder,
+		})
+		tile.Activated:Connect(function()
+			selected = basic.id
+			render()
+		end)
+	end
+	local divider = Kit.new("Frame", {
+		BackgroundColor3 = Theme.Colors.Gold,
+		BackgroundTransparency = 0.6,
+		BorderSizePixel = 0,
+		Size = UDim2.fromOffset(2, layout.barSlot),
+		LayoutOrder = 0,
+		Parent = row,
+	})
+	divider.Name = "Divider"
 	local loadout = state().EquippedSkills
 	for index, name in SLOT_NAMES do
 		local id = if index == 4 then loadout.Special else loadout.Regular[index]

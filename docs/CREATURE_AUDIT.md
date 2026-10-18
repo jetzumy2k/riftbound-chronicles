@@ -83,7 +83,11 @@ as it stands (`EnemyDefinitions`, `World/CreatureBuilder`,
 | Sound effects | There is no audio in the game. | You choose sounds from the Creator Store (licensed for your experience) and give me the asset ids; I wire them to animation events. |
 | Phase order | This is the Phase 16 creature art pass plus combat AI work, ahead of Phases 7–14. | Run it now, or after Phase 14 as Phase 16. |
 
-## 5. Proposed stages (each one tested in Studio before the next)
+## 5. Stages (each one tested in Studio before the next)
+
+Decisions (2026-10-17): run now, before Phase 7; code-built models; Claude picks sound ids.
+
+Status: stage 1 built (D-51). The creator then rejected the code-built looks (2026-10-17): creatures become **sculpted skinned meshes** the creator imports (D-52), with behaviour brought forward. Batch A (Hound, Cerberus, Serpent, Hydra) built, waiting for import and test; next batches: big cat, boar, beetle, spider, golem, knight / minotaur, ape, bird / griffin, dragon, bat.
 
 1. **Rigs and locomotion:** multi-joint legs (hip–knee–ankle), spine and neck chains, foot IK with ground raycasts (near-camera LOD), gaits per species (agile predator, heavy beast, armoured, 6- and 8-leg crawler, serpent, heavy biped).
 2. **Correct anatomy:** new body plans for Avian (Griffin, Harpy, Anzu, Peryton, Cockatrice), Drake (Wyvern, Fafnir), Bat (Camazotz), Arachnid (Arachne), Feline (Nemean Lion, Sphinx, Manticore, Ammit, Chimera), Boar, Ape (Yeti, Grendel, Mapinguari), Aquatic (Kelpie, Scylla, Charybdis); a distinct silhouette for every boss.
