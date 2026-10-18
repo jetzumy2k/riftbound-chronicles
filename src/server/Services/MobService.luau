@@ -20,6 +20,10 @@
 	    shareXp over the recipients, D-32), then the body fades and is
 	    removed; spawners respawn their mob after a delay.
 	  - Training Grounds: Rift Sprites roam each capital's yard (Quest 1).
+	  - Winged creatures fly (Logic/MobFlight, D-60): they take off while
+	    chasing, wheel overhead, mark a spot on the ground and dive onto
+	    it (players still inside are hit), then land and fight on foot for
+	    a while. Server-owned AlignPosition / AlignOrientation fly them.
 
 	Display data only goes to clients; no remote here accepts input.
 ]]
@@ -32,7 +36,9 @@ local Shared = ReplicatedStorage.Shared
 local DungeonRules = require(Shared.Logic.DungeonRules)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local MobBrain = require(Shared.Logic.MobBrain)
+local MobFlight = require(Shared.Logic.MobFlight)
 local MobTactics = require(Shared.Logic.MobTactics)
+local Telegraph = require(Shared.Logic.Telegraph)
 local StatFormulas = require(Shared.Logic.StatFormulas)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
@@ -40,6 +46,7 @@ local Signal = require(Shared.Util.Signal)
 
 local ConfigurationService = require(script.Parent.ConfigurationService)
 local CombatService = require(script.Parent.CombatService)
+local NetService = require(script.Parent.NetService)
 local LevelService = require(script.Parent.LevelService)
 local CreatureBuilder = require(script.Parent.Parent.World.CreatureBuilder)
 
@@ -79,6 +86,9 @@ export type Mob = {
 	-- How it closes in while chasing (Logic/MobTactics).
 	tacticKind: MobTactics.Kind,
 	tactic: MobTactics.State,
+	-- Winged creatures (Logic/MobFlight); the spot a dive is aimed at.
+	flight: MobFlight.State?,
+	divePoint: Vector3?,
 	lastMoveGoal: Vector3?,
 	-- Bosses: BossService holds the mob still while it telegraphs.
 	busyUntil: number,
@@ -167,6 +177,10 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 		wandering = false,
 		tacticKind = MobTactics.kindFor(enemy.body),
 		tactic = MobTactics.initial(),
+		flight = if MobFlight.canFly(enemy.body, enemy.traits :: any)
+			then MobFlight.initial(os.clock(), wanderRng:NextNumber())
+			else nil,
+		divePoint = nil,
 		lastMoveGoal = nil,
 		busyUntil = 0,
 		speedScale = 1,
@@ -199,6 +213,11 @@ end
 
 function MobService:GetMob(model: Model): Mob?
 	return mobs[model]
+end
+
+-- In the air (bosses hold their abilities until it lands).
+function MobService:IsAirborne(mob: Mob): boolean
+	return mob.flight ~= nil and MobFlight.isAirborne((mob.flight :: MobFlight.State).mode)
 end
 
 -- Sends a mob home at full HP (boss reset after a wipe).
@@ -262,11 +281,282 @@ local function face(mob: Mob, point: Vector3, maxStep: number?)
 	mob.root.CFrame = CFrame.lookAt(from, from + look)
 end
 
+--------------------------------------------------------------------------------
+-- Flight (creature overhaul stage 3, D-60): winged creatures take off,
+-- wheel over their target, mark a spot and dive onto it (Logic/MobFlight).
+-- Server-owned movers fly them; the client animates from RC_Flight.
+--------------------------------------------------------------------------------
+
+-- Flight speeds as multiples of the walk speed.
+local FLY_SPEED = 1.4
+local CLIMB_SPEED = 1.1
+local DIVE_SPEED = 3.2
+-- The dive's ground area: this radius plus DIVE_RADIUS_PER_SCALE x size.
+local DIVE_RADIUS = 4
+local DIVE_RADIUS_PER_SCALE = 1.4
+-- Dive damage relative to the creature's basic attack.
+local DIVE_DAMAGE = 1.5
+local TELEGRAPH_RADIUS = 200
+
+local flightRay = RaycastParams.new()
+flightRay.FilterType = Enum.RaycastFilterType.Exclude
+flightRay.RespectCanCollide = true
+local flightRayAt = 0
+
+-- Creatures and player characters are never ground or ceiling.
+local function refreshFlightRay(now: number)
+	if now - flightRayAt < 0.5 then
+		return
+	end
+	flightRayAt = now
+	local exclude: { Instance } = {}
+	for model in mobs do
+		table.insert(exclude, model)
+	end
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(exclude, player.Character)
+		end
+	end
+	flightRay.FilterDescendantsInstances = exclude
+end
+
+local function groundBelow(position: Vector3): number?
+	local result = Workspace:Raycast(position, Vector3.new(0, -300, 0), flightRay)
+	return if result then result.Position.Y else nil
+end
+
+local function headroomAbove(position: Vector3): number
+	local result = Workspace:Raycast(position, Vector3.new(0, 60, 0), flightRay)
+	return if result then result.Distance else 60
+end
+
+-- Height of the root centre above the ground when standing.
+local function standHeight(mob: Mob): number
+	return mob.humanoid.HipHeight + mob.root.Size.Y / 2
+end
+
+local function mover(mob: Mob): (AlignPosition, AlignOrientation)
+	local root = mob.root
+	local attachment = root:FindFirstChild("RC_FlyAttachment") :: Attachment?
+	if attachment == nil then
+		local made = Instance.new("Attachment")
+		made.Name = "RC_FlyAttachment"
+		made.Parent = root
+		attachment = made
+		local align = Instance.new("AlignPosition")
+		align.Name = "RC_FlyPosition"
+		align.Mode = Enum.PositionAlignmentMode.OneAttachment
+		align.Attachment0 = made
+		align.MaxForce = math.huge
+		align.Responsiveness = 30
+		align.Enabled = false
+		align.Parent = root
+		local orient = Instance.new("AlignOrientation")
+		orient.Name = "RC_FlyOrientation"
+		orient.Mode = Enum.OrientationAlignmentMode.OneAttachment
+		orient.Attachment0 = made
+		orient.MaxTorque = math.huge
+		orient.Responsiveness = 20
+		orient.Enabled = false
+		orient.Parent = root
+	end
+	return root:FindFirstChild("RC_FlyPosition") :: AlignPosition,
+		root:FindFirstChild("RC_FlyOrientation") :: AlignOrientation
+end
+
+-- Holds the creature up and steers it to `goal` at `speed`, facing `look`.
+local function flyTo(mob: Mob, goal: Vector3, speed: number, look: Vector3)
+	local align, orient = mover(mob)
+	mob.humanoid.PlatformStand = true
+	align.Enabled = true
+	orient.Enabled = true
+	align.Position = goal
+	align.MaxVelocity = math.max(speed, 1)
+	local flatLook = flat(look)
+	if flatLook.Magnitude > 0.1 then
+		orient.CFrame = CFrame.lookAt(Vector3.zero, flatLook)
+	end
+end
+
+-- Back on its feet: the Humanoid walks it again.
+local function stopFlying(mob: Mob)
+	local root = mob.root
+	local align = root:FindFirstChild("RC_FlyPosition")
+	local orient = root:FindFirstChild("RC_FlyOrientation")
+	if align then
+		(align :: AlignPosition).Enabled = false
+	end
+	if orient then
+		(orient :: AlignOrientation).Enabled = false
+	end
+	mob.humanoid.PlatformStand = false
+end
+
+local function setFlightMode(mob: Mob, mode: string)
+	mob.model:SetAttribute("RC_Flight", if mode == "Ground" then nil else mode)
+end
+
+local function diveRadius(mob: Mob): number
+	return DIVE_RADIUS + DIVE_RADIUS_PER_SCALE * mob.enemy.scale
+end
+
+-- The dive's spot is marked on the ground for everyone nearby.
+local function markDive(mob: Mob, center: Vector3)
+	local recipients = {}
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") and (root.Position - center).Magnitude <= TELEGRAPH_RADIUS then
+			table.insert(recipients, player)
+		end
+	end
+	if #recipients > 0 then
+		NetService:FireClients("Telegraph", recipients, {
+			shape = "Circle",
+			center = center,
+			radius = diveRadius(mob),
+			facing = Vector3.new(0, 0, -1),
+			duration = MobFlight.WARN_SECONDS + 0.4,
+		})
+	end
+	CombatService:Broadcast(mob.model, {
+		kind = "MobAttack",
+		target = mob.model,
+		windup = MobFlight.WARN_SECONDS + 0.3,
+		move = "Slam",
+	})
+end
+
+-- The dive lands: everyone (that it may harm) still inside the mark is hit.
+local function resolveDive(mob: Mob, center: Vector3)
+	local c = { center.X, center.Z }
+	local radius = diveRadius(mob)
+	for _, entity in CombatService:LivePlayers() do
+		local p = entity.root.Position
+		if Telegraph.inCircle(c, radius, { p.X, p.Z }) and math.abs(p.Y - center.Y) < 12 then
+			CombatService:NpcStrike(
+				mob.model,
+				entity.model,
+				mob.enemy.attackCoefficient * DIVE_DAMAGE,
+				nil,
+				true
+			)
+		end
+	end
+end
+
+--[[
+	One flight tick. Airborne creatures run only this (no walking or basic
+	attacks); grounded ones call it while chasing to see whether to take off.
+	Returns true when the creature is (now) in the air.
+]]
+local function stepFlight(mob: Mob, now: number, stunned: boolean): boolean
+	local flight = mob.flight
+	if flight == nil then
+		return false
+	end
+	local enemy = mob.enemy
+	local root = mob.root
+	local position = root.Position
+	refreshFlightRay(now)
+	local stand = standHeight(mob)
+	local floor = groundBelow(position)
+	local altitude = if floor then position.Y - stand - floor else 0
+	local headroom = headroomAbove(position)
+	local target, _ = nearestTarget(mob, enemy.aggroRadius * MobBrain.LOSE_TARGET_FACTOR)
+	local targetRoot = target and target:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local leashed = (flat(position) - flat(mob.home)).Magnitude > enemy.leashRadius
+	local chasing = targetRoot ~= nil and not leashed and mob.state ~= "Return"
+	local divePoint = mob.divePoint
+	local arrived = flight.mode == "Dive"
+		and divePoint ~= nil
+		and (position - (divePoint + Vector3.new(0, stand, 0))).Magnitude < 3
+	local nextState = MobFlight.step(flight, {
+		now = now,
+		chasing = chasing,
+		stunned = stunned,
+		altitude = altitude,
+		headroom = headroom,
+		scale = enemy.scale,
+		arrived = arrived,
+		roll = wanderRng:NextNumber(),
+	})
+	local from, to = flight.mode, nextState.mode
+	mob.flight = nextState
+	if to ~= from then
+		setFlightMode(mob, to)
+		if to == "Warn" and targetRoot then
+			local below = groundBelow(targetRoot.Position) or (targetRoot.Position.Y - 3)
+			mob.divePoint = Vector3.new(targetRoot.Position.X, below, targetRoot.Position.Z)
+			markDive(mob, mob.divePoint :: Vector3)
+		elseif to == "Land" and from == "Dive" and divePoint then
+			resolveDive(mob, divePoint)
+			mob.attackReadyAt = math.max(mob.attackReadyAt, now + enemy.attackCooldown)
+		end
+		if to == "Ground" then
+			mob.divePoint = nil
+			mob.lastMoveGoal = nil
+			stopFlying(mob)
+			return false
+		end
+	end
+	if to == "Ground" then
+		return false
+	end
+
+	local speed = enemy.moveSpeed * mob.speedScale
+	local look = root.CFrame.LookVector
+	if targetRoot then
+		look = targetRoot.Position - position
+	end
+	local groundHere = floor or (position.Y - stand - altitude)
+	if to == "Rise" then
+		local cruise = MobFlight.cruiseHeight(enemy.scale, headroom + altitude)
+		flyTo(
+			mob,
+			Vector3.new(position.X, groundHere + stand + cruise, position.Z),
+			speed * CLIMB_SPEED,
+			look
+		)
+	elseif to == "Circle" and targetRoot then
+		-- Wheel round the target, a little further on each tick.
+		local away = flat(position - targetRoot.Position)
+		local angle = math.atan2(away.X, away.Z) + nextState.orbitDir * 0.55
+		local radius = enemy.attackRange * 2 + 6 + enemy.scale * 2
+		local base = groundBelow(targetRoot.Position) or groundHere
+		local cruise = MobFlight.cruiseHeight(enemy.scale, headroom + altitude)
+		local goal = Vector3.new(
+			targetRoot.Position.X + math.sin(angle) * radius,
+			base + stand + cruise,
+			targetRoot.Position.Z + math.cos(angle) * radius
+		)
+		local tangent = Vector3.new(math.cos(angle), 0, -math.sin(angle)) * nextState.orbitDir
+		flyTo(mob, goal, speed * FLY_SPEED, tangent)
+	elseif to == "Warn" then
+		-- Hover, turned to the marked spot.
+		local spot = mob.divePoint or position
+		flyTo(mob, position, speed, spot - position)
+	elseif to == "Dive" then
+		local spot = mob.divePoint or position
+		flyTo(mob, spot + Vector3.new(0, stand, 0), speed * DIVE_SPEED, spot - position)
+	else
+		-- Land: straight down.
+		flyTo(mob, Vector3.new(position.X, groundHere + stand, position.Z), speed * CLIMB_SPEED, look)
+	end
+	return true
+end
+
 local function stepMob(mob: Mob, now: number)
 	local enemy = mob.enemy
 	-- Skill statuses (Phase 5): stun / root / slow / taunt.
 	local control = CombatService:ControlOfModel(mob.model)
 	mob.humanoid.WalkSpeed = enemy.moveSpeed * mob.speedScale * (if control then control.speedScale else 1)
+	-- In the air: flight runs the creature until it lands.
+	if MobService:IsAirborne(mob) then
+		stepFlight(mob, now, control ~= nil and control.stunned)
+		return
+	end
 	if mob.state ~= "Idle" then
 		mob.wandering = false
 	end
@@ -326,7 +616,10 @@ local function stepMob(mob: Mob, now: number)
 			local mode: MobTactics.Mode = mob.tactic.mode
 			local speedScale = MobTactics.speedScale(mob.tacticKind, mode)
 			mob.humanoid.WalkSpeed *= speedScale
-			if mode == "Hold" then
+			if mob.flight and stepFlight(mob, now, false) then
+				-- Took off.
+				return
+			elseif mode == "Hold" then
 				-- Coiled, watching: turn to face, don't move.
 				mob.humanoid:Move(Vector3.zero)
 				face(mob, targetRoot.Position, ELITE_TURN_STEP)
@@ -502,6 +795,11 @@ local function onDefeated(entity: CombatService.Entity)
 		return
 	end
 	mob.dead = true
+	-- A flier falls out of the sky.
+	if mob.flight then
+		stopFlying(mob)
+		mob.model:SetAttribute("RC_Flight", nil)
+	end
 	local contributors = CombatService:GetContributors(mob.model)
 	local recipientsFn = mob.xpRecipients
 	local recipients: { Player } = if recipientsFn

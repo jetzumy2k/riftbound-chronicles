@@ -239,7 +239,13 @@ local function stepBoss(boss: Boss, now: number)
 		boss.nextAbilityAt = math.min(boss.nextAbilityAt, now + 1.5)
 	end
 
-	if now < boss.nextAbilityAt or now < mob.busyUntil or mob.state == "Windup" then
+	-- Fliers use their abilities on the ground (their dive is the air attack).
+	if
+		now < boss.nextAbilityAt
+		or now < mob.busyUntil
+		or mob.state == "Windup"
+		or MobService:IsAirborne(mob)
+	then
 		return
 	end
 	local phase = boss.def.phases[boss.phase]

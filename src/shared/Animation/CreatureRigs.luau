@@ -381,20 +381,21 @@ function CreatureRigs.meshShapeFor(body: string, traits: { string }?, enemyId: s
 		has[trait] = true
 	end
 	local shape: string? = if enemyId then SHAPE_BY_ENEMY[enemyId] else nil
-	if shape then
-		-- Named above.
-	elseif body == "Wolf" then
-		shape = if has.ThreeHeads then "Cerberus" else "Hound"
-	elseif body == "Serpent" then
-		shape = if has.ThreeHeads then "Hydra" else "Serpent"
-	elseif body == "Beetle" then
-		shape = "Beetle"
-	elseif body == "Golem" then
-		shape = "Golem"
-	elseif body == "Guardian" then
-		shape = "Knight"
-	elseif body == "Sprite" then
-		shape = "Sprite"
+	if shape == nil then
+		-- The default shape for the body.
+		if body == "Wolf" then
+			shape = if has.ThreeHeads then "Cerberus" else "Hound"
+		elseif body == "Serpent" then
+			shape = if has.ThreeHeads then "Hydra" else "Serpent"
+		elseif body == "Beetle" then
+			shape = "Beetle"
+		elseif body == "Golem" then
+			shape = "Golem"
+		elseif body == "Guardian" then
+			shape = "Knight"
+		elseif body == "Sprite" then
+			shape = "Sprite"
+		end
 	end
 	if shape == nil then
 		return nil

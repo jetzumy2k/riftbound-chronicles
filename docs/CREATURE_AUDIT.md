@@ -58,7 +58,7 @@ as it stands (`EnemyDefinitions`, `World/CreatureBuilder`,
 - No jump, land, stumble or stagger. Turning is a server-side snap in the wind-up.
 
 ### 3.4 AI and movement logic (high)
-- **No flight.** All winged creatures walk. A 3D flight controller and an aerial state machine would be new systems.
+- **No flight** (fixed in stage 3, PLAN.md D-60: winged creatures take off, wheel, dive and land). ~~All winged creatures walk.~~ A 3D flight controller and an aerial state machine would be new systems.
 - Only 4 states: no Alert, Recovery, Stagger, Enrage display, Retreat or Circle.
 - Straight-line `MoveTo` with no pathfinding, so creatures stick on war-zone rocks.
 - One attack per creature, with no attack sets per species (bite, claw, pounce, charge, tail sweep, dive).

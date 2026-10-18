@@ -130,6 +130,9 @@ type Rig = {
 	speed: number,
 	-- Root position last frame (speed is measured from it).
 	lastPosition: Vector3,
+	-- Flight (D-60, server attribute RC_Flight): 0..1 in the air, diving.
+	air: number,
+	dive: number,
 	-- Serpents: where the body has been (world, newest first), the body's
 	-- rest layout, and the neck's counter-turn against the weave (degrees).
 	trail: { Vector3 },
@@ -281,14 +284,17 @@ local function wingsMotion(rig: Rig, now: number, rear: number, strike: number, 
 		return
 	end
 	local moving = math.clamp(rig.speed / 8, 0, 1)
-	-- Folded along the back at rest; spread when alert, running or striking.
-	local fold = math.clamp(0.9 - rig.alert * 0.6 - moving * 0.5 - rear * 0.9 - strike, 0, 1)
-	local rate = 3 + rig.alert * 1.6 + moving * 2
-	local beat = math.sin(now * rate) * 30 * (1 - fold) * (1 - rear)
-	local lag = math.sin(now * rate - 0.7) * 22 * (1 - fold) * (1 - rear)
+	local air, dive = rig.air, rig.dive
+	-- Folded along the back at rest; spread when alert, running or striking;
+	-- beating hard in flight, swept back in a dive.
+	local fold = math.clamp(0.9 - rig.alert * 0.6 - moving * 0.5 - rear * 0.9 - strike, 0, 1) * (1 - air)
+	local rate = 3 + rig.alert * 1.6 + moving * 2 + air * 2.5
+	local strokes = (1 - fold) * (1 - rear) * (1 - dive)
+	local beat = math.sin(now * rate) * (30 + air * 22) * strokes
+	local lag = math.sin(now * rate - 0.7) * (22 + air * 12) * strokes
 	local breathe = math.sin(now * 1.4) * 3
-	local lift = -fold * 28 + beat + rear * 55 - strike * 50 - hit * 10 + breathe - down * 30
-	local sweep = fold * 60
+	local lift = -fold * 28 + beat + rear * 55 - strike * 50 - hit * 10 + breathe - down * 30 - dive * 25
+	local sweep = fold * 60 + dive * 55
 	set(rig, "WingL", angles(0, sweep, -lift))
 	set(rig, "WingR", angles(0, -sweep, lift))
 	set(rig, "WingL2", angles(0, fold * 70, fold * 35 - lag))
@@ -527,10 +533,13 @@ local function stepLegs(rig: Rig, down: number)
 		local target, curl =
 			CreatureGait.footTarget(leg.home, leg.t, duty, rig.stride, rig.lift, amp, leg.ground)
 		target += Vector3.new(0, leg.mod.X * s, -leg.mod.Y * s)
-		if down > 0 then
+		-- Tucked in when falling and in flight (trailing back in a dive).
+		local tuck = math.max(down, rig.air)
+		if tuck > 0 then
 			local total = leg.lengths[1] + leg.lengths[2] + leg.lengths[3]
-			local tucked = body:PointToWorldSpace(spec.hip * s + Vector3.new(0, -total * 0.45, 0))
-			target = target:Lerp(tucked, down)
+			local tucked =
+				body:PointToWorldSpace(spec.hip * s + Vector3.new(0, -total * 0.45, total * 0.3 * rig.dive))
+			target = target:Lerp(tucked, tuck)
 		end
 		local footAngle = math.rad(spec.footAngle + (if spec.front then -55 else 25) * curl * amp * curlScale)
 		leg.upper.Transform, leg.lower.Transform, leg.foot.Transform =
@@ -576,8 +585,10 @@ local function quadruped(rig: Rig, now: number, rear: number, strike: number, hi
 	local bob = -(gait and gait.bob or 0.08) * rig.footfall
 		+ math.abs(math.sin(cycle * 2)) * 0.18 * run * moving
 	local sway = math.sin(cycle) * (gait and gait.sway or 2) * moving * (1 - run)
-	local bank = math.clamp(-rig.turnRate * 9, -14, 14)
-	local pitch = math.clamp(-rig.accel * 0.8, -6, 6) + rig.slope
+	local bank = math.clamp(-rig.turnRate * 9, -14, 14) * (1 + rig.air)
+	local pitch = math.clamp(-rig.accel * 0.8, -6, 6) + rig.slope * (1 - rig.air) - rig.dive * 26
+	-- In flight the body rises and falls with each wingbeat.
+	bob += math.sin(now * (5.5 + rig.alert * 1.6)) * 0.18 * rig.air * (1 - rig.dive)
 	local shakeRoll = math.sin(now * 22) * 10 * shake
 	set(
 		rig,
@@ -730,11 +741,15 @@ local function biped(rig: Rig, now: number, rear: number, strike: number, hit: n
 	local stretch = weightOf("Stretch", idle, w)
 	local slam = if rig.move == "Slam" then 1 else 0
 	local sweep = if rig.move == "Sweep" then 1 else 0
-	-- Arms swing against the legs (left arm back as the left foot leads).
-	local armSwing = math.cos(cycle) * 26 * moving
+	-- Arms swing against the legs (left arm back as the left foot leads);
+	-- in flight (a harpy's wings are its arms) they spread and beat.
+	local armSwing = math.cos(cycle) * 26 * moving * (1 - rig.air)
 	local breathe = math.sin(now * 1.5)
 	-- Arms spread wide to roar; a slam brings both overhead and down.
-	local spread = roar * 55 + stretch * 30
+	local spread = roar * 55
+		+ stretch * 30
+		+ rig.air * (55 + math.sin(now * 6.5) * 40) * (1 - rig.dive)
+		+ rig.dive * 20
 	set(
 		rig,
 		"ArmL",
@@ -1082,6 +1097,10 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 	local measured = if moved > 8 then 0 else moved / math.max(dt, 1e-3)
 	local previous = rig.speed
 	rig.speed = approach(rig.speed, measured, 8, dt)
+	local flight = rig.model:GetAttribute("RC_Flight")
+	local airTarget = if flight == "Land" then 0.5 elseif type(flight) == "string" then 1 else 0
+	rig.air = approach(rig.air, airTarget, 3, dt)
+	rig.dive = approach(rig.dive, if flight == "Dive" then 1 else 0, 6, dt)
 	rig.accel = approach(rig.accel, (rig.speed - previous) / math.max(dt, 1e-3), 6, dt)
 	-- Legged plans: the step cycle and the ground (gaitPrep). Others: the
 	-- phase still advances with the distance moved.
@@ -1089,7 +1108,8 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 		rig.legs = buildLegs(rig)
 	end
 	if rig.gait and rig.legs then
-		gaitPrep(rig, dt, detailed)
+		-- In the air the feet have no ground to find.
+		gaitPrep(rig, dt, detailed and rig.air < 0.3)
 	else
 		local stride = (STRIDE[rig.body] or 4) * rig.scale
 		rig.phase = (rig.phase + rig.speed * dt / stride) % 1
@@ -1236,6 +1256,8 @@ local function track(model: Model)
 		groundLift = 0,
 		speed = 0,
 		lastPosition = root.Position,
+		air = 0,
+		dive = 0,
 		trail = {},
 		slither = nil,
 		neckCounter = 0,

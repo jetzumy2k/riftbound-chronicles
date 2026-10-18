@@ -41,6 +41,7 @@ local specs = {
 	{ "dungeon_floors", require("./specs/dungeon_floors.spec") },
 	{ "creature_ik", require("./specs/creature_ik.spec") },
 	{ "mob_tactics", require("./specs/mob_tactics.spec") },
+	{ "mob_flight", require("./specs/mob_flight.spec") },
 	{ "pvp", require("./specs/pvp.spec") },
 	{ "skills", require("./specs/skills.spec") },
 	{ "structure", require("./specs/structure.spec") },

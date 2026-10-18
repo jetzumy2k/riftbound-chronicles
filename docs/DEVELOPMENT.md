@@ -199,6 +199,16 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Creature flight (D-60)
+Fliers: Fafnir, Wyvern, Typhon, Griffin, Anzu, Peryton, Camazotz, Harpy Queen, the Sphinx and the Chimera (war zones / dungeons where they spawn). Pure rules: `lune run tests/pure/run` (mob_flight).
+1. Get a flier to chase you in the open: after a few seconds it **takes off** (wings beating, legs tucked), climbs, and **wheels round you** overhead.
+2. It stops, hovers and a **red circle** marks the ground where you stand; about a second later it **dives** onto it nose-first, wings swept back. Step out of the circle in time: no damage. Stay in: a heavy hit.
+3. It lands and fights on foot for 7-11 s (melee can hit it), then may fly again.
+4. Stun it while it flies (Warrior / Mage control): it comes down. Run away past its leash: it lands and walks home. Defeat it in the air: it falls.
+5. Indoors with a low ceiling it never takes off.
+6. Bosses that fly (Fafnir, Typhon...) only use their ground abilities while on the ground.
+7. Multiplayer: a second player sees the same flight, smoothly (server-owned physics), and the dive circle.
+
 ## Creature meshes and behaviour (D-52)
 **Importing the sculpted creatures** (once per shape; `python tools/creatures/build.py` regenerates them):
 1. Studio: **File > Import 3D** (or Avatar tab > Import 3D), pick `build/creatures/Hound.gltf`.

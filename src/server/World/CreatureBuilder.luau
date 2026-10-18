@@ -1259,9 +1259,9 @@ local function buildFromMesh(
 		elite = enemy.elite,
 	}
 	local skin = SKIN_MATERIAL[data.bodyPlan] or Enum.Material.Slate
-	local has: { [string]: boolean } = {}
+	local traitSet: { [string]: boolean } = {}
 	for _, trait in ((enemy.traits :: any) or {}) :: { string } do
-		has[trait] = true
+		traitSet[trait] = true
 	end
 	-- Optional parts this enemy does not have (wings, sting, horns...).
 	for _, d in model:GetChildren() do
@@ -1269,7 +1269,7 @@ local function buildFromMesh(
 			local region = string.gsub(d.Name, "%d+$", "")
 			local needs = CreatureRigs.MESH_OPTIONAL_REGIONS[region]
 			local replacedBy = CreatureRigs.MESH_REPLACED_REGIONS[region]
-			if (needs and not has[needs]) or (replacedBy and has[replacedBy]) then
+			if (needs and not traitSet[needs]) or (replacedBy and traitSet[replacedBy]) then
 				d:Destroy()
 			end
 		end
