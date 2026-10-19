@@ -56,6 +56,7 @@ local ConfigurationService = require(script.Parent.ConfigurationService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local LevelService = require(script.Parent.LevelService)
+local LootService = require(script.Parent.LootService)
 local CombatService = require(script.Parent.CombatService)
 local WorldService = require(script.Parent.WorldService)
 local TravelService = require(script.Parent.TravelService)
@@ -398,7 +399,15 @@ local function spawnCamps(copy: Copy)
 	end
 end
 
-local function onMobDefeated(mob: MobService.Mob)
+-- Phase 10 (D-67): the loot table for each kind of dungeon creature.
+local LOOT_TABLE: { [string]: string } = {
+	MiniBoss = "DungeonMiniBoss",
+	FloorBoss = "DungeonFloorBoss",
+	Boss = "DungeonBoss",
+}
+
+local function onMobDefeated(mob: MobService.Mob, _contributors: any, recipients: { Player }?)
+	local earners = recipients or {}
 	for _, copy in copies do
 		if mob.owner ~= copy.owner then
 			continue
@@ -406,6 +415,16 @@ local function onMobDefeated(mob: MobService.Mob)
 		for _, camp in copy.bosses do
 			if camp.slot.mob == mob or (camp.boss and camp.boss.mob == mob) then
 				grantBossBonus(mob, camp.class, copy)
+				-- Boss loot: everyone who earned it rolls once per spawn.
+				counter += 1
+				local spawnId = DungeonRules.runId(serverId, counter)
+				LootService:DropFor(
+					earners,
+					LOOT_TABLE[camp.class] or "DungeonBoss",
+					mob.level,
+					`Boss:{mob.enemy.id}`,
+					`B:{spawnId}:{mob.enemy.id}:L`
+				)
 				local boss = camp.boss
 				if boss and boss.mob == mob then
 					for _, add in boss.adds do
@@ -418,6 +437,14 @@ local function onMobDefeated(mob: MobService.Mob)
 				return
 			end
 		end
+		-- A regular (or elite) dungeon creature.
+		LootService:DropFor(
+			earners,
+			if mob.enemy.elite then "DungeonElite" else "DungeonMob",
+			mob.level,
+			`Dungeon:{mob.enemy.id}`
+		)
+		return
 	end
 end
 

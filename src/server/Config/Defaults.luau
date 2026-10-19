@@ -149,6 +149,22 @@ return {
 		StudioBossRespawnSeconds = 120,
 	},
 
+	-- Phase 10 dungeon loot (D-06 / D-07 / D-67). Each table: the chance
+	-- anything drops, then rarity weights (must sum to 100; an invalid table
+	-- is rejected and the built-in default used). CLAUDE.md §12
+	-- interpretation: a regular mob's "30% rare / 70% rare" means 30% Rare /
+	-- 70% Standard-or-Uncommon, split 45 / 25 (D-07); bosses 20% Legendary /
+	-- 80% Rare and always drop. Elites (★) drop more often (D-06).
+	Loot = {
+		Tables = {
+			DungeonMob = { DropChancePct = 12, Rarity = { Standard = 45, Uncommon = 25, Rare = 30 } },
+			DungeonElite = { DropChancePct = 35, Rarity = { Standard = 45, Uncommon = 25, Rare = 30 } },
+			DungeonMiniBoss = { DropChancePct = 100, Rarity = { Rare = 80, Legendary = 20 } },
+			DungeonFloorBoss = { DropChancePct = 100, Rarity = { Rare = 80, Legendary = 20 } },
+			DungeonBoss = { DropChancePct = 100, Rarity = { Rare = 80, Legendary = 20 } },
+		},
+	},
+
 	-- Phase 8 (D-08 / D-66): percent chance to reach +1 … +10 with an
 	-- Enhancement Stone (a Perfect Stone always succeeds). Shown to players.
 	Enhancement = {

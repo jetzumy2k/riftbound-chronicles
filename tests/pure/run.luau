@@ -48,6 +48,7 @@ local specs = {
 	{ "item_rules", require("./specs/item_rules.spec") },
 	{ "inventory_layout", require("./specs/inventory_layout.spec") },
 	{ "enhance_rules", require("./specs/enhance_rules.spec") },
+	{ "loot_rules", require("./specs/loot_rules.spec") },
 	{ "pvp", require("./specs/pvp.spec") },
 	{ "skills", require("./specs/skills.spec") },
 	{ "structure", require("./specs/structure.spec") },

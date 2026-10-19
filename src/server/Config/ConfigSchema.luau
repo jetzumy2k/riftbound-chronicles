@@ -59,6 +59,22 @@ return function(S: any)
 			ResetNeedsSafeZone = S.boolean(),
 		}),
 
+		Loot = S.struct({
+			-- LootRules.validate also checks the weights sum to 100.
+			Tables = S.map(
+				S.enum({ "DungeonMob", "DungeonElite", "DungeonMiniBoss", "DungeonFloorBoss", "DungeonBoss" }),
+				S.struct({
+					DropChancePct = S.number(0, 100),
+					Rarity = S.map(
+						S.enum({ "Standard", "Uncommon", "Rare", "Epic", "Legendary", "Mythical" }),
+						S.number(0, 100),
+						6
+					),
+				}),
+				5
+			),
+		}),
+
 		Enhancement = S.struct({
 			-- One rate per level (+1 … +10); EnhanceRules falls back to the
 			-- D-08 defaults if the list is not exactly 10 long.

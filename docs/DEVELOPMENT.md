@@ -199,6 +199,16 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 10 manual tests: dungeon loot (D-67)
+Pure rules: `lune run tests/pure/run` (loot_rules: default tables valid and matching CLAUDE.md §12, invalid tables rejected, 1M-roll drop chance and rarity split within ±0.5%, drops are your own class and realm). Server log: every drop is an `Audit ... action=LootDrop` line.
+1. Enter your realm's dungeon and defeat regular creatures (at a level that still gives EXP): about 1 in 8 drops an item (elites ★ about 1 in 3); a toast "Loot: <name> (<rarity>, item level N)". Drops are Standard, Uncommon or Rare (roughly 45 / 25 / 30).
+2. Defeat a mini boss / floor boss / the Dungeon Boss: always a drop, Rare (about 4 in 5) or Legendary.
+3. Every drop is gear of **your** class, a weapon family your realm uses, item level = the creature's level (30 at most); it appears in the bag and can be worn / enhanced.
+4. **Party:** two players kill a boss together: each gets their own roll (and the boss pays each player once per spawn).
+5. **Level gap:** a creature 10+ levels below you (white plate) or 20+ above (grey) drops nothing, like its EXP.
+6. **Bag full** (150): the toast says the drop was lost; nothing in the bag changes.
+7. **Config:** an override whose rarity weights don't add up to 100 is rejected (server log error) and the built-in table is used.
+
 ## Phase 8 manual tests: enhancement (D-66)
 Pure rules: `lune run tests/pure/run` (enhance_rules: rates, the +10 cap, 20 requests on 5 stones use exactly 5, no downgrade, Perfect Stones, +20 Attack / +2.5% Crit Damage per weapon level, +8 Defense per armor level and never Attack). In Studio, "Studio: add test gear" now also gives 10 Enhancement Stones and 2 Perfect Stones (and 25 fragments = 2 more stones via Combine).
 1. Open the bag (B), tap an item: the Enhance box shows "+N → +N+1", the chance (100% up to +5, then 90 / 80 / 70 / 60 / 50%), what each +1 adds, and the two buttons with your stone counts.

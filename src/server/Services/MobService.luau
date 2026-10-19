@@ -984,7 +984,7 @@ local function onDefeated(entity: CombatService.Entity)
 			LevelService:GrantXP(player, xp, `Mob:{mob.enemy.id}`)
 		end
 	end
-	MobService.MobDefeated:Fire(mob, contributors)
+	MobService.MobDefeated:Fire(mob, contributors, recipients)
 	task.delay(CORPSE_SECONDS, function()
 		if mobs[mob.model] == mob then
 			mobs[mob.model] = nil

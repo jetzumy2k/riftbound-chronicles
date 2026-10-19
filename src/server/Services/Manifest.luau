@@ -32,6 +32,7 @@ return {
 	{ name = "MobService", layer = 5 },
 	{ name = "BossService", layer = 5 },
 	{ name = "PartyService", layer = 5 },
+	{ name = "LootService", layer = 5 },
 	{ name = "DungeonService", layer = 5 },
 	{ name = "PvPService", layer = 5 },
 }

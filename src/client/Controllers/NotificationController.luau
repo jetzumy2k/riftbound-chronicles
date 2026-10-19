@@ -77,6 +77,9 @@ local STRINGS: { [string]: string } = {
 	["inventory.use.cooldown"] = "Ready again in {seconds} s.",
 	["inventory.use.fullHp"] = "Your health is already full.",
 	["inventory.testGear"] = "Studio: {count} test items added to your bag.",
+	-- Phase 10 loot (D-67).
+	["loot.drop"] = "Loot: {name} ({rarity}, item level {level}). Open your bag (B).",
+	["loot.bagFull"] = "Your bag is full: the {rarity} {name} was lost. Salvage something to make room.",
 	-- Phase 8 enhancement (D-66).
 	["enhance.success"] = "Enhancement succeeded: +{level}!",
 	["enhance.failed"] = "Enhancement failed: the item stays +{level}, one stone used.",
