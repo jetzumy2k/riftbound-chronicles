@@ -34,6 +34,7 @@ local CONTROLLER_ORDER = {
 	"MobVisualController",
 	"CombatFeedbackController",
 	"StatusVfxController",
+	"MobLevelController",
 	"DungeonController",
 	"PartyController",
 }

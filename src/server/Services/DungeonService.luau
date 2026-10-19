@@ -46,6 +46,7 @@ local Shared = ReplicatedStorage.Shared
 local DungeonDefinitions = require(Shared.Definitions.DungeonDefinitions)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local DungeonRules = require(Shared.Logic.DungeonRules)
+local LevelGap = require(Shared.Logic.LevelGap)
 local PartyRules = require(Shared.Logic.PartyRules)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
@@ -303,15 +304,20 @@ local function grantBossBonus(mob: MobService.Mob, class: RespawnClass, copy: Co
 		if player.Parent ~= Players then
 			continue
 		end
+		-- D-63: the bonus follows the level gap too.
+		local earned = LevelGap.scaleXp(xp, mob.level, LevelService:GetLevel(player) or 0)
+		if earned <= 0 then
+			continue
+		end
 		local status = (PlayerDataService :: any):ClaimReward(
 			player,
 			`B:{spawnId}:{mob.enemy.id}`,
 			function(_data: any)
-				LevelService:GrantXP(player, xp, `Boss:{mob.enemy.id}`)
+				LevelService:GrantXP(player, earned, `Boss:{mob.enemy.id}`)
 			end
 		)
 		if status == "granted" then
-			notify(player, "Info", "dungeon.bossDefeated", { name = mob.enemy.name, xp = tostring(xp) })
+			notify(player, "Info", "dungeon.bossDefeated", { name = mob.enemy.name, xp = tostring(earned) })
 		end
 	end
 	log:Info(

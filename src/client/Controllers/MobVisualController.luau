@@ -57,6 +57,10 @@ local CreatureIK = require(ReplicatedStorage.Shared.Logic.CreatureIK)
 local CreatureSlither = require(ReplicatedStorage.Shared.Animation.CreatureSlither)
 local CreatureGait = require(ReplicatedStorage.Shared.Animation.CreatureGait)
 local CreatureMeshes = require(ReplicatedStorage.Shared.Animation.CreatureMeshes)
+local CreatureSounds = require(ReplicatedStorage.Shared.Definitions.CreatureSounds)
+local CameraShake = require(script.Parent.Parent.Effects.CameraShake)
+local CreatureFx = require(script.Parent.Parent.Effects.CreatureFx)
+local CreatureSfx = require(script.Parent.Parent.Effects.CreatureSfx)
 
 local UPDATE_DISTANCE = 160
 local STRIKE_SECONDS = 0.16
@@ -94,6 +98,8 @@ type LegState = {
 	-- Step cycle position (0..1), smoothed ground offset (studs), and the
 	-- body plan's action offset this frame (up, forward; size-1 studs).
 	t: number,
+	-- Last frame's t (a wrap to 0 is the foot coming down).
+	prevT: number,
 	ground: number,
 	mod: Vector2,
 }
@@ -135,6 +141,17 @@ type Rig = {
 	-- Flight (D-60, server attribute RC_Flight): 0..1 in the air, diving.
 	air: number,
 	dive: number,
+	-- Effects and sound (D-62): sculpted shape, voice, accent colour, the
+	-- current attack's kind and which of its moments have played, and the
+	-- attributes last seen.
+	shape: string?,
+	voice: CreatureSounds.Sound,
+	glow: Color3?,
+	attackAlert: boolean,
+	fxWindup: boolean,
+	fxStruck: boolean,
+	flightSeen: any,
+	enragedSeen: boolean,
 	-- Serpents: where the body has been (world, newest first), the body's
 	-- rest layout, and the neck's counter-turn against the weave (degrees).
 	trail: { Vector3 },
@@ -342,6 +359,182 @@ local function lerp(a: number, b: number, t: number): number
 	return a + (b - a) * t
 end
 
+--------------------------------------------------------------------------------
+-- Effects and sound (creature overhaul stage 5, D-62): Effects/CreatureFx
+-- and Effects/CreatureSfx at the moments the motion already knows (wind-up,
+-- strike, footfall, take-off, dive, stagger, enrage, defeat).
+--------------------------------------------------------------------------------
+
+-- The creature's accent colour (its glowing parts), found once.
+local function glowOf(rig: Rig): Color3
+	local cached = rig.glow
+	if cached then
+		return cached
+	end
+	local found = Color3.fromRGB(255, 200, 120)
+	for _, d in rig.model:GetDescendants() do
+		if
+			d:IsA("BasePart") and (d.Name == "Glow" or d.Name == "Eye" or d.Material == Enum.Material.Neon)
+		then
+			found = d.Color
+			break
+		end
+	end
+	rig.glow = found
+	return found
+end
+
+-- Height of the ground under the creature.
+local function groundY(rig: Rig): number
+	local humanoid = rig.model:FindFirstChildOfClass("Humanoid")
+	local hip = if humanoid then humanoid.HipHeight else 0
+	return rig.root.Position.Y - rig.root.Size.Y / 2 - hip
+end
+
+-- The head's world frame (facing the creature's way).
+local function headFrame(rig: Rig): CFrame
+	local joint = rig.motors["Head"]
+	local position: Vector3
+	if joint and joint:IsA("Bone") then
+		position = joint.WorldPosition
+	elseif joint and joint:IsA("Motor6D") and joint.Part1 then
+		position = joint.Part1.Position
+	else
+		position = (rig.root.CFrame * CFrame.new(0, 0.5 * rig.scale, -1.5 * rig.scale)).Position
+	end
+	return CFrame.new(position) * rig.root.CFrame.Rotation
+end
+
+-- Shakes the camera when the local player stands within `radius`.
+local function shakeNear(position: Vector3, radius: number, amount: number)
+	local character = Players.LocalPlayer and Players.LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") and (root.Position - position).Magnitude <= radius then
+		CameraShake.add(amount)
+	end
+end
+
+local function voice(rig: Rig, cooldown: number)
+	CreatureSfx.play(rig.voice, rig.root, rig.scale, "voice", cooldown)
+end
+
+-- A heavy foot comes down (big creatures, near the camera).
+local function footDown(rig: Rig, leg: LegState)
+	if rig.scale < 1.6 or rig.air > 0.3 then
+		return
+	end
+	local position = rig.root.CFrame:PointToWorldSpace(leg.home + Vector3.new(0, leg.ground, 0))
+	CreatureFx.dust(position, rig.scale * 0.45)
+	CreatureSfx.play(
+		CreatureSounds.Cues.Footstep,
+		rig.root,
+		rig.scale,
+		"step",
+		0.12,
+		math.clamp(rig.scale / 3, 0.4, 1.2)
+	)
+end
+
+-- The moment a wound-up move lands: its sound and effect.
+local function strikeFx(rig: Rig)
+	local s = rig.scale
+	local move = rig.move
+	local front = rig.root.CFrame * CFrame.new(0, 0, -(1.4 + 1.2 * s))
+	local floor = groundY(rig)
+	local color = glowOf(rig)
+	if move == "Strike" or move == "Sweep" then
+		CreatureSfx.play(CreatureSounds.Cues.Swish, rig.root, s, "swish", 0.2)
+		if move == "Sweep" then
+			-- A weapon or great limb: one wide streak; claws: three.
+			local streaks = if rig.shape == "Golem"
+					or rig.shape == "Knight"
+					or rig.shape == "Harpy"
+				then 1
+				else 3
+			CreatureFx.trail(front, 2.4 * s, color, streaks)
+		end
+		if rig.shape == "Knight" then
+			CreatureSfx.play(CreatureSounds.Cues.Clank, rig.root, s, "clank", 0.3)
+		end
+		return
+	end
+	-- Slam / Roar (stomp): something heavy meets the ground.
+	local at = if move == "Roar" then rig.root.Position else front.Position
+	local ground = Vector3.new(at.X, floor, at.Z)
+	local radius = if move == "Roar" then 4 + 2.5 * s else 3 + 2 * s
+	local impact = if rig.shape == "Golem" then CreatureSounds.Cues.RockImpact else CreatureSounds.Cues.Impact
+	CreatureSfx.play(impact, rig.root, s, "impact", 0.3)
+	if rig.shape == "Knight" then
+		CreatureSfx.play(CreatureSounds.Cues.Clank, rig.root, s, "clank", 0.3)
+	end
+	CreatureFx.shockwave(ground, radius, color)
+	shakeNear(ground, radius + 4, 0.25 + 0.08 * s)
+end
+
+--[[
+	Per frame: watches the motion and the server's attributes for the
+	moments that make a sound or an effect. `near`: close to the camera
+	(footfall dust only there).
+]]
+local function effects(rig: Rig, now: number)
+	local s = rig.scale
+	-- Wind-up begins / the strike lands.
+	local start = rig.attackStart
+	if start and not rig.fxWindup then
+		rig.fxWindup = true
+		local head = headFrame(rig)
+		if rig.attackAlert then
+			-- Noticed a player: a roar.
+			voice(rig, 2)
+			CreatureFx.roar(head, s, glowOf(rig))
+			if rig.shape == "Dragon" or rig.shape == "Chimera" then
+				CreatureFx.breath(head, s, glowOf(rig))
+			end
+		elseif rig.move == "Roar" or rng:NextNumber() < 0.35 then
+			voice(rig, 2.5)
+		end
+	end
+	if start and not rig.fxStruck and now >= start + rig.windup then
+		rig.fxStruck = true
+		if not rig.attackAlert then
+			strikeFx(rig)
+		end
+	end
+	-- Flight: take-off, beats, the dive and its landing.
+	local flight = rig.model:GetAttribute("RC_Flight")
+	if flight ~= rig.flightSeen then
+		local was = rig.flightSeen
+		rig.flightSeen = flight
+		local floor = groundY(rig)
+		local under = Vector3.new(rig.root.Position.X, floor, rig.root.Position.Z)
+		if flight == "Rise" then
+			CreatureSfx.play(CreatureSounds.Cues.Wings, rig.root, s, "wings", 0.3)
+			CreatureFx.dust(under, s * 1.2)
+		elseif flight == "Dive" then
+			CreatureSfx.play(CreatureSounds.Cues.Dive, rig.root, s, "dive", 1)
+			voice(rig, 1.5)
+		elseif flight == "Land" and was == "Dive" then
+			CreatureSfx.play(CreatureSounds.Cues.Impact, rig.root, s, "impact", 0.3)
+			CreatureFx.shockwave(under, 4 + 1.4 * s, glowOf(rig))
+			shakeNear(under, 8 + 2 * s, 0.35)
+		elseif flight == nil and was ~= nil then
+			CreatureFx.dust(under, s)
+		end
+	end
+	if flight == "Rise" or flight == "Circle" or flight == "Warn" then
+		CreatureSfx.play(CreatureSounds.Cues.Wings, rig.root, s, "wings", 1.1, 0.6)
+	end
+	-- Enraged: embers.
+	local enraged = rig.model:GetAttribute("RC_Enraged") == true and rig.defeatStart == nil
+	if enraged ~= rig.enragedSeen then
+		rig.enragedSeen = enraged
+		CreatureFx.embers(rig.root, enraged, glowOf(rig))
+		if enraged then
+			voice(rig, 1)
+		end
+	end
+end
+
 -- Finds the leg bones once they have streamed in.
 local function buildLegs(rig: Rig): { LegState }?
 	local plan = rig.plan
@@ -386,6 +579,7 @@ local function buildLegs(rig: Rig): { LegState }?
 				hipRoot.Z + spec.reach.Y
 			) * s,
 			t = 0,
+			prevT = 0,
 			ground = 0,
 			mod = Vector2.zero,
 		})
@@ -442,7 +636,12 @@ local function gaitPrep(rig: Rig, dt: number, detailed: boolean)
 	for _, leg in legs do
 		local spec = leg.spec
 		local offset = lerp(spec.walk, if gait.trot then spec.trot else spec.run, run)
+		leg.prevT = leg.t
 		leg.t = (rig.phase + offset) % 1
+		-- Wrapped round to 0: this foot just came down (big creatures thud).
+		if detailed and leg.t < leg.prevT and leg.prevT - leg.t > 0.5 and rig.stepAmp > 0.3 then
+			footDown(rig, leg)
+		end
 		if leg.t < duty then
 			footfall = math.max(footfall, math.exp(-((leg.t / duty) / 0.14) ^ 2))
 		end
@@ -1147,6 +1346,8 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 		rig.staggerStart = now
 		rig.attackStart = nil
 		rig.idle = nil
+		CreatureSfx.play(CreatureSounds.Cues.Stagger, rig.root, rig.scale, "stagger", 1)
+		CreatureFx.dust(Vector3.new(rig.root.Position.X, groundY(rig), rig.root.Position.Z), rig.scale * 0.7)
 	end
 	idleActions(rig, now)
 	-- Moving or fighting ends an idle action early.
@@ -1154,6 +1355,7 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 		rig.idle = nil
 	end
 
+	effects(rig, now)
 	local rear, strike = attackWeights(rig, now)
 	local hit =
 		math.max(pulse(rig.hitStart, now, HIT_SECONDS), pulse(rig.staggerStart, now, STAGGER_SECONDS) * 1.8)
@@ -1276,6 +1478,14 @@ local function track(model: Model)
 		lastPosition = root.Position,
 		air = 0,
 		dive = 0,
+		shape = if type(shapeName) == "string" then shapeName else nil,
+		voice = CreatureSounds.voiceFor(if type(shapeName) == "string" then shapeName else nil, body),
+		glow = nil,
+		attackAlert = false,
+		fxWindup = true,
+		fxStruck = true,
+		flightSeen = model:GetAttribute("RC_Flight"),
+		enragedSeen = false,
 		trail = {},
 		slither = nil,
 		neckCounter = 0,
@@ -1326,13 +1536,18 @@ end
 
 -- Plays the wind-up -> strike motion; `windup` seconds until the hit lands,
 -- `move` its shape (Strike / Slam / Roar / Sweep).
-function MobVisualController.attack(model: Model, windup: number, move: string?)
+-- `alert`: not an attack but the roar of a creature that has just noticed
+-- a player (no strike effect).
+function MobVisualController.attack(model: Model, windup: number, move: string?, alert: boolean?)
 	local rig = rigs[model]
 	if rig then
 		rig.attackStart = os.clock()
 		rig.windup = math.max(0.15, windup)
 		rig.move = if move and MOVES[move] then move else "Strike"
 		rig.idle = nil
+		rig.attackAlert = alert == true
+		rig.fxWindup = false
+		rig.fxStruck = false
 	end
 end
 
@@ -1351,6 +1566,19 @@ function MobVisualController.defeat(model: Model)
 		rig.defeatStart = os.clock()
 		rig.attackStart = nil
 		rig.idle = nil
+		-- A last, deeper cry in its own voice (D-63: one shared lion cry made
+		-- golems and birds roar), then the body settles in a puff of dust.
+		CreatureFx.embers(rig.root, false, Color3.new())
+		CreatureSfx.play(rig.voice, rig.root, rig.scale * 1.5, "defeat", 5, 0.8)
+		task.delay(0.75, function()
+			if rig.root.Parent then
+				CreatureSfx.play(CreatureSounds.Cues.BodyFall, rig.root, rig.scale, "fall", 5)
+				CreatureFx.dust(
+					Vector3.new(rig.root.Position.X, groundY(rig), rig.root.Position.Z),
+					rig.scale * 1.3
+				)
+			end
+		end)
 	end
 end
 
@@ -1359,6 +1587,7 @@ function MobVisualController.isCreature(model: Model): boolean
 end
 
 function MobVisualController:Start()
+	CreatureSfx.preload()
 	task.spawn(function()
 		local npcs = Workspace:WaitForChild("RC_Npcs", 30)
 		if npcs == nil then

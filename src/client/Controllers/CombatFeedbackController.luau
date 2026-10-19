@@ -410,7 +410,8 @@ local function onEvent(payload: any)
 		MobVisualController.attack(
 			model,
 			if type(payload.windup) == "number" then payload.windup else 0.5,
-			payload.move
+			payload.move,
+			payload.alert == true
 		)
 	elseif kind == "Damage" then
 		onDamage(model, payload)

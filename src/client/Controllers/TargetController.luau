@@ -36,6 +36,7 @@ local Signal = require(Shared.Util.Signal)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local LevelTier = require(UI.LevelTier)
 
 local TAG = "RC_Combatant"
 local RAY_LENGTH = 400
@@ -544,6 +545,7 @@ local function buildFrame()
 		TextColor3 = Theme.Colors.GoldBright,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
+		RichText = true,
 		Parent = frame,
 	})
 	local track = Kit.new("Frame", {
@@ -598,6 +600,10 @@ local function buildFrame()
 	plate.Parent = localPlayer():WaitForChild("PlayerGui")
 end
 
+local function escapeRich(text: string): string
+	return (text:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+end
+
 local function renderFrame()
 	local model = TargetController.current()
 	local anchor = if model then (model:FindFirstChild("Head") or rootOf(model)) else nil
@@ -614,9 +620,17 @@ local function renderFrame()
 	local name = if player then player.DisplayName elseif humanoid then humanoid.DisplayName else model.Name
 	local level = if player then player:GetAttribute("Level") else model:GetAttribute("Level")
 	local hostile = TargetController.isHostile(model)
-	nameLabel.Text = `{if hostile then "⚔" else "✚"}  {name}{if type(level) == "number"
-		then `  ·  Lv {level}`
-		else ""}`
+	local levelText = ""
+	if type(level) == "number" then
+		levelText = `  ·  Lv {level}`
+		if player == nil then
+			-- D-63: a creature's level in its danger colour, with its mark.
+			local style = LevelTier.styleFor(level)
+			local mark = if style.mark ~= "" then ` {style.mark}` else ""
+			levelText = `  ·  <font color="#{style.color:ToHex()}">Lv {level}{mark}</font>`
+		end
+	end
+	nameLabel.Text = `{if hostile then "⚔" else "✚"}  {escapeRich(name)}{levelText}`
 	local hp, maxHp = model:GetAttribute("HP"), model:GetAttribute("MaxHP")
 	if type(hp) == "number" and type(maxHp) == "number" and maxHp > 0 then
 		hpFill.Size = UDim2.fromScale(math.clamp(hp / maxHp, 0, 1), 1)

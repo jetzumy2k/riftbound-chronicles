@@ -199,6 +199,22 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Level gap: EXP and danger colours (D-63)
+Pure rules: `lune run tests/pure/run` (level_gap). Use the admin/test tools or creatures of different levels (dungeon floors span Lv 1-40; war zones Lv 9-13).
+1. **Plates:** every creature shows its name and `Lv N` over its head (within 60 studs; hidden once defeated). The level's colour and mark follow the gap to **your** level: grey ☠ "Deadly · no EXP" (20+ above), red ▲▲ "Very hard" (10-19 above), orange ▲ "Hard" (5-9), yellow △ "Tough" (2-4), green (1 above to 4 below), blue ▽ "Easy · little EXP" (5-9 below), white · "Too weak · no EXP" (10+ below). The target plate shows the same colour and mark.
+2. Level up: the colours update at once.
+3. **EXP:** defeat a creature of each kind and watch the EXP bar: 20+ above or 10+ below gives none; 10-19 above ×1.5, 5-9 above ×1.3, 2-4 above ×1.15, about equal ×1, 5-9 below ×0.25. Dungeon boss bonus EXP follows the same rule (no "boss defeated +EXP" toast when it is 0).
+4. **Party:** two players of different levels kill the same creature: each gets EXP for their own gap.
+
+## Creature effects and sound (D-62)
+Sound ids are checked with `python tools/creatures/check_sounds.py` (needs internet). Turn the game volume up.
+1. **Voices:** walk up to a wolf (a howl, D-63), a lion / chimera (roar), a griffin / Anzu the Storm Bird / harpy (hawk screech, D-63), a bat (shrill screech), a dragon (deep rumbling roar, an ember breath from its jaws), a serpent (hiss), a spider (hiss), a beetle / scarab (giant-bug chitter, D-63), a golem (grinding stone, D-63), a knight. Bigger ones sound deeper. Each alert shows a ripple of air from the head.
+2. **Attacks:** bites and swings whoosh; sweeps leave glowing claw streaks (one wide streak for golems / knights); slams and stomps thud with a shockwave ring and dust, and the camera shakes a little if you are close; golems crack like stone, knights clank.
+3. **Footsteps:** big creatures (Cerberus, golems, dragons...) thud and kick up dust with each footfall when near.
+4. **Flight:** wing beats on take-off and while circling, a rushing whoosh into the dive, an impact ring where it lands.
+5. **Stagger / enrage / defeat:** a snort and dust when staggered; embers drift round an enraged creature (gone when it is defeated); a last, deeper cry in the creature's own voice (D-63), then a thud and dust as the body settles.
+6. **Budget (mobile):** with 15+ creatures fighting, sounds don't pile up (at most 10 at once, nothing beyond 150 studs) and the frame rate holds.
+
 ## Creature AI and attacks (D-61)
 1. **Alert:** walk up to an idle creature: it turns to you and roars briefly before it charges.
 2. **Attack variety:** fight a wolf (bites, wide claw rakes, a long pounce from further out), a golem / knight (overhead smash, wide swing, a stomp that hits everyone close), a serpent (bite, tail sweep that hits behind it too), a beetle / spider (pincers, a ram from range), a dragon (bite, trample, tail sweep). Heavier moves have longer wind-ups.

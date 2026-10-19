@@ -43,6 +43,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local DungeonRules = require(Shared.Logic.DungeonRules)
+local LevelGap = require(Shared.Logic.LevelGap)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local MobBrain = require(Shared.Logic.MobBrain)
 local MobAttacks = require(Shared.Logic.MobAttacks)
@@ -728,6 +729,7 @@ local function stepMob(mob: Mob, now: number)
 			target = mob.model,
 			windup = MobBrain.ALERT_SECONDS,
 			move = "Roar",
+			alert = true,
 		})
 	elseif action == "None" and state == "Alert" then
 		mob.humanoid:Move(Vector3.zero)
@@ -974,10 +976,12 @@ local function onDefeated(entity: CombatService.Entity)
 		then recipientsFn(mob)
 		else defaultRecipients(mob, contributors)
 	-- Only players who actually fought (or their party, per the recipient rule) earn EXP.
+	-- D-63: each player's share then follows the level gap to the creature.
 	local share = DungeonRules.shareXp(EnemyDefinitions.xpAt(mob.enemy, mob.level), #recipients)
 	for _, player in recipients do
-		if share > 0 then
-			LevelService:GrantXP(player, share, `Mob:{mob.enemy.id}`)
+		local xp = LevelGap.scaleXp(share, mob.level, LevelService:GetLevel(player) or 0)
+		if xp > 0 then
+			LevelService:GrantXP(player, xp, `Mob:{mob.enemy.id}`)
 		end
 	end
 	MobService.MobDefeated:Fire(mob, contributors)

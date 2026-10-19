@@ -43,6 +43,8 @@ local specs = {
 	{ "mob_tactics", require("./specs/mob_tactics.spec") },
 	{ "mob_flight", require("./specs/mob_flight.spec") },
 	{ "mob_attacks", require("./specs/mob_attacks.spec") },
+	{ "creature_sounds", require("./specs/creature_sounds.spec") },
+	{ "level_gap", require("./specs/level_gap.spec") },
 	{ "pvp", require("./specs/pvp.spec") },
 	{ "skills", require("./specs/skills.spec") },
 	{ "structure", require("./specs/structure.spec") },

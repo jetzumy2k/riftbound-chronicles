@@ -365,6 +365,8 @@ return function(S: any)
 					windup = S.optional(S.number(0, 5)),
 					-- "MobAttack": the motion's shape (MobVisualController).
 					move = S.optional(S.enum({ "Strike", "Slam", "Roar", "Sweep" })),
+					-- "MobAttack": a creature's roar on noticing a player, not an attack.
+					alert = S.optional(S.boolean()),
 					skill = S.optional(S.enum(SKILL_IDS)),
 					point = S.optional(S.vector3()),
 					-- "Damage": how much a shield soaked up, and the skill combo
