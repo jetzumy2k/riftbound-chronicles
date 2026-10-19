@@ -45,6 +45,8 @@ local specs = {
 	{ "mob_attacks", require("./specs/mob_attacks.spec") },
 	{ "creature_sounds", require("./specs/creature_sounds.spec") },
 	{ "level_gap", require("./specs/level_gap.spec") },
+	{ "item_rules", require("./specs/item_rules.spec") },
+	{ "inventory_layout", require("./specs/inventory_layout.spec") },
 	{ "pvp", require("./specs/pvp.spec") },
 	{ "skills", require("./specs/skills.spec") },
 	{ "structure", require("./specs/structure.spec") },

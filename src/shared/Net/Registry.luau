@@ -26,6 +26,8 @@ local Constants = require(script.Parent.Parent.Constants)
 local FacePresets = require(script.Parent.Parent.Definitions.FacePresets)
 local AnimationClips = require(script.Parent.Parent.Definitions.AnimationClips)
 local SkillDefinitions = require(script.Parent.Parent.Definitions.SkillDefinitions)
+local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions)
+local ItemRules = require(script.Parent.Parent.Logic.ItemRules)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
 local MAX_LEVEL = Constants.Level.Max
@@ -39,7 +41,30 @@ for _, skill in SkillDefinitions.All do
 	end
 end
 
+local ITEM_IDS = table.clone(ItemDefinitions.IDS)
+local STACKABLE_IDS = table.clone(ItemDefinitions.STACKABLE_IDS)
+local CONSUMABLE_IDS = table.clone(ItemDefinitions.CONSUMABLE_IDS)
+local STAT_IDS = table.clone(ItemRules.STAT_ORDER)
+-- Room above the 150 cap so an over-full profile still syncs (grants stop at the cap).
+local MAX_ITEMS = 200
+
 return function(S: any)
+	-- Phase 7 (D-64): an item as its owner sees it, and the item-side state.
+	local guid = S.string(36, 36, "^[%x%-]+$")
+	local itemView = S.struct({
+		Guid = guid,
+		DefId = S.enum(ITEM_IDS),
+		Rarity = S.enum(Enums.Rarity),
+		ItemLevel = S.int(0, MAX_LEVEL),
+		Attributes = S.array(S.struct({ Stat = S.enum(STAT_IDS), Value = S.number(0, 10000000) }), 4),
+		Enhancement = S.int(0, Constants.Enhancement.Max),
+		Locked = S.boolean(),
+		CreatedAt = S.number(0),
+	})
+	local equipment = S.map(S.enum(Enums.ItemSlot), guid, 6)
+	local stackables = S.map(S.enum(STACKABLE_IDS), S.int(0), 16)
+	local wallet = S.struct({ Gold = S.int(0), PvPMarks = S.int(0) })
+
 	return {
 		-- Client tells the server its controllers are initialised and it can
 		-- receive pushes. Handled by NetService itself.
@@ -124,6 +149,84 @@ return function(S: any)
 			args = { S.array(S.enum(SKILL_IDS), 3), S.optional(S.enum(SKILL_IDS)) },
 			rate = { capacity = 4, refillPerSecond = 0.5 },
 			states = { "ProfileLoaded", "HasJob" },
+		},
+
+		-- Inventory intents (Phase 7, D-64). The server owns every item: it
+		-- checks ownership (the guid must be in the caller's own inventory),
+		-- job, race weapon family, level, slot, locks and combat state.
+		EquipItem = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { guid },
+			rate = { capacity = 6, refillPerSecond = 2 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		UnequipItem = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(Enums.ItemSlot) },
+			rate = { capacity = 6, refillPerSecond = 2 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		-- Salvage up to 25 items at once into Stone Fragments (D-09);
+		-- equipped and locked items are refused.
+		SalvageItems = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.array(guid, 25) },
+			rate = { capacity = 4, refillPerSecond = 1 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		LockItem = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { guid, S.boolean() },
+			rate = { capacity = 8, refillPerSecond = 3 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		-- 10 Stone Fragments -> 1 Enhancement Stone, `count` times (D-09).
+		CombineFragments = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.int(1, 100) },
+			rate = { capacity = 4, refillPerSecond = 1 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		UseConsumable = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(CONSUMABLE_IDS) },
+			rate = { capacity = 4, refillPerSecond = 1 },
+			states = { "ProfileLoaded", "HasJob", "Alive" },
+		},
+		-- Studio play-tests only: a handful of random gear and stackables to
+		-- try the inventory before loot exists (Phase 10). Live servers
+		-- refuse it and log a security event.
+		StudioTestGear = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = {},
+			rate = { capacity = 2, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+
+		-- Server -> owner: what changed in their items (Phase 7). `Changed`
+		-- items replace the client's copies, `Removed` guids are gone; the
+		-- equipment, stackables and wallet are sent whole. `ReadyIn`: seconds
+		-- until each consumable can be used again.
+		InventoryUpdate = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					Changed = S.map(guid, itemView, MAX_ITEMS),
+					Removed = S.array(guid, MAX_ITEMS),
+					Equipment = equipment,
+					Stackables = stackables,
+					Wallet = wallet,
+					ReadyIn = S.optional(S.map(S.enum(CONSUMABLE_IDS), S.number(0, 600), 8)),
+				}),
+			},
 		},
 
 		-- Server -> caster: a skill's authoritative cooldown after a cast
@@ -413,6 +516,11 @@ return function(S: any)
 						Regular = S.array(S.enum(SKILL_IDS), 3),
 						Special = S.optional(S.enum(SKILL_IDS)),
 					}),
+					-- Phase 7 (D-64): the owner's items.
+					Inventory = S.map(guid, itemView, MAX_ITEMS),
+					Equipment = equipment,
+					Stackables = stackables,
+					Wallet = wallet,
 				}),
 			},
 		},

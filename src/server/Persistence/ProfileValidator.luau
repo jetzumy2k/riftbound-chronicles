@@ -21,12 +21,13 @@ local Enums = require(Shared.Enums)
 local XPTable = require(Shared.Logic.XPTable)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
+local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
+local ItemRules = require(Shared.Logic.ItemRules)
 local ProfileTemplate = require(script.Parent.ProfileTemplate)
 
 local MAX_NOTES = 25
 local MAX_KEY_LENGTH = 64
 local MAX_REWARD_ID_LENGTH = 128
-local MAX_STACK = 1000000000
 local MAX_CURRENCY = 1000000000000
 
 local ProfileValidator = {}
@@ -240,20 +241,49 @@ local function repairSkills(data: Data, note: (string) -> ())
 	end
 end
 
+-- An item about to be dropped, in full, so support can restore it (DATA_MODEL.md §3).
+local function describeItem(item: any): string
+	if type(item) ~= "table" then
+		return tostring(item)
+	end
+	local attributes = {}
+	if type(item.Attributes) == "table" then
+		for _, attribute in item.Attributes do
+			if type(attribute) == "table" then
+				table.insert(attributes, `{tostring(attribute.Stat)}={tostring(attribute.Value)}`)
+			end
+		end
+	end
+	return `DefId={tostring(item.DefId)} Rarity={tostring(item.Rarity)} ItemLevel={tostring(item.ItemLevel)} +{tostring(
+		item.Enhancement
+	)} Source={tostring(item.Source)} [{table.concat(attributes, ",")}]`
+end
+
 local function repairItems(data: Data, note: (string) -> ())
-	-- Deep item validation (DefIds, rarity, attributes, enhancement) arrives in Phase 7.
-	filterMap(data.Inventory, "Inventory", note, function(guid, item)
-		return isShortString(guid, MAX_KEY_LENGTH) and type(item) == "table" and item.Guid == guid
-	end)
+	-- Phase 7 (D-64): every item checked against its definition and pool.
+	for guid, item in data.Inventory do
+		local keep, notes = ItemRules.repairItem(guid, item)
+		if not keep then
+			note(`Inventory: dropped {tostring(guid)} ({notes[1]}): {describeItem(item)}`)
+			data.Inventory[guid] = nil
+		elseif #notes > 0 then
+			note(`Inventory: {guid}: {table.concat(notes, "; ")}`)
+		end
+	end
+	-- Equipment: a real slot, an owned item that fits it, never two slots.
+	local used = {}
 	filterMap(data.Equipment, "Equipment", note, function(slot, guid)
-		return Enums.has(Enums.ItemSlot, slot) and type(guid) == "string" and data.Inventory[guid] ~= nil
+		local item = type(guid) == "string" and data.Inventory[guid]
+		local def = item and ItemDefinitions.get(item.DefId)
+		if not Enums.has(Enums.ItemSlot, slot) or def == nil or def.slot ~= slot or used[guid] then
+			return false
+		end
+		used[guid] = true
+		return true
 	end)
 	filterMap(data.Stackables, "Stackables", note, function(id, count)
-		return isShortString(id, MAX_KEY_LENGTH)
-			and isFinite(count)
-			and count % 1 == 0
-			and count >= 0
-			and count <= MAX_STACK
+		local def = ItemDefinitions.stackable(id)
+		return def ~= nil and isFinite(count) and count % 1 == 0 and count >= 0 and count <= def.maxStack
 	end)
 
 	local wallet = data.Wallet

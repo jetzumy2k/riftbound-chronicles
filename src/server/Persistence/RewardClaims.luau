@@ -26,6 +26,7 @@ local DAY = 86400
 -- Prefix -> seconds to keep the claim; false = keep forever.
 RewardClaims.RETENTION_SECONDS = table.freeze({
 	Q = false, -- quest completion
+	G = false, -- one-time gift, e.g. the starter gear (D-65)
 	D = 7 * DAY, -- dungeon clear (runId)
 	B = 7 * DAY, -- boss loot (runId:bossId)
 	PB = 7 * DAY, -- PvP boss (spawnId)

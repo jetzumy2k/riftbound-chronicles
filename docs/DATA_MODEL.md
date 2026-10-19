@@ -168,6 +168,7 @@ PlayerDataService:ClaimReward(player, rewardId, grantFn) -> boolean
 | Source | RewardId format | Retention |
 |---|---|---|
 | Quest | `Q:<QuestId>` | Permanent |
+| One-time gift (starter gear, D-65) | `G:<GiftId>` | Permanent |
 | Dungeon clear | `D:<runId>` | 7 days |
 | Boss loot | `B:<runId>:<bossId>` | 7 days |
 | PvP boss | `PB:<spawnId>` | 7 days |
@@ -210,7 +211,7 @@ Attributes visible to everyone (`Player` attributes): `Level`, `Race`, `Job`, `T
 | Definition | Key fields |
 |---|---|
 | `ItemDefinition` | id, name, slot, category (Weapon/Armor/Accessory), jobRestriction?, levelReq, baseStats, attributePoolId, iconId, modelRef |
-| `AttributePool` (server config) | id, entries {stat, min, max by rarity, weight}, rollsByRarity |
+| `AttributePool` (`shared/Logic/ItemRules`, D-64) | per category (Weapon / Gear) and job: entries {stat, weight}; per stat a range at item level 0 scaled by rarity and item level; rolls by rarity |
 | `SkillDefinition` | id, name, job, type (Regular/Special), category, range, cooldown, focusCost, castTime, targetRule (Enemy/Ally/Self/Area/Direction), formula {base, atkCoeff}, effects, animationId, vfxId, sfxId, unlockRule |
 | `JobDefinition` | id, allowedSkillCategories, basicAttack, weaponTypes |
 | `EnemyDefinition` / `BossDefinition` | id, level, stats, aiProfile, abilities, xp, lootTableId, telegraphs, phases (boss) |
@@ -218,4 +219,4 @@ Attributes visible to everyone (`Player` attributes): `Level`, `Race`, `Job`, `T
 | `QuestDefinition` | id, prerequisites, objectives {id, type, target, params}, dialogue, rewards {xp, items, stackables, titles, flags, unlocks} |
 | `EventDefinition` | id, name, category, defaultDuration, eligibility, zones, multipliers, spawns, rewards, announcementKey, cooldown, stackGroup |
 
-The server-only parts (loot weights, attribute pool bounds, AI internals) live in `server/Config`. Clients receive only what the UI displays, such as **displayed odds** for enhancement (D-08 transparency).
+The server-only parts (loot weights, AI internals) live in `server/Config`. **Attribute pools and bounds are shared** (D-64): the client shows stat ranges and the pure tests fuzz them; knowing them gives no advantage because only the server rolls. Clients receive only what the UI displays, such as **displayed odds** for enhancement (D-08 transparency).

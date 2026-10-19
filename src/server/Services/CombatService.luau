@@ -147,6 +147,11 @@ export type Entity = {
 	critChancePct: number,
 	critMultiplier: number,
 	regenPct: number,
+	-- Players: gear bonuses (Phase 7, D-64; percent).
+	skillPowerPct: number,
+	healingPowerPct: number,
+	mitigationPct: number,
+	focusEfficiencyPct: number,
 	defeated: boolean,
 	protectedUntil: number,
 	lastHostileAt: number,
@@ -334,6 +339,12 @@ local function applyStats(entity: Entity, stats: StatFormulas.BaseStats, level: 
 	entity.critChancePct = stats.CritChancePct
 	entity.critMultiplier = stats.CritMultiplier
 	entity.regenPct = stats.HPRegenPct
+	-- Gear extras (players; StatsService:GetStats). Creatures have none.
+	local extras = stats :: any
+	entity.skillPowerPct = extras.SkillPowerPct or 0
+	entity.healingPowerPct = extras.HealingPowerPct or 0
+	entity.mitigationPct = extras.MitigationPct or 0
+	entity.focusEfficiencyPct = extras.FocusEfficiencyPct or 0
 end
 
 local function newEntity(
@@ -360,6 +371,10 @@ local function newEntity(
 		critChancePct = 0,
 		critMultiplier = 1,
 		regenPct = 0,
+		skillPowerPct = 0,
+		healingPowerPct = 0,
+		mitigationPct = 0,
+		focusEfficiencyPct = 0,
 		defeated = false,
 		protectedUntil = 0,
 		lastHostileAt = -math.huge,
@@ -442,7 +457,11 @@ local function applyDamage(
 	extra: HitExtra?
 )
 	local t = now()
-	-- Mark / Guard scale the hit, then a shield soaks up what it can.
+	-- Gear damage reduction (D-64), then Mark / Guard scale the hit, then a
+	-- shield soaks up what it can.
+	if target.mitigationPct > 0 then
+		rawAmount = math.max(1, rawAmount * (1 - target.mitigationPct / 100))
+	end
 	local mark, guard, shield =
 		statusOf(target, "Mark"), statusOf(target, "Guard"), statusOf(target, "Shield")
 	local amount, absorbed, shieldLeft = SkillRules.incoming(
@@ -524,7 +543,7 @@ end
 local function setupCharacter(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid", 10)
 	local root = character:WaitForChild("HumanoidRootPart", 10)
-	local stats = StatsService:GetBaseStats(player)
+	local stats = StatsService:GetStats(player)
 	local data = PlayerDataService:GetData(player)
 	if
 		humanoid == nil
@@ -644,7 +663,10 @@ local function offense(attacker: Entity, target: Entity): (number, number)
 		local pvp = ConfigurationService:Get("PvP")
 		local effective = PvPRules.normalizedLevel(attacker.level, target.level, pvp.LevelGap)
 		if effective < attacker.level then
-			return StatFormulas.forLevel(effective).Attack, effective
+			-- Scale the whole Attack (gear included, D-64) down to that level.
+			local ratio = StatFormulas.forLevel(effective).Attack
+				/ StatFormulas.forLevel(attacker.level).Attack
+			return attacker.attack * ratio, effective
 		end
 	end
 	return attacker.attack, attacker.level
@@ -691,7 +713,8 @@ local function healAmount(healer: Entity, coefficient: number, allowCrit: boolea
 	return CombatMath.heal({
 		attack = attackOf(healer, healer.attack),
 		attackerLevel = healer.level,
-		coefficient = coefficient,
+		-- Gear Healing Power (D-64): heals, shields and regeneration.
+		coefficient = coefficient * (1 + healer.healingPowerPct / 100),
 		critChancePct = if allowCrit then healer.critChancePct else 0,
 		critMultiplier = healer.critMultiplier,
 		roll = if allowCrit then rng:NextNumber() else 1,
@@ -927,7 +950,7 @@ function CombatService:Init()
 
 	LevelService.LevelChanged:Connect(function(player, level)
 		local entity = entityByPlayer[player]
-		local stats = StatsService:GetBaseStats(player)
+		local stats = StatsService:GetStats(player)
 		if entity and stats then
 			applyStats(entity, stats, level, true)
 			mirror(entity)
@@ -1141,6 +1164,42 @@ function CombatService:SpendFocus(player: Player, amount: number): boolean
 	return true
 end
 
+-- A skill's Focus cost for this player after gear Focus Efficiency (D-64).
+function CombatService:FocusCost(player: Player, base: number): number
+	local entity = entityByPlayer[player]
+	local efficiency = if entity then entity.focusEfficiencyPct else 0
+	return base * (1 - efficiency / 100)
+end
+
+--[[
+	Re-reads a player's stats (gear changed, D-64), keeping their health
+	fraction so equipping never heals or hurts.
+]]
+function CombatService:RefreshStats(player: Player)
+	local entity = entityByPlayer[player]
+	local stats = StatsService:GetStats(player)
+	if entity and stats and not entity.defeated then
+		applyStats(entity, stats, entity.level, true)
+		mirror(entity)
+	end
+end
+
+-- Heals a player by `pct` of their max HP (a potion). Returns HP restored.
+function CombatService:RestoreHpPct(player: Player, pct: number): number
+	local entity = entityByPlayer[player]
+	if entity == nil or entity.defeated then
+		return 0
+	end
+	local before = entity.hp
+	entity.hp = math.min(entity.maxHp, entity.hp + entity.maxHp * pct / 100)
+	mirror(entity)
+	local healed = math.floor(entity.hp - before + 0.5)
+	if healed > 0 then
+		broadcast(entity, { kind = "Heal", target = entity.model, amount = healed, crit = false })
+	end
+	return healed
+end
+
 -- Whether the player is combat-tagged (hostile action within Combat.TagSeconds).
 function CombatService:IsInCombat(player: Player): boolean
 	local entity = entityByPlayer[player]
@@ -1253,7 +1312,15 @@ function CombatService:Strike(
 	if not CombatMath.canHarm(harmFacts(attacker, target)) then
 		return false
 	end
-	strike(attacker, target, coefficient, critBonusPct or 0, heavy, extra)
+	-- Gear Skill Power (D-64) strengthens skills, not basic attacks.
+	strike(
+		attacker,
+		target,
+		coefficient * (1 + attacker.skillPowerPct / 100),
+		critBonusPct or 0,
+		heavy,
+		extra
+	)
 	return true
 end
 
@@ -1300,7 +1367,7 @@ end
 
 -- Damage per Poison / Burn tick from `attacker` to `target` (no crit).
 function CombatService:TickDamage(attacker: Entity, target: Entity, coefficient: number): number
-	return tickDamage(attacker, target, coefficient)
+	return tickDamage(attacker, target, coefficient * (1 + attacker.skillPowerPct / 100))
 end
 
 --[[

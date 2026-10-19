@@ -207,6 +207,19 @@ return function(t)
 				-- Phase 5 rework (D-45): no arguments; only in a safe zone and
 				-- out of combat; refunds points derived from the level.
 				ResetSkills = true,
+				-- Phase 7 review (D-64, SECURITY_MODEL T-09 / T-10): item guids
+				-- are looked up in the caller's own profile only; slot / boolean
+				-- / count / consumable enums otherwise. No client field enters an
+				-- item; the server checks job, race weapon family, level, slot,
+				-- locks, equipped state, combat state, cooldowns and caps.
+				EquipItem = true,
+				UnequipItem = true,
+				SalvageItems = true,
+				LockItem = true,
+				CombineFragments = true,
+				UseConsumable = true,
+				-- No arguments; refused (and security-logged) outside Studio.
+				StudioTestGear = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

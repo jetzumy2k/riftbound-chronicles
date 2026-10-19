@@ -28,10 +28,28 @@ export type State = {
 	-- Phase 5 skill tree (D-45): learned skill id -> rank, and the 3 + 1 bar.
 	OwnedSkills: { [string]: number },
 	EquippedSkills: { Regular: { string }, Special: string? },
+	-- Phase 7 (D-64): items (guid -> item), slot -> guid, stackables, wallet,
+	-- and when each consumable is usable again (os.clock()).
+	Inventory: { [string]: Item },
+	Equipment: { [string]: string },
+	Stackables: { [string]: number },
+	Wallet: { Gold: number, PvPMarks: number },
+	ReadyAt: { [string]: number },
+}
+
+export type Item = {
+	Guid: string,
+	DefId: string,
+	Rarity: string,
+	ItemLevel: number,
+	Attributes: { { Stat: string, Value: number } },
+	Enhancement: number,
+	Locked: boolean,
+	CreatedAt: number,
 }
 
 local PlayerDataController = {
-	-- (state, reason: "snapshot" | "progression", levelsGained: number)
+	-- (state, reason: "snapshot" | "progression" | "inventory", levelsGained: number)
 	Changed = Signal.new(),
 }
 
@@ -43,6 +61,11 @@ local state: State = {
 	XPToNext = 0,
 	OwnedSkills = {},
 	EquippedSkills = { Regular = {} },
+	Inventory = {},
+	Equipment = {},
+	Stackables = {},
+	Wallet = { Gold = 0, PvPMarks = 0 },
+	ReadyAt = {},
 }
 
 function PlayerDataController:Init()
@@ -60,6 +83,11 @@ function PlayerDataController:Init()
 			XPToNext = snapshot.XPToNext,
 			OwnedSkills = snapshot.OwnedSkills or {},
 			EquippedSkills = snapshot.EquippedSkills or { Regular = {} },
+			Inventory = snapshot.Inventory or {},
+			Equipment = snapshot.Equipment or {},
+			Stackables = snapshot.Stackables or {},
+			Wallet = snapshot.Wallet or { Gold = 0, PvPMarks = 0 },
+			ReadyAt = state.ReadyAt,
 		}
 		log:Debug("snapshot: L%d %d/%d XP", state.Level, state.Experience, state.XPToNext)
 		PlayerDataController.Changed:Fire(state, "snapshot", 0)
@@ -73,6 +101,28 @@ function PlayerDataController:Init()
 		state.Experience = update.Experience
 		state.XPToNext = update.XPToNext
 		PlayerDataController.Changed:Fire(state, "progression", update.LevelsGained)
+	end)
+
+	NetClient.on("InventoryUpdate", function(update)
+		if type(update) ~= "table" then
+			return
+		end
+		for guid, item in update.Changed do
+			state.Inventory[guid] = item
+		end
+		for _, guid in update.Removed do
+			state.Inventory[guid] = nil
+		end
+		state.Equipment = update.Equipment
+		state.Stackables = update.Stackables
+		state.Wallet = update.Wallet
+		local now = os.clock()
+		local readyIn: { [string]: number } = update.ReadyIn or {}
+		state.ReadyAt = {}
+		for id, seconds in readyIn do
+			state.ReadyAt[id] = now + seconds
+		end
+		PlayerDataController.Changed:Fire(state, "inventory", 0)
 	end)
 end
 

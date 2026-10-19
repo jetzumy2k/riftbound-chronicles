@@ -547,7 +547,10 @@ local function onCast(player: Player, id: string, hint: Model?)
 	end
 
 	local resolved = resolve(player, caster, skill, hint)
-	if resolved == nil or not CombatService:SpendFocus(player, skill.focusCost) then
+	if
+		resolved == nil
+		or not CombatService:SpendFocus(player, CombatService:FocusCost(player, skill.focusCost))
+	then
 		sendCooldown(player, id)
 		return
 	end

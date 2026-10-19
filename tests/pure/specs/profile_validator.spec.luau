@@ -1,6 +1,7 @@
 local load = require("../loader")
 local ProfileTemplate = load("src/server/Persistence/ProfileTemplate")
 local ProfileValidator = load("src/server/Persistence/ProfileValidator")
+local ItemRules = load("src/shared/Logic/ItemRules")
 
 local function fresh()
 	return ProfileTemplate.new()
@@ -252,19 +253,75 @@ return function(t)
 
 		t.it("drops inventory entries whose key does not match the item Guid", function()
 			local data = fresh()
+			local good = "11111111-2222-3333-4444-555555555555"
+			local function item(guid: string): any
+				return {
+					Guid = guid,
+					DefId = "W_Warrior_Sword_T1",
+					Rarity = "Rare",
+					ItemLevel = 3,
+					Attributes = { { Stat = "Attack", Value = 3 } },
+					Enhancement = 0,
+					Locked = false,
+					Source = "Test",
+					CreatedAt = 1,
+				}
+			end
 			data.Inventory = {
-				good = { Guid = "good" },
-				spoof = { Guid = "other" },
+				[good] = item(good),
+				spoof = item("other"),
 				junk = 5,
 			}
-			data.Equipment = { Weapon = "good", Chest = "missing", Wings = "good" }
+			data.Equipment = { Weapon = good, Chest = "missing", Wings = good }
 			ProfileValidator.repair(data)
-			t.ok(data.Inventory.good ~= nil)
+			t.ok(data.Inventory[good] ~= nil)
 			t.eq(data.Inventory.spoof, nil)
 			t.eq(data.Inventory.junk, nil)
-			t.eq(data.Equipment.Weapon, "good")
+			t.eq(data.Equipment.Weapon, good)
 			t.eq(data.Equipment.Chest, nil)
 			t.eq(data.Equipment.Wings, nil)
+		end)
+
+		t.it("checks items against their definition, pool and bounds (D-64)", function()
+			local data = fresh()
+			local a = "AAAAAAAA-0000-0000-0000-000000000001"
+			local b = "AAAAAAAA-0000-0000-0000-000000000002"
+			local c = "AAAAAAAA-0000-0000-0000-000000000003"
+			data.Inventory = {
+				[a] = {
+					Guid = a,
+					DefId = "A_Mage_Chest_T1",
+					Rarity = "Rare",
+					ItemLevel = 25, -- tier 1 is 0-9
+					Attributes = {
+						{ Stat = "SkillPower", Value = 999 }, -- clamped
+						{ Stat = "SkillPower", Value = 3 }, -- repeat: dropped
+						{ Stat = "Mitigation", Value = 2 }, -- not a mage pool stat
+					},
+					Enhancement = 14,
+					Locked = "yes",
+					Source = "Test",
+					CreatedAt = 1,
+					Hacked = true,
+				},
+				[b] = { Guid = b, DefId = "W_Warrior_Laser_T1", Rarity = "Rare" },
+				[c] = { Guid = c, DefId = "W_Mage_Wand_T1", Rarity = "Godly" },
+			}
+			-- A chest in the weapon slot is not allowed.
+			data.Equipment = { Weapon = a, Chest = a }
+			ProfileValidator.repair(data)
+			local item = data.Inventory[a]
+			t.eq(item.ItemLevel, 9)
+			t.eq(item.Enhancement, 10)
+			t.eq(item.Locked, false)
+			t.eq(item.Hacked, nil)
+			t.eq(#item.Attributes, 1)
+			local _, hi = ItemRules.bounds("SkillPower", "Rare", 9)
+			t.eq(item.Attributes[1].Value, hi)
+			t.eq(data.Inventory[b], nil, "unknown def dropped")
+			t.eq(data.Inventory[c], nil, "unknown rarity dropped")
+			t.eq(data.Equipment.Weapon, nil)
+			t.eq(data.Equipment.Chest, a)
 		end)
 
 		t.it("clears titles and cosmetics the player does not own", function()

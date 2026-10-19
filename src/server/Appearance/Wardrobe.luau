@@ -21,6 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local FacePresets = require(ReplicatedStorage.Shared.Definitions.FacePresets)
+local GearLook = require(ReplicatedStorage.Shared.Logic.GearLook)
 
 local OutfitBuilder = require(script.Parent.OutfitBuilder)
 
@@ -123,9 +124,16 @@ end
 ]]
 --[[
 	`job` selects the job outfit and weapon (nil = recruit look, e.g. the
-	realm-selection preview before a job is chosen).
+	realm-selection preview before a job is chosen). `look` is what the
+	player has equipped (D-65); nil draws the job's full look (previews).
 ]]
-function Wardrobe.dress(character: Model, race: string, presetId: number, job: string?): boolean
+function Wardrobe.dress(
+	character: Model,
+	race: string,
+	presetId: number,
+	job: string?,
+	look: GearLook.Look?
+): boolean
 	local preset = FacePresets.get(presetId)
 	if preset == nil or preset.race ~= race then
 		return false
@@ -142,7 +150,7 @@ function Wardrobe.dress(character: Model, race: string, presetId: number, job: s
 		humanoid:AddAccessory(accessory:Clone())
 	end
 	-- Procedural pieces fill every slot the approved art does not cover.
-	OutfitBuilder.build(character, race, preset, covered, job)
+	OutfitBuilder.build(character, race, preset, covered, job, look)
 
 	applyFaceTexture(character, preset.faceTexture)
 	return true

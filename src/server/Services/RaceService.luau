@@ -24,6 +24,7 @@ local Enums = require(Shared.Enums)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
+local GearLook = require(Shared.Logic.GearLook)
 
 local Wardrobe = require(script.Parent.Parent.Appearance.Wardrobe)
 
@@ -56,10 +57,26 @@ local function applyToCharacter(player: Player, character: Model)
 	if player.Character ~= character then
 		return
 	end
+	RaceService:Redress(player)
+end
+
+--[[
+	Dresses the player's current character in their race look and what they
+	have equipped (D-65). InventoryService calls this when gear changes.
+]]
+function RaceService:Redress(player: Player)
+	local character = player.Character
 	local data = PlayerDataService:GetData(player)
-	if data and data.Race then
-		Wardrobe.dress(character, data.Race, data.FacePreset, data.Job)
+	if character == nil or data == nil or data.Race == nil then
+		return
 	end
+	Wardrobe.dress(
+		character,
+		data.Race,
+		data.FacePreset,
+		data.Job,
+		GearLook.fromEquipment(data.Equipment, data.Inventory)
+	)
 end
 
 local function removePreviews(player: Player)
