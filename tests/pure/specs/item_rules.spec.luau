@@ -40,7 +40,7 @@ return function(t)
 			for _, job in { "Warrior", "Healer", "Archer", "Mage" } do
 				for tier = 1, ItemDefinitions.TIERS do
 					local level = ItemDefinitions.TIER_LEVELS[tier][1]
-					for _, slot in Enums.ItemSlot do
+					for _, slot in ItemDefinitions.kindsOf(job) do
 						if slot == "Weapon" then
 							for _, family in ItemDefinitions.familiesOf(job) do
 								local def = ItemDefinitions.defFor(job, slot, family, level)
@@ -186,9 +186,73 @@ return function(t)
 		t.it("equip checks job, race weapon family and level", function()
 			local axe = item(ItemDefinitions.All.W_Warrior_Axe_T1, "Standard", 5, {})
 			t.ok((ItemRules.canEquip(axe, "Warrior", "Devil", 5)))
-			t.eq(select(2, ItemRules.canEquip(axe, "Warrior", "Angel", 5)), "race")
+			t.ok((ItemRules.canEquip(axe, "Warrior", "Angel", 5)), "D-68: both realms")
+			t.eq(select(2, ItemRules.canEquip(axe, "Warrior", "Human", 5)), "race")
 			t.eq(select(2, ItemRules.canEquip(axe, "Mage", "Devil", 5)), "job")
 			t.eq(select(2, ItemRules.canEquip(axe, "Warrior", "Devil", 4)), "level")
+		end)
+
+		t.it("hand rules: shields, two-handers, dual swords, rings (D-68)", function()
+			local function named(id: string, guid: string): any
+				local it = item(ItemDefinitions.All[id], "Rare", 15, {})
+				it.Guid = guid
+				return it
+			end
+			local inv = {
+				sword = named("W_Warrior_Sword_T2", "sword"),
+				sword2 = named("W_Warrior_Sword_T2", "sword2"),
+				mace = named("W_Warrior_Mace_T2", "mace"),
+				great = named("W_Warrior_Greatsword_T2", "great"),
+				hammer = named("W_Warrior_WarHammer_T2", "hammer"),
+				shield = named("A_Warrior_Shield_T2", "shield"),
+				ringA = named("A_Warrior_Ring_T2", "ringA"),
+				ringB = named("A_Warrior_Ring_T2", "ringB"),
+			}
+			-- One-hander + shield: both stay.
+			local eq = { Weapon = "mace" }
+			local plan = ItemRules.planEquip(eq, inv, "shield") :: any
+			t.eq(plan.slot, "OffHand")
+			t.eq(#plan.clear, 0)
+			-- A two-hander with a shield on: the shield goes back to the bag.
+			plan = ItemRules.planEquip({ Weapon = "mace", OffHand = "shield" }, inv, "great") :: any
+			t.eq(plan.slot, "Weapon")
+			t.ok(table.find(plan.clear, "OffHand") ~= nil, "shield cleared")
+			-- A shield with a two-hander on: newest wins, the two-hander comes off.
+			plan = ItemRules.planEquip({ Weapon = "hammer" }, inv, "shield") :: any
+			t.ok(table.find(plan.clear, "Weapon") ~= nil, "two-hander cleared")
+			-- Dual swords: two separate swords, never one item twice.
+			plan = ItemRules.planEquip({ Weapon = "sword" }, inv, "sword2", "OffHand") :: any
+			t.eq(plan.slot, "OffHand")
+			t.eq(#plan.clear, 0)
+			t.eq(
+				select(2, ItemRules.planEquip({ Weapon = "sword" }, inv, "sword", "OffHand")),
+				"dualNeedsSword"
+			)
+			t.eq(
+				select(2, ItemRules.planEquip({ Weapon = "mace" }, inv, "sword2", "OffHand")),
+				"dualNeedsSword"
+			)
+			-- Switching the main hand away from a sword clears the second sword.
+			plan = ItemRules.planEquip({ Weapon = "sword", OffHand = "sword2" }, inv, "mace") :: any
+			t.ok(table.find(plan.clear, "OffHand") ~= nil, "second sword cleared")
+			-- A shield can't go in a ring slot; rings fill Ring1 then Ring2.
+			t.eq(select(2, ItemRules.planEquip({}, inv, "shield", "Ring1")), "slot")
+			t.eq((ItemRules.planEquip({}, inv, "ringA") :: any).slot, "Ring1")
+			t.eq((ItemRules.planEquip({ Ring1 = "ringA" }, inv, "ringB") :: any).slot, "Ring2")
+			-- Only Warriors have shields; casters and archers never pair one.
+			local WeaponRules = load("src/shared/Definitions/WeaponRules")
+			for _, family in { "Dagger", "Staff", "Bow", "Crossbow", "Greatsword", "WarHammer", "BattleAxe" } do
+				t.ok(not WeaponRules.get(family).shield, family)
+			end
+			t.eq(WeaponRules.get("Bow").hands, "One", "bow: one-handed class")
+			t.eq(WeaponRules.get("Crossbow").hands, "Two")
+			t.eq(ItemDefinitions.All.A_Mage_Shield_T1, nil, "no mage shields")
+			-- An off-hand sword adds half its Attack.
+			local half = ItemRules.gearTotals({ Weapon = "sword", OffHand = "sword2" }, inv)
+			local one = ItemRules.gearTotals({ Weapon = "sword" }, inv)
+			local swordAttack =
+				ItemRules.baseStats(ItemDefinitions.All.W_Warrior_Sword_T2, "Rare", 15, 0).Attack
+			t.eq(half.Attack - one.Attack, math.floor(swordAttack * 0.5 + 0.5))
 		end)
 
 		t.it("salvage yields fragments by rarity", function()
@@ -214,6 +278,30 @@ return function(t)
 			t.eq(look.Chest, nil, "a weapon in the chest slot draws nothing")
 			t.eq(GearLook.RARITY_GLOW.Standard, nil, "Standard gear doesn't glow")
 			t.ok(GearLook.SPARKLE.Mythical and not GearLook.SPARKLE.Rare)
+		end)
+
+		t.it("every weapon profile has a full animation set (D-69)", function()
+			local WeaponRules = load("src/shared/Definitions/WeaponRules")
+			local AnimationClips = load("src/shared/Definitions/AnimationClips")
+			t.eq(WeaponRules.profileFor("Sword", "Shield"), "Shield")
+			t.eq(WeaponRules.profileFor("Sword", "Weapon"), "Dual")
+			t.eq(WeaponRules.profileFor("Greatsword", nil), "TwoHand")
+			t.eq(WeaponRules.profileFor("Staff", nil), "Staff")
+			t.eq(WeaponRules.profileFor("Crossbow", nil), "Crossbow")
+			t.eq(WeaponRules.profileFor("Mace", "Shield"), "Shield")
+			t.eq(WeaponRules.profileFor(nil, nil), nil)
+			for family, rule in WeaponRules.ByFamily do
+				t.ok(WeaponRules.CLIP_SET[rule.profile] ~= nil, family)
+			end
+			for profile, set in WeaponRules.CLIP_SET do
+				for _, suffix in { "_Idle", "_Hold", "_Attack1", "_Attack2", "_Attack3" } do
+					local clip = AnimationClips.get(set .. suffix)
+					t.ok(clip ~= nil, `{profile}: {set}{suffix}`)
+					if clip and string.find(suffix, "Attack") then
+						t.ok(clip.markers and clip.markers.Hit ~= nil, `{set}{suffix} Hit`)
+					end
+				end
+			end
 		end)
 
 		t.it("formats stats for display", function()

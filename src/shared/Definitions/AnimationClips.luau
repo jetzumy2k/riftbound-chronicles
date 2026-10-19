@@ -259,6 +259,8 @@ local function hold(job: string): Clip
 	}
 end
 
+local hold_ = hold
+
 --------------------------------------------------------------------------------
 -- Warrior: forehand slash -> backhand rising slash -> overhead cleave
 --------------------------------------------------------------------------------
@@ -1857,6 +1859,571 @@ local Mage_SkillPush: Clip = {
 }
 
 --------------------------------------------------------------------------------
+-- Weapon profiles (equipment overhaul, D-69). Clip sets by how the weapon
+-- is held (Definitions/WeaponRules): TwoHand, Staff, Dagger, Crossbow
+-- here (both hands placed by the arm solver); Shield and Dual are built
+-- from the Warrior set after the solved arms are merged (below). Body and
+-- legs are authored here; the weapon arms come from tools/anim/generate_arms.py.
+--------------------------------------------------------------------------------
+
+-- Legs of a forward strike step (left foot forward).
+local STEP_LEFT: Pose = {
+	LeftHip = { x = 34, z = -4 },
+	LeftKnee = { x = -40 },
+	LeftAnkle = { x = 12 },
+	RightHip = { x = -16, z = 4 },
+	RightKnee = { x = -24 },
+	RightAnkle = { x = 46 },
+}
+
+-- Deep lunge (finishers).
+local LUNGE: Pose = {
+	LeftHip = { x = 58 },
+	LeftKnee = { x = -72 },
+	LeftAnkle = { x = 28 },
+	RightHip = { x = -6 },
+	RightKnee = { x = -48 },
+	RightAnkle = { x = 40 },
+}
+
+-- Rough arm guesses for keys the solver replaces (they shape the pose
+-- while the solved arms are missing, e.g. in tests run before solving).
+local TWO_HAND_GUARD: Pose = {
+	Waist = { y = 10 },
+	Neck = { y = -6 },
+	RightShoulder = { x = 40, z = 8 },
+	RightElbow = { x = 70 },
+	LeftShoulder = { x = 50, z = -4, y = -30 },
+	LeftElbow = { x = 80 },
+}
+
+local STAFF_GUARD: Pose = {
+	Waist = { y = 14 },
+	Neck = { y = -10 },
+	RightShoulder = { x = 25, z = 10 },
+	RightElbow = { x = 60 },
+	LeftShoulder = { x = 55, z = -5, y = -40 },
+	LeftElbow = { x = 90 },
+}
+
+local DAGGER_GUARD: Pose = {
+	Waist = { y = 8 },
+	Neck = { y = -4 },
+	RightShoulder = { x = 30, z = 10 },
+	RightElbow = { x = 80 },
+	LeftShoulder = { x = 30, z = -12 },
+	LeftElbow = { x = 70 },
+	LeftWrist = { x = -10 },
+}
+
+local CROSSBOW_LOW: Pose = {
+	Waist = { y = 4 },
+	RightShoulder = { x = 25, z = 10 },
+	RightElbow = { x = 60 },
+	LeftShoulder = { x = 45, z = -10, y = -20 },
+	LeftElbow = { x = 70 },
+}
+
+-- Shouldered aim: chest square to the target, head down the sights.
+local CROSSBOW_AIM: Pose = {
+	Waist = { y = 6, x = -2 },
+	Neck = { y = -4, x = 4 },
+	RightShoulder = { x = 70, z = 40 },
+	RightElbow = { x = 110 },
+	LeftShoulder = { x = 80, z = -10, y = -20 },
+	LeftElbow = { x = 40 },
+}
+
+HOLD.TwoHand = armed(TWO_HAND_GUARD, "TwoHand.hold")
+HOLD.TwoHand = armed(HOLD.TwoHand, "TwoHandL.hold")
+HOLD.Staff = armed(armed(STAFF_GUARD, "Staff.hold"), "StaffL.hold")
+HOLD.Dagger = armed(DAGGER_GUARD, "Dagger.hold")
+HOLD.Crossbow = armed(armed(CROSSBOW_LOW, "Crossbow.hold"), "CrossbowL.hold")
+
+local function keyAt(t: number, ease: Ease?, pose: Pose): Key
+	return { t = t, ease = ease, pose = pose }
+end
+
+local TH = HOLD.TwoHand
+local TwoHand_Attack1: Clip = {
+	-- Diagonal cleave: both hands carry the blade from over the right shoulder
+	-- down across to the left hip.
+	duration = 0.72,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.3 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, TH)),
+		keyAt(
+			0.18,
+			"Out",
+			with(
+				READY_LEGS,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.22, y = -22 },
+					Waist = { y = -30, x = 4 },
+					Neck = { y = 30 },
+					RightKnee = { x = -26 },
+					RightAnkle = { x = 34 },
+				})
+			)
+		),
+		keyAt(
+			0.3,
+			"In",
+			with(
+				STEP_LEFT,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.34, y = 14, x = -8, pz = -0.45 },
+					Waist = { y = 26, x = -8 },
+					Neck = { y = -24, x = 6 },
+				})
+			)
+		),
+		keyAt(
+			0.42,
+			"Out",
+			with(
+				STEP_LEFT,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.36, y = 20, x = -9, pz = -0.48 },
+					Waist = { y = 42, x = -6 },
+					Neck = { y = -36, x = 6 },
+				})
+			)
+		),
+		keyAt(0.72, "InOut", with(READY_LEGS, TH)),
+	},
+}
+
+local TwoHand_Attack2: Clip = {
+	-- Wide sweep at chest height from right to left.
+	duration = 0.72,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.3 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, TH)),
+		keyAt(
+			0.18,
+			"Out",
+			with(
+				READY_LEGS,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.26, y = -28 },
+					Waist = { y = -38, x = 2 },
+					Neck = { y = 36 },
+					RightKnee = { x = -28 },
+				})
+			)
+		),
+		keyAt(
+			0.3,
+			"In",
+			with(
+				STEP_LEFT,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.32, y = 10, x = -5, pz = -0.35 },
+					Waist = { y = 22, x = -4 },
+					Neck = { y = -20 },
+				})
+			)
+		),
+		keyAt(
+			0.44,
+			"Out",
+			with(
+				STEP_LEFT,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.3, y = 24, x = -4, pz = -0.38 },
+					Waist = { y = 48, x = -2 },
+					Neck = { y = -40 },
+				})
+			)
+		),
+		keyAt(0.72, "InOut", with(READY_LEGS, TH)),
+	},
+}
+
+local TwoHand_Attack3: Clip = {
+	-- Overhead slam: rise with the weapon behind the head, drop into a lunge.
+	duration = 0.95,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.46 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, TH)),
+		keyAt(
+			0.26,
+			"Out",
+			with(TWO_HAND_GUARD, {
+				Root = { py = 0.04, x = 8 },
+				Waist = { x = 10 },
+				Neck = { x = -10 },
+				LeftHip = { x = 4 },
+				LeftKnee = { x = -6 },
+				RightHip = { x = -12 },
+				RightKnee = { x = -8 },
+				RightAnkle = { x = 12 },
+			})
+		),
+		keyAt(
+			0.36,
+			"Linear",
+			with(TWO_HAND_GUARD, {
+				Root = { py = 0.06, x = 10 },
+				Waist = { x = 12 },
+				Neck = { x = -12 },
+				LeftHip = { x = 4 },
+				LeftKnee = { x = -6 },
+				RightHip = { x = -12 },
+				RightKnee = { x = -8 },
+				RightAnkle = { x = 10 },
+			})
+		),
+		keyAt(
+			0.46,
+			"In",
+			with(
+				LUNGE,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.62, x = -14, pz = -0.7 },
+					Waist = { x = -20 },
+					Neck = { x = 24 },
+				})
+			)
+		),
+		keyAt(
+			0.6,
+			"Out",
+			with(
+				LUNGE,
+				with(TWO_HAND_GUARD, {
+					Root = { py = -0.7, x = -15, pz = -0.72 },
+					Waist = { x = -22 },
+					Neck = { x = 26 },
+				})
+			)
+		),
+		keyAt(0.95, "InOut", with(READY_LEGS, TH)),
+	},
+}
+
+local ST = HOLD.Staff
+local Staff_Attack1: Clip = {
+	-- Two-handed thrust with the staff head.
+	duration = 0.62,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.27 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, ST)),
+		keyAt(
+			0.14,
+			"Out",
+			with(READY_LEGS, with(STAFF_GUARD, { Root = { py = -0.2, y = -10 }, Waist = { y = -10 } }))
+		),
+		keyAt(
+			0.27,
+			"In",
+			with(
+				STEP_LEFT,
+				with(STAFF_GUARD, { Root = { py = -0.3, x = -6, pz = -0.45 }, Waist = { x = -6 } })
+			)
+		),
+		keyAt(
+			0.36,
+			"Out",
+			with(
+				STEP_LEFT,
+				with(STAFF_GUARD, { Root = { py = -0.3, x = -6, pz = -0.48 }, Waist = { x = -6 } })
+			)
+		),
+		keyAt(0.62, "InOut", with(READY_LEGS, ST)),
+	},
+}
+
+local Staff_Attack2: Clip = {
+	-- Sweeping swing, right to left, both hands on the shaft.
+	duration = 0.66,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.28 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, ST)),
+		keyAt(
+			0.15,
+			"Out",
+			with(
+				READY_LEGS,
+				with(STAFF_GUARD, { Root = { py = -0.22, y = -24 }, Waist = { y = -30 }, Neck = { y = 28 } })
+			)
+		),
+		keyAt(
+			0.28,
+			"In",
+			with(
+				STEP_LEFT,
+				with(
+					STAFF_GUARD,
+					{ Root = { py = -0.3, y = 10, pz = -0.3 }, Waist = { y = 20 }, Neck = { y = -18 } }
+				)
+			)
+		),
+		keyAt(
+			0.4,
+			"Out",
+			with(
+				STEP_LEFT,
+				with(
+					STAFF_GUARD,
+					{ Root = { py = -0.3, y = 22, pz = -0.32 }, Waist = { y = 40 }, Neck = { y = -34 } }
+				)
+			)
+		),
+		keyAt(0.66, "InOut", with(READY_LEGS, ST)),
+	},
+}
+
+local Staff_Attack3: Clip = {
+	-- Raise the staff overhead in both hands, then slam it down ahead.
+	duration = 0.9,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.5 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, ST)),
+		keyAt(
+			0.26,
+			"Out",
+			with(
+				READY_LEGS,
+				with(STAFF_GUARD, { Root = { py = 0.02, x = 6 }, Waist = { x = 8 }, Neck = { x = -14 } })
+			)
+		),
+		keyAt(
+			0.42,
+			"Linear",
+			with(
+				READY_LEGS,
+				with(STAFF_GUARD, { Root = { py = 0.04, x = 8 }, Waist = { x = 10 }, Neck = { x = -16 } })
+			)
+		),
+		keyAt(
+			0.5,
+			"In",
+			with(
+				LUNGE,
+				with(
+					STAFF_GUARD,
+					{ Root = { py = -0.5, x = -12, pz = -0.5 }, Waist = { x = -14 }, Neck = { x = 18 } }
+				)
+			)
+		),
+		keyAt(
+			0.66,
+			"Out",
+			with(
+				LUNGE,
+				with(
+					STAFF_GUARD,
+					{ Root = { py = -0.56, x = -12, pz = -0.52 }, Waist = { x = -16 }, Neck = { x = 20 } }
+				)
+			)
+		),
+		keyAt(0.9, "InOut", with(READY_LEGS, ST)),
+	},
+}
+
+local DG = HOLD.Dagger
+local Dagger_Attack1: Clip = {
+	-- Quick forward stab.
+	duration = 0.45,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.16 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, DG)),
+		keyAt(
+			0.08,
+			"Out",
+			with(READY_LEGS, with(DAGGER_GUARD, { Root = { py = -0.2, y = -14 }, Waist = { y = -16 } }))
+		),
+		keyAt(
+			0.16,
+			"In",
+			with(
+				STEP_LEFT,
+				with(
+					DAGGER_GUARD,
+					{ Root = { py = -0.28, y = 6, x = -6, pz = -0.4 }, Waist = { y = 10, x = -6 } }
+				)
+			)
+		),
+		keyAt(
+			0.24,
+			"Out",
+			with(
+				STEP_LEFT,
+				with(
+					DAGGER_GUARD,
+					{ Root = { py = -0.28, y = 6, x = -6, pz = -0.42 }, Waist = { y = 12, x = -6 } }
+				)
+			)
+		),
+		keyAt(0.45, "InOut", with(READY_LEGS, DG)),
+	},
+}
+
+local Dagger_Attack2: Clip = {
+	-- Backhand slash across.
+	duration = 0.45,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.16 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, DG)),
+		keyAt(
+			0.08,
+			"Out",
+			with(
+				READY_LEGS,
+				with(DAGGER_GUARD, { Root = { py = -0.22, y = -18 }, Waist = { y = -26 }, Neck = { y = 22 } })
+			)
+		),
+		keyAt(
+			0.16,
+			"In",
+			with(
+				STEP_LEFT,
+				with(
+					DAGGER_GUARD,
+					{ Root = { py = -0.28, y = 14, pz = -0.32 }, Waist = { y = 26 }, Neck = { y = -22 } }
+				)
+			)
+		),
+		keyAt(
+			0.26,
+			"Out",
+			with(
+				STEP_LEFT,
+				with(
+					DAGGER_GUARD,
+					{ Root = { py = -0.28, y = 18, pz = -0.34 }, Waist = { y = 36 }, Neck = { y = -30 } }
+				)
+			)
+		),
+		keyAt(0.45, "InOut", with(READY_LEGS, DG)),
+	},
+}
+
+local Dagger_Attack3: Clip = {
+	-- Lunging double stab (finisher).
+	duration = 0.7,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.34 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, DG)),
+		keyAt(
+			0.12,
+			"Out",
+			with(
+				READY_LEGS,
+				with(DAGGER_GUARD, { Root = { py = -0.3, y = -10 }, Waist = { y = -14, x = 6 } })
+			)
+		),
+		keyAt(
+			0.22,
+			"In",
+			with(
+				STEP_LEFT,
+				with(DAGGER_GUARD, { Root = { py = -0.34, x = -6, pz = -0.4 }, Waist = { x = -6 } })
+			)
+		),
+		keyAt(
+			0.28,
+			"Out",
+			with(
+				STEP_LEFT,
+				with(DAGGER_GUARD, { Root = { py = -0.3, x = -4, pz = -0.42 }, Waist = { x = -2 } })
+			)
+		),
+		keyAt(
+			0.34,
+			"In",
+			with(
+				LUNGE,
+				with(DAGGER_GUARD, { Root = { py = -0.6, x = -14, pz = -0.75 }, Waist = { x = -14 } })
+			)
+		),
+		keyAt(
+			0.46,
+			"Out",
+			with(
+				LUNGE,
+				with(DAGGER_GUARD, { Root = { py = -0.62, x = -14, pz = -0.78 }, Waist = { x = -16 } })
+			)
+		),
+		keyAt(0.7, "InOut", with(READY_LEGS, DG)),
+	},
+}
+
+local CB = HOLD.Crossbow
+local function aim(extra: Pose?): Pose
+	return with(READY_LEGS, with(CROSSBOW_AIM, extra))
+end
+local Crossbow_Attack1: Clip = {
+	-- Shoulder the crossbow, aim, fire (recoil), lower.
+	duration = 0.66,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.32 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, CB)),
+		keyAt(0.16, "Out", aim()),
+		keyAt(0.3, "Linear", aim()),
+		keyAt(0.36, "Out", aim({ Root = { py = -0.12, x = 4 }, Waist = { x = 6 } })),
+		keyAt(0.66, "InOut", with(READY_LEGS, CB)),
+	},
+}
+
+local Crossbow_Attack2: Clip = {
+	-- Quick shot from the hip-raised position.
+	duration = 0.55,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.22 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, CB)),
+		keyAt(0.12, "Out", aim()),
+		keyAt(0.2, "Linear", aim()),
+		keyAt(0.26, "Out", aim({ Root = { py = -0.12, x = 4 }, Waist = { x = 6 } })),
+		keyAt(0.55, "InOut", with(READY_LEGS, CB)),
+	},
+}
+
+local Crossbow_Attack3: Clip = {
+	-- Charged shot: long aim, heavy recoil, then crank the string back.
+	duration = 1.1,
+	looped = false,
+	priority = "Action",
+	markers = { Hit = 0.62 },
+	keys = {
+		keyAt(0, nil, with(READY_LEGS, CB)),
+		keyAt(0.2, "Out", aim({ Root = { py = -0.2 }, LeftKnee = { x = -24 }, RightKnee = { x = -22 } })),
+		keyAt(
+			0.56,
+			"Linear",
+			aim({ Root = { py = -0.22 }, LeftKnee = { x = -26 }, RightKnee = { x = -24 } })
+		),
+		keyAt(0.66, "Out", aim({ Root = { py = -0.2, x = 8, pz = 0.2 }, Waist = { x = 10 } })),
+		keyAt(0.86, "InOut", with(READY_LEGS, with(CROSSBOW_LOW, { Waist = { x = -8 }, Neck = { x = 14 } }))),
+		keyAt(1.1, "InOut", with(READY_LEGS, CB)),
+	},
+}
+
+--------------------------------------------------------------------------------
 -- Catalogue
 --------------------------------------------------------------------------------
 
@@ -1889,8 +2456,20 @@ local clips: { [string]: Clip } = {
 	HitLight = HitLight,
 	HitHeavy = HitHeavy,
 	Defeat = Defeat,
+	TwoHand_Attack1 = TwoHand_Attack1,
+	TwoHand_Attack2 = TwoHand_Attack2,
+	TwoHand_Attack3 = TwoHand_Attack3,
+	Staff_Attack1 = Staff_Attack1,
+	Staff_Attack2 = Staff_Attack2,
+	Staff_Attack3 = Staff_Attack3,
+	Dagger_Attack1 = Dagger_Attack1,
+	Dagger_Attack2 = Dagger_Attack2,
+	Dagger_Attack3 = Dagger_Attack3,
+	Crossbow_Attack1 = Crossbow_Attack1,
+	Crossbow_Attack2 = Crossbow_Attack2,
+	Crossbow_Attack3 = Crossbow_Attack3,
 }
-for _, job in { "Warrior", "Healer", "Archer", "Mage" } do
+for _, job in { "Warrior", "Healer", "Archer", "Mage", "TwoHand", "Staff", "Dagger", "Crossbow" } do
 	clips[job .. "_Idle"] = idle(job)
 	clips[job .. "_Hold"] = hold(job)
 end
@@ -1909,6 +2488,78 @@ for name, perKey in AnimationArms.Keys :: any do
 			end
 		end
 	end
+end
+
+--------------------------------------------------------------------------------
+-- Shield and Dual (D-69), from the solved Warrior set.
+--------------------------------------------------------------------------------
+
+-- Shield arm raised across the body, the shield face forward (the shield
+-- sits on the outside of the left forearm; angles checked numerically).
+local SHIELD_GUARD: Pose = {
+	LeftShoulder = { x = 70, y = -75, z = 60 },
+	LeftElbow = { x = 100 },
+	LeftWrist = {},
+}
+
+local function rearm(clip: Clip, over: (Pose, number) -> Pose): Clip
+	local keys = {}
+	for index, k in clip.keys do
+		table.insert(keys, { t = k.t, ease = k.ease, pose = over(k.pose, index) })
+	end
+	return {
+		duration = clip.duration,
+		looped = clip.looped,
+		priority = clip.priority,
+		markers = clip.markers,
+		keys = keys,
+	}
+end
+
+local ARM_JOINTS = { "Shoulder", "Elbow", "Wrist" }
+
+-- The `side` arm of `source` copied over `pose`.
+local function takeArm(pose: Pose, source: Pose, side: string): Pose
+	local out = with(pose)
+	for _, j in ARM_JOINTS do
+		local joint = side .. j
+		out[joint] = if source[joint] then table.clone(source[joint]) else {}
+	end
+	return out
+end
+
+-- The Warrior hold's right arm, mirrored: a second sword held in guard.
+local LEFT_SWORD_GUARD = mirror(clips.Warrior_Hold.keys[1].pose)
+
+for _, step in { "1", "2", "3" } do
+	local warrior = clips["Warrior_Attack" .. step]
+	clips["Shield_Attack" .. step] = rearm(warrior, function(pose)
+		return with(pose, SHIELD_GUARD)
+	end)
+end
+do
+	HOLD.Shield = with(clips.Warrior_Hold.keys[1].pose, SHIELD_GUARD)
+	clips.Shield_Idle = idle("Shield")
+	clips.Shield_Hold = hold_("Shield")
+end
+
+-- Dual swords: right slash with the left blade on guard; a mirrored left
+-- slash with the right blade on guard; both blades crossing down.
+local RIGHT_SWORD_GUARD = clips.Warrior_Hold.keys[1].pose
+clips.Dual_Attack1 = rearm(clips.Warrior_Attack1, function(pose)
+	return takeArm(pose, LEFT_SWORD_GUARD, "Left")
+end)
+clips.Dual_Attack2 = rearm(clips.Warrior_Attack1, function(pose)
+	return takeArm(mirror(pose), RIGHT_SWORD_GUARD, "Right")
+end)
+clips.Dual_Attack3 = rearm(clips.Warrior_Attack3, function(pose)
+	return takeArm(pose, mirror(pose), "Left")
+end)
+do
+	HOLD.Dual =
+		takeArm(with(RIGHT_SWORD_GUARD, { Waist = { y = 0 }, Neck = { y = 0 } }), LEFT_SWORD_GUARD, "Left")
+	clips.Dual_Idle = idle("Dual")
+	clips.Dual_Hold = hold_("Dual")
 end
 
 local function deepFreeze(value: any): any

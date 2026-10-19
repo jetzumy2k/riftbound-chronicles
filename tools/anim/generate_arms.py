@@ -18,7 +18,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from render_clips import joint
 from solve_arm import solve, arm_chain
 
-GRIP = {"Warrior": -110, "Healer": -90, "Archer": -90, "Mage": -160}
+GRIP = {
+    "Warrior": -110,
+    "Healer": -90,
+    "Archer": -90,
+    "Mage": -160,
+    # Weapon profiles (D-69): long swords / hammers / battle axes and daggers
+    # in the forward grip, the staff straight across the fist, the crossbow
+    # along the fingers (trigger hand).
+    "TwoHand": -110,
+    "Staff": -90,
+    "Dagger": -110,
+    "Crossbow": -160,
+}
 OUT = "src/shared/Definitions/AnimationArms.luau"
 
 
@@ -209,19 +221,139 @@ for i, t in enumerate((0.34, 0.56)):
     T(f"Mage.push.hit{i}", "Mage_SkillPush", t, "Right", "Mage", at(0.6, 0.9, -2.5), V(0, 0.1, -1), [92, 0, 6, 6, -20])
 
 
+# --- Weapon profiles (equipment overhaul, D-69) -----------------------------
+# Hand targets in the upper-body frame (they turn with Root / Waist). Two-
+# handed grips: the second hand is placed along the weapon from the first.
+
+
+def unit(v):
+    v = np.asarray(v, float)
+    return v / np.linalg.norm(v)
+
+
+def guess(side, hand):
+    y = hand[1]
+    if y > 2.0:
+        g = [150, 0, 15, 40, -30]
+    elif y > 0.6:
+        g = [80, 0, 10, 45, -20]
+    else:
+        g = [35, 0, 10, 55, 0]
+    if side == "Left":
+        g = [g[0], g[1], -g[2], g[3], 0]
+    return g
+
+
+def grip2(prefix, name, clip, t, grip, hand, direction, offset, left_extra=(0, 0, 0)):
+    """Right hand on the grip, left hand `offset` studs along the weapon."""
+    T(f"{prefix}.{name}", clip, t, "Right", grip, rel(*hand), reldir(*direction), guess("Right", hand))
+
+    # Resolved in main() from where the right hand and weapon actually ended
+    # up, so the second hand closes on the weapon itself.
+    approx = np.asarray(hand) + offset * unit(direction)
+    T(f"{prefix}L.{name}", clip, t, "Left", grip, ("follow", f"{prefix}.{name}", offset, left_extra), None, guess("Left", approx))
+
+
+def grip1(prefix, name, clip, t, grip, hand, direction):
+    T(f"{prefix}.{name}", clip, t, "Right", grip, rel(*hand), reldir(*direction), guess("Right", hand))
+
+
+# Two-handed: the left hand below the right, toward the pommel.
+TH_KEYS = [
+    ("hold", "TwoHand_Idle", 0, (0.35, 0.35, -1.15), (-0.2, 0.8, -0.55)),
+    ("a1.windup", "TwoHand_Attack1", 0.18, (0.85, 2.2, 0.35), (-0.15, 0.35, 0.92)),
+    ("a1.hit", "TwoHand_Attack1", 0.3, (-0.15, 0.5, -1.55), (-0.55, -0.4, -0.73)),
+    ("a1.follow", "TwoHand_Attack1", 0.42, (-0.9, 0.3, -1.0), (-0.85, -0.35, 0.35)),
+    ("a2.windup", "TwoHand_Attack2", 0.18, (1.2, 1.1, 0.1), (0.45, 0.15, 0.88)),
+    ("a2.hit", "TwoHand_Attack2", 0.3, (0.0, 1.0, -1.55), (-0.95, 0.05, -0.3)),
+    ("a2.follow", "TwoHand_Attack2", 0.44, (-1.1, 1.0, -0.7), (-0.55, 0.05, 0.83)),
+    ("a3.raise", "TwoHand_Attack3", 0.26, (0.2, 2.4, 0.2), (0, 0.25, 0.97)),
+    ("a3.hang", "TwoHand_Attack3", 0.36, (0.2, 2.5, 0.3), (0, 0.05, 1)),
+    ("a3.hit", "TwoHand_Attack3", 0.46, (0.1, 0.3, -1.55), (0, -0.5, -0.87)),
+    ("a3.settle", "TwoHand_Attack3", 0.6, (0.1, 0.25, -1.5), (0, -0.55, -0.83)),
+]
+for name, clip, t, hand, direction in TH_KEYS:
+    grip2("TwoHand", name, clip, t, "TwoHand", hand, direction, -0.55)
+
+# Staff: the left hand above the right, up the shaft.
+STAFF_KEYS = [
+    ("hold", "Staff_Idle", 0, (0.6, 0.55, -0.85), (-0.45, 0.85, -0.2)),
+    ("a1.draw", "Staff_Attack1", 0.14, (0.75, 0.7, 0.1), (0, 0.08, -1)),
+    ("a1.hit", "Staff_Attack1", 0.27, (0.3, 0.85, -0.95), (0, 0.08, -1)),
+    ("a1.follow", "Staff_Attack1", 0.36, (0.3, 0.85, -0.95), (0, 0.08, -1)),
+    ("a2.windup", "Staff_Attack2", 0.15, (0.8, 0.8, -0.2), (0.55, 0.1, 0.83)),
+    ("a2.hit", "Staff_Attack2", 0.28, (0.25, 0.9, -1.0), (-0.98, 0.05, -0.2)),
+    ("a2.follow", "Staff_Attack2", 0.4, (-0.35, 0.9, -0.8), (-0.6, 0.05, 0.8)),
+    ("a3.raise", "Staff_Attack3", 0.26, (0.3, 2.1, -0.45), (0, 1, 0.1)),
+    ("a3.top", "Staff_Attack3", 0.42, (0.3, 2.15, -0.45), (0, 1, 0.1)),
+    ("a3.slam", "Staff_Attack3", 0.5, (0.3, 0.75, -1.0), (0, -0.6, -0.8)),
+    ("a3.settle", "Staff_Attack3", 0.66, (0.3, 0.7, -1.0), (0, -0.6, -0.8)),
+]
+for name, clip, t, hand, direction in STAFF_KEYS:
+    grip2("Staff", name, clip, t, "Staff", hand, direction, 0.65)
+
+DAGGER_KEYS = [
+    ("hold", "Dagger_Idle", 0, (0.8, 0.4, -0.9), (0, 0.5, -0.85)),
+    ("a1.cock", "Dagger_Attack1", 0.08, (0.95, 0.95, 0.15), (0, 0.1, -1)),
+    ("a1.hit", "Dagger_Attack1", 0.16, (0.45, 1.1, -1.85), (-0.1, 0.05, -1)),
+    ("a1.follow", "Dagger_Attack1", 0.24, (0.45, 1.05, -1.8), (-0.1, 0.05, -1)),
+    ("a2.windup", "Dagger_Attack2", 0.08, (1.25, 1.35, -0.35), (0.4, 0.55, -0.73)),
+    ("a2.hit", "Dagger_Attack2", 0.16, (-0.4, 0.85, -1.4), (-0.9, -0.15, -0.4)),
+    ("a2.follow", "Dagger_Attack2", 0.26, (-0.8, 0.8, -1.0), (-0.85, -0.2, 0.45)),
+    ("a3.cock", "Dagger_Attack3", 0.12, (0.85, 0.45, 0.2), (0, 0.3, -0.95)),
+    ("a3.stab1", "Dagger_Attack3", 0.22, (0.4, 1.05, -1.8), (0, 0, -1)),
+    ("a3.pull", "Dagger_Attack3", 0.28, (0.7, 0.8, -0.9), (0, 0.2, -1)),
+    ("a3.stab2", "Dagger_Attack3", 0.34, (0.3, 1.0, -1.9), (0, 0, -1)),
+    ("a3.settle", "Dagger_Attack3", 0.46, (0.3, 0.95, -1.85), (0, 0, -1)),
+]
+for name, clip, t, hand, direction in DAGGER_KEYS:
+    grip1("Dagger", name, clip, t, "Dagger", hand, direction)
+
+# Crossbow: trigger hand at the grip, left hand under the fore-end.
+CB_AIM = ((0.45, 1.55, -0.75), (0, 0, -1))
+CB_RECOIL = ((0.5, 1.62, -0.6), (0, 0.15, -0.99))
+CB_KEYS = [
+    ("hold", "Crossbow_Idle", 0, (0.55, 0.25, -0.75), (-0.5, -0.15, -0.85)),
+    ("a1.aim", "Crossbow_Attack1", 0.16) + CB_AIM,
+    ("a1.fire", "Crossbow_Attack1", 0.3) + CB_AIM,
+    ("a1.recoil", "Crossbow_Attack1", 0.36) + CB_RECOIL,
+    ("a2.aim", "Crossbow_Attack2", 0.12) + CB_AIM,
+    ("a2.fire", "Crossbow_Attack2", 0.2) + CB_AIM,
+    ("a2.recoil", "Crossbow_Attack2", 0.26) + CB_RECOIL,
+    ("a3.aim", "Crossbow_Attack3", 0.2) + CB_AIM,
+    ("a3.hold", "Crossbow_Attack3", 0.56) + CB_AIM,
+    ("a3.recoil", "Crossbow_Attack3", 0.66, (0.5, 1.68, -0.5), (0, 0.22, -0.97)),
+]
+for name, clip, t, hand, direction in CB_KEYS:
+    grip2("Crossbow", name, clip, t, "Crossbow", hand, direction, 0.8, (0, -0.12, 0))
+# Reload: crossbow tipped down, the left hand cranks the string back.
+grip1("Crossbow", "a3.reload", "Crossbow_Attack3", 0.86, "Crossbow", (0.6, 0.5, -0.85), (0, -0.75, -0.65))
+T("CrossbowL.a3.reload", "Crossbow_Attack3", 0.86, "Left", "Crossbow", rel(0.4, 0.95, -0.55), None, [70, 0, -20, 90, 0])
+
+
 def main():
     clips = json.load(open(sys.argv[1]))
     results = {}
+    solved = {}  # id -> (hand point, weapon direction) actually reached
     worst = 0
     for id, clip, t, side, job, hand, direction, start in TARGETS:
         body = body_at(clips, clip, t)
-        target = hand(body)
+        whand = 1.0
+        if isinstance(hand, tuple) and hand[0] == "follow":
+            _, lead, offset, extra = hand
+            h0, d0 = solved[lead]
+            Rw, _ = frame(body)
+            target = h0 + offset * d0 + Rw @ V(*extra)
+            whand = 4.0
+        else:
+            target = hand(body)
         aim = direction(body) if callable(direction) else direction
         aim = aim if aim is not None else V(0, 1, 0)
         out = solve(side, GRIP[job], body, tuple(target), tuple(aim),
-                    wdir=1.0 if direction is not None else 0.0, start=start, quiet=True)
+                    wdir=1.0 if direction is not None else 0.0, whand=whand, start=start, quiet=True)
         v = [out[f"{side}Shoulder"][a] for a in "xyz"] + [out[f"{side}Elbow"]["x"]] + [out[f"{side}Wrist"][a] for a in "xyz"]
         h, d = arm_chain(body, side, v[:3], v[3], v[4], GRIP[job], v[5], v[6])
+        solved[id] = (h, d)
         err = np.linalg.norm(h - target)
         derr = math.degrees(math.acos(max(-1, min(1, d @ (aim / np.linalg.norm(aim)))))) if direction is not None else 0
         worst = max(worst, err)

@@ -25,6 +25,7 @@ local FacePresets = require(Shared.Definitions.FacePresets)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
 local GearLook = require(Shared.Logic.GearLook)
+local WeaponRules = require(Shared.Definitions.WeaponRules)
 
 local Wardrobe = require(script.Parent.Parent.Appearance.Wardrobe)
 
@@ -70,12 +71,16 @@ function RaceService:Redress(player: Player)
 	if character == nil or data == nil or data.Race == nil then
 		return
 	end
-	Wardrobe.dress(
-		character,
-		data.Race,
-		data.FacePreset,
-		data.Job,
-		GearLook.fromEquipment(data.Equipment, data.Inventory)
+	local look = GearLook.fromEquipment(data.Equipment, data.Inventory)
+	Wardrobe.dress(character, data.Race, data.FacePreset, data.Job, look)
+	-- D-69: how the hands hold what's worn, for the animation (display only).
+	local main, off = look.Weapon, look.OffHand
+	character:SetAttribute(
+		"WeaponProfile",
+		WeaponRules.profileFor(
+			main and main.family,
+			if off then (if off.kind == "Shield" then "Shield" else "Weapon") else nil
+		)
 	)
 end
 

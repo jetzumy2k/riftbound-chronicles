@@ -48,8 +48,12 @@ return function(t)
 				Source = "Test",
 				CreatedAt = 1700000000,
 			}
+			local slot = if def.slot == "Ring"
+				then "Ring1"
+				elseif def.slot == "Shield" then "OffHand"
+				else def.slot
 			if def.job == "Warrior" and def.tier == 3 then
-				data.Equipment[def.slot] = guid
+				data.Equipment[slot] = guid
 			end
 		end
 		data.Stackables = { HealingPotion = 3, StoneFragment = 12 }

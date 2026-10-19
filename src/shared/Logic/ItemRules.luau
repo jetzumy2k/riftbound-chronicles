@@ -34,6 +34,7 @@ local Enums = require(Shared.Enums)
 local Constants = require(Shared.Constants)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
+local WeaponRules = require(Shared.Definitions.WeaponRules)
 local StatFormulas = require(script.Parent.StatFormulas)
 
 type ItemDef = ItemDefinitions.ItemDef
@@ -445,15 +446,24 @@ local function emptyTotals(): GearTotals
 	}
 end
 
--- Defense / HP of each armor slot at item level 0 (Standard).
+-- Defense / HP of each armor kind at item level 0 (Standard).
 local ARMOR_BASE = {
 	Helm = { Defense = 2.5, MaxHP = 0 },
+	Shoulders = { Defense = 2, MaxHP = 0 },
 	Chest = { Defense = 4, MaxHP = 8 },
+	Hands = { Defense = 1.5, MaxHP = 0 },
 	Legs = { Defense = 3, MaxHP = 6 },
 	Boots = { Defense = 2, MaxHP = 0 },
-	Accessory = { Defense = 0, MaxHP = 6 },
+	Shield = { Defense = 5, MaxHP = 6 },
+	Necklace = { Defense = 0, MaxHP = 6 },
+	Earrings = { Defense = 0, MaxHP = 3 },
+	Ring = { Defense = 0, MaxHP = 3 },
 }
 local WEAPON_ATTACK = 10
+-- Two-handed weapons hit harder (no shield, no second blade, D-68).
+local TWO_HANDED_SCALE = 1.3
+-- An off-hand sword (dual swords) adds half its own Attack.
+ItemRules.OFF_HAND_ATTACK = 0.5
 
 --[[
 	A piece's own stats (not its attributes): weapons give Attack, armor
@@ -468,7 +478,9 @@ function ItemRules.baseStats(def: ItemDef, rarity: string, itemLevel: number, en
 	local growth = Constants.StatGrowth
 	local plus = Constants.Enhancement
 	if def.category == "Weapon" then
-		out.Attack = math.floor(WEAPON_ATTACK * growth.AttackMultiplier ^ itemLevel * scale + 0.5)
+		local rule = WeaponRules.get(def.family)
+		local hands = if rule and rule.hands == "Two" then TWO_HANDED_SCALE else 1
+		out.Attack = math.floor(WEAPON_ATTACK * hands * growth.AttackMultiplier ^ itemLevel * scale + 0.5)
 			+ plus.WeaponAttackPerLevel * enhancement
 		out.CritDamage = plus.CritDamagePctPerLevel * enhancement
 	else
@@ -480,13 +492,18 @@ function ItemRules.baseStats(def: ItemDef, rarity: string, itemLevel: number, en
 	return out
 end
 
--- Everything one item adds: its own stats plus its attributes.
-function ItemRules.itemStats(item: Item): GearTotals?
+-- Everything one item adds: its own stats plus its attributes. In the
+-- off-hand a weapon's own Attack and Crit Damage count half (dual swords).
+function ItemRules.itemStats(item: Item, offHand: boolean?): GearTotals?
 	local def = ItemDefinitions.get(item.DefId)
 	if def == nil then
 		return nil
 	end
 	local out = ItemRules.baseStats(def, item.Rarity, item.ItemLevel, item.Enhancement)
+	if offHand and def.category == "Weapon" then
+		out.Attack = math.floor(out.Attack * ItemRules.OFF_HAND_ATTACK + 0.5)
+		out.CritDamage *= ItemRules.OFF_HAND_ATTACK
+	end
 	for _, attribute in item.Attributes do
 		local key = attribute.Stat :: any
 		if (out :: any)[key] ~= nil then
@@ -506,10 +523,10 @@ function ItemRules.gearTotals(equipment: { [string]: string }, inventory: { [str
 	for slot, guid in equipment do
 		local item = inventory[guid]
 		local def = item and ItemDefinitions.get(item.DefId)
-		if item == nil or def == nil or def.slot ~= slot then
+		if item == nil or def == nil or not ItemRules.fitsSlot(def, slot) then
 			continue
 		end
-		local stats = ItemRules.itemStats(item)
+		local stats = ItemRules.itemStats(item, slot == "OffHand")
 		if stats then
 			for key, value in stats :: any do
 				(out :: any)[key] += value
@@ -566,6 +583,117 @@ function ItemRules.canEquip(item: Item, job: string?, race: string?, level: numb
 		return false, "level"
 	end
 	return true, nil
+end
+
+--[[
+	Whether a piece of `def` can sit in equipment `slot` at all (D-68):
+	its own slot; a ring in Ring1 / Ring2; a shield in the off-hand; a
+	dual-wield weapon (Warrior short sword) in the off-hand.
+]]
+function ItemRules.fitsSlot(def: ItemDef, slot: string): boolean
+	local kind = def.slot
+	if kind == slot then
+		return true
+	elseif kind == "Ring" then
+		return slot == "Ring1" or slot == "Ring2"
+	elseif kind == "Shield" then
+		return slot == "OffHand"
+	elseif kind == "Weapon" and slot == "OffHand" then
+		local rule = WeaponRules.get(def.family)
+		return rule ~= nil and rule.dual
+	end
+	return false
+end
+
+local function defIn(equipment: { [string]: string }, inventory: { [string]: Item }, slot: string): ItemDef?
+	local guid = equipment[slot]
+	local item = guid and inventory[guid]
+	return if item then ItemDefinitions.get(item.DefId) else nil
+end
+
+--[[
+	Whether the main hand and off-hand go together (D-68): a shield needs an
+	empty main hand or a one-hander that allows it; an off-hand weapon
+	needs the same dual-wield family in the main hand.
+]]
+function ItemRules.handsCompatible(main: ItemDef?, off: ItemDef?): boolean
+	if off == nil then
+		return true
+	end
+	local rule = main and WeaponRules.get(main.family)
+	if off.slot == "Shield" then
+		return main == nil or (rule ~= nil and rule.shield)
+	end
+	return main ~= nil and rule ~= nil and rule.dual and main.family == off.family
+end
+
+export type EquipPlan = {
+	slot: string, -- where the item goes
+	clear: { string }, -- slots emptied first (their items go back to the bag)
+}
+
+--[[
+	Where `guid` goes when equipped, and what has to come off (D-68). The
+	one conflict rule: **the newest item wins**; anything it can't be worn
+	with goes back to the bag (never deleted). `target` picks Ring1 / Ring2
+	or the off-hand for a second sword. Reasons: "unknown", "slot" (it
+	can't go in `target`), "dualNeedsSword" (an off-hand sword needs the
+	same kind of sword in the main hand).
+]]
+function ItemRules.planEquip(
+	equipment: { [string]: string },
+	inventory: { [string]: Item },
+	guid: string,
+	target: string?
+): (EquipPlan?, string?)
+	local item = inventory[guid]
+	local def = item and ItemDefinitions.get(item.DefId)
+	if def == nil then
+		return nil, "unknown"
+	end
+	local slot: string
+	if target then
+		if not ItemRules.fitsSlot(def, target) then
+			return nil, "slot"
+		end
+		slot = target
+	elseif def.slot == "Ring" then
+		slot = if equipment.Ring1 == nil or equipment.Ring1 == guid
+			then "Ring1"
+			elseif equipment.Ring2 == nil then "Ring2"
+			else "Ring1"
+	elseif def.slot == "Shield" then
+		slot = "OffHand"
+	else
+		slot = def.slot
+	end
+	local clear = {}
+	-- Moving between slots (a ring, a sword from one hand to the other).
+	for other, equipped in equipment do
+		if equipped == guid and other ~= slot then
+			table.insert(clear, other)
+		end
+	end
+	local function cleared(s: string): boolean
+		return table.find(clear, s) ~= nil
+	end
+	local main = if slot == "Weapon"
+		then def
+		elseif cleared("Weapon") then nil
+		else defIn(equipment, inventory, "Weapon")
+	local off = if slot == "OffHand"
+		then def
+		elseif cleared("OffHand") then nil
+		else defIn(equipment, inventory, "OffHand")
+	if slot == "OffHand" and def.slot == "Weapon" and not ItemRules.handsCompatible(main, def) then
+		return nil, "dualNeedsSword"
+	end
+	if not ItemRules.handsCompatible(main, off) then
+		-- The newest item wins: clear the other hand.
+		table.insert(clear, if slot == "OffHand" then "Weapon" else "OffHand")
+	end
+	local plan: EquipPlan = { slot = slot :: string, clear = clear }
+	return plan, nil
 end
 
 function ItemRules.salvageYield(item: Item): number

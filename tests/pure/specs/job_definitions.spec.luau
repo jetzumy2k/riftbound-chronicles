@@ -94,14 +94,28 @@ return function(t)
 				end
 			end
 		end
-		t.ok(JobDefinitions.allowsWeapon("Warrior", "Angel", "Mace"))
-		t.ok(not JobDefinitions.allowsWeapon("Warrior", "Angel", "Axe"))
-		t.ok(JobDefinitions.allowsWeapon("Warrior", "Devil", "Axe"))
-		t.ok(not JobDefinitions.allowsWeapon("Healer", "Angel", "Sword"))
+		-- D-68: the creator's weapon rules, the same in both realms.
+		local WeaponRules = load("src/shared/Definitions/WeaponRules")
+		for _, family in { "Sword", "Mace", "Axe", "Greatsword", "WarHammer", "BattleAxe" } do
+			t.ok(JobDefinitions.allowsWeapon("Warrior", "Angel", family), family)
+			t.ok(JobDefinitions.allowsWeapon("Warrior", "Devil", family), family)
+		end
+		for _, job in { "Healer", "Mage" } do
+			for _, family in { "Dagger", "Sword", "Staff" } do
+				t.ok(JobDefinitions.allowsWeapon(job, "Angel", family), `{job} {family}`)
+			end
+		end
+		t.ok(JobDefinitions.allowsWeapon("Healer", "Devil", "Orb"), "orb kept")
+		t.ok(JobDefinitions.allowsWeapon("Mage", "Devil", "Tome"), "tome kept")
 		t.ok(JobDefinitions.allowsWeapon("Archer", "Devil", "Crossbow"))
 		t.ok(not JobDefinitions.allowsWeapon("Archer", "Human", "Bow"))
-		t.ok(JobDefinitions.allowsWeapon("Mage", "Devil", "Tome"))
-		t.ok(not JobDefinitions.allowsWeapon("Mage", "Angel", "Sword"))
+		t.ok(not JobDefinitions.allowsWeapon("Archer", "Angel", "Sword"))
+		-- Every family a class can hold has a hand rule.
+		for _, job in Enums.Job do
+			for _, family in JobDefinitions.get(job).weaponsByRace.Angel do
+				t.ok(WeaponRules.get(family) ~= nil, family)
+			end
+		end
 	end)
 
 	t.it("every category has a player-facing name", function()

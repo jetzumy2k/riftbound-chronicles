@@ -2,6 +2,7 @@
 --[[
 	ProfileTemplate — player profile schema v2 (docs/DATA_MODEL.md §2).
 	v2 (Phase 5, D-45): OwnedSkills maps skill id -> rank (skill tree).
+	v3 (equipment overhaul, D-68): the "Accessory" equipment slot is "Necklace".
 
 	`new()` returns a fresh deep copy. Fields owned by later phases ship as empty
 	defaults so those phases can fill them without a migration.
@@ -11,7 +12,7 @@
 
 local ProfileTemplate = {}
 
-ProfileTemplate.SCHEMA_VERSION = 2
+ProfileTemplate.SCHEMA_VERSION = 3
 
 -- Top-level keys that are allowed to be nil, with their expected type.
 ProfileTemplate.OPTIONAL_KEYS = table.freeze({

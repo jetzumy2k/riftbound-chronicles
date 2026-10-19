@@ -23,12 +23,15 @@
 
 local JobDefinitions = require(script.Parent.JobDefinitions)
 
-export type Category = "Weapon" | "Armor" | "Accessory"
+export type Category = "Weapon" | "Shield" | "Armor" | "Accessory"
 
 export type ItemDef = {
 	id: string,
 	name: string,
-	slot: string, -- Enums.ItemSlot
+	-- What it is worn as: "Weapon", "Shield", an armor slot, "Necklace",
+	-- "Earrings" or "Ring" (Ring1 / Ring2). ItemRules.fitsSlot maps it to
+	-- equipment slots (D-68).
+	slot: string,
 	category: Category,
 	job: string, -- job restriction (every gear piece belongs to one job)
 	family: string?, -- weapons: Enums.WeaponType
@@ -65,32 +68,76 @@ local PREFIX = {
 	Mage = { "Novice's", "Arcanist's", "Archmage's" },
 }
 
--- Armor nouns per job and slot.
+-- Armor and accessory nouns per job and kind. "Accessory" ids (the D-64
+-- class accessory) are now worn as the necklace (D-68).
 local ARMOR_NOUN = {
-	Warrior = { Helm = "Helm", Chest = "Plate", Legs = "Greaves", Boots = "Sabatons", Accessory = "Signet" },
+	Warrior = {
+		Helm = "Helm",
+		Shoulders = "Pauldrons",
+		Chest = "Plate",
+		Hands = "Gauntlets",
+		Legs = "Greaves",
+		Boots = "Sabatons",
+		Shield = "Shield",
+		Accessory = "Signet Amulet",
+		Earrings = "Studs",
+		Ring = "Band",
+	},
 	Healer = {
 		Helm = "Circlet",
+		Shoulders = "Mantle",
 		Chest = "Vestment",
+		Hands = "Gloves",
 		Legs = "Leggings",
 		Boots = "Sandals",
 		Accessory = "Charm",
+		Earrings = "Drops",
+		Ring = "Ring",
 	},
 	Archer = {
 		Helm = "Hood",
+		Shoulders = "Shoulder Guard",
 		Chest = "Jerkin",
+		Hands = "Bracers",
 		Legs = "Breeches",
 		Boots = "Treads",
-		Accessory = "Quiver Band",
+		Accessory = "Talisman",
+		Earrings = "Hoops",
+		Ring = "Signet",
 	},
-	Mage = { Helm = "Cowl", Chest = "Robe", Legs = "Skirt", Boots = "Slippers", Accessory = "Focus Ring" },
+	Mage = {
+		Helm = "Cowl",
+		Shoulders = "Spaulders",
+		Chest = "Robe",
+		Hands = "Wraps",
+		Legs = "Skirt",
+		Boots = "Slippers",
+		Accessory = "Focus Pendant",
+		Earrings = "Runes",
+		Ring = "Focus Ring",
+	},
+}
+
+-- Player-facing weapon category names (WeaponRules has the full rules).
+local FAMILY_NAME = {
+	Sword = "Short Sword",
+	Greatsword = "Longsword",
+	WarHammer = "War Hammer",
+	BattleAxe = "Battle Axe",
+	Axe = "Hand Axe",
 }
 
 local SLOT_GLYPH = {
 	Helm = "⛑",
+	Shoulders = "🦺",
 	Chest = "🛡",
+	Hands = "🧤",
 	Legs = "👖",
 	Boots = "👢",
-	Accessory = "💍",
+	Shield = "🛡",
+	Accessory = "📿",
+	Earrings = "✧",
+	Ring = "💍",
 }
 
 local FAMILY_GLYPH = {
@@ -99,6 +146,9 @@ local FAMILY_GLYPH = {
 	Polearm = "🔱",
 	Mace = "🔨",
 	Axe = "🪓",
+	WarHammer = "🔨",
+	BattleAxe = "🪓",
+	Dagger = "🔪",
 	Staff = "🪄",
 	Orb = "🔮",
 	Bow = "🏹",
@@ -107,7 +157,11 @@ local FAMILY_GLYPH = {
 	Tome = "📖",
 }
 
-local ARMOR_SLOTS = { "Helm", "Chest", "Legs", "Boots" }
+local ARMOR_SLOTS = { "Helm", "Shoulders", "Chest", "Hands", "Legs", "Boots" }
+-- Kinds generated per job (the id keeps "Accessory" for the necklace).
+local KINDS = { "Helm", "Shoulders", "Chest", "Hands", "Legs", "Boots", "Accessory", "Earrings", "Ring" }
+local KIND_SLOT = { Accessory = "Necklace" }
+local ACCESSORY_KINDS = { Accessory = true, Earrings = true, Ring = true }
 
 local all: { [string]: ItemDef } = {}
 local ids: { string } = {}
@@ -142,7 +196,7 @@ for _, job in JobDefinitions.Order do
 		for _, family in familiesOf(job) do
 			add({
 				id = `W_{job}_{family}_T{tier}`,
-				name = `{prefix} {family}`,
+				name = `{prefix} {FAMILY_NAME[family] or family}`,
 				slot = "Weapon",
 				category = "Weapon",
 				job = job,
@@ -153,18 +207,25 @@ for _, job in JobDefinitions.Order do
 				glyph = FAMILY_GLYPH[family] or "⚔",
 			})
 		end
-		for _, slot in { "Helm", "Chest", "Legs", "Boots", "Accessory" } do
+		local kinds = table.clone(KINDS)
+		if ARMOR_NOUN[job].Shield then
+			table.insert(kinds, "Shield")
+		end
+		for _, kind in kinds do
 			add({
-				id = `A_{job}_{slot}_T{tier}`,
-				name = `{prefix} {ARMOR_NOUN[job][slot]}`,
-				slot = slot,
-				category = if slot == "Accessory" then "Accessory" else "Armor",
+				id = `A_{job}_{kind}_T{tier}`,
+				name = `{prefix} {ARMOR_NOUN[job][kind]}`,
+				slot = KIND_SLOT[kind] or kind,
+				category = if ACCESSORY_KINDS[kind]
+					then "Accessory"
+					elseif kind == "Shield" then "Shield"
+					else "Armor",
 				job = job,
 				family = nil,
 				tier = tier,
 				minItemLevel = band[1],
 				maxItemLevel = band[2],
-				glyph = SLOT_GLYPH[slot],
+				glyph = SLOT_GLYPH[kind],
 			})
 		end
 	end
@@ -188,13 +249,24 @@ function ItemDefinitions.tierFor(itemLevel: number): number
 	return ItemDefinitions.TIERS
 end
 
--- The def for a job's piece in `slot` (and weapon `family`) at an item level.
-function ItemDefinitions.defFor(job: string, slot: string, family: string?, itemLevel: number): ItemDef?
+-- The def for a job's piece of `kind` (an ItemDef.slot value, and the weapon
+-- `family`) at an item level.
+function ItemDefinitions.defFor(job: string, kind: string, family: string?, itemLevel: number): ItemDef?
 	local tier = ItemDefinitions.tierFor(itemLevel)
-	if slot == "Weapon" then
+	if kind == "Weapon" then
 		return all[`W_{job}_{family}_T{tier}`]
 	end
-	return all[`A_{job}_{slot}_T{tier}`]
+	return all[`A_{job}_{if kind == "Necklace" then "Accessory" else kind}_T{tier}`]
+end
+
+-- Every kind of piece a job has (weapons first), for loot and test kits.
+function ItemDefinitions.kindsOf(job: string): { string }
+	local out =
+		{ "Weapon", "Helm", "Shoulders", "Chest", "Hands", "Legs", "Boots", "Necklace", "Earrings", "Ring" }
+	if all[`A_{job}_Shield_T1`] then
+		table.insert(out, 2, "Shield")
+	end
+	return out
 end
 
 -- Weapon families a job may wield, in either race.

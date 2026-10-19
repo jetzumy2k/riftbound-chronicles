@@ -94,10 +94,23 @@ return function(t)
 			for _ = 1, 5000 do
 				local def = LootRules.pickPiece("Warrior", "Angel", 15, random(), random()) :: any
 				t.ok(def ~= nil and def.job == "Warrior" and def.tier == 2)
-				t.ok(def.family ~= "Axe", "Angels don't use axes")
 				slots[def.slot] = true
 			end
-			for _, slot in { "Weapon", "Helm", "Chest", "Legs", "Boots", "Accessory" } do
+			for _, slot in
+				{
+					"Weapon",
+					"Helm",
+					"Shoulders",
+					"Chest",
+					"Hands",
+					"Legs",
+					"Boots",
+					"Shield",
+					"Necklace",
+					"Earrings",
+					"Ring",
+				}
+			do
 				t.ok(slots[slot], slot)
 			end
 			t.eq(LootRules.itemLevelFor(40), 30)

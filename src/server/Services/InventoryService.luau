@@ -251,9 +251,19 @@ local EQUIP_REASON = {
 	race = "equip.race",
 	level = "equip.level",
 	unknown = "notOwned",
+	slot = "equip.slot",
+	dualNeedsSword = "equip.dualNeedsSword",
 }
 
-local function onEquip(player: Player, guid: string)
+local SLOT_NAMES: { [string]: string } = {
+	Weapon = "main hand",
+	OffHand = "off-hand",
+	Ring1 = "ring",
+	Ring2 = "ring",
+}
+
+-- `target`: optional slot (Ring1 / Ring2, or OffHand for a second sword).
+local function onEquip(player: Player, guid: string, target: string?)
 	local data = PlayerDataService:GetData(player)
 	if data == nil then
 		return
@@ -276,14 +286,31 @@ local function onEquip(player: Player, guid: string)
 		)
 		return
 	end
-	local def = ItemDefinitions.get(item.DefId) :: ItemDefinitions.ItemDef
-	if data.Equipment[def.slot] == guid then
+	-- D-68 hand rules (ItemRules.planEquip): the newest item wins; whatever
+	-- it can't be worn with goes back to the bag.
+	local plan, why = ItemRules.planEquip(data.Equipment, data.Inventory, guid, target)
+	if plan == nil then
+		notify(player, "Warning", EQUIP_REASON[why or "unknown"] or "notOwned")
 		return
 	end
-	data.Equipment[def.slot] = guid
+	if data.Equipment[plan.slot] == guid and #plan.clear == 0 then
+		return
+	end
+	local removed = {}
+	for _, slot in plan.clear do
+		local other = data.Equipment[slot]
+		data.Equipment[slot] = nil
+		if other and other ~= guid then
+			table.insert(removed, SLOT_NAMES[slot] or string.lower(slot))
+		end
+	end
+	data.Equipment[plan.slot] = guid
 	push(player, data, nil, nil)
 	CombatService:RefreshStats(player)
 	RaceService:Redress(player)
+	if #removed > 0 then
+		notify(player, "Info", "equip.swapped", { slots = table.concat(removed, ", ") })
+	end
 end
 
 local function onUnequip(player: Player, slot: string)
@@ -296,6 +323,14 @@ local function onUnequip(player: Player, slot: string)
 		return
 	end
 	data.Equipment[slot] = nil
+	-- A second sword can't stay without the first (D-68).
+	if slot == "Weapon" and data.Equipment.OffHand then
+		local off = data.Inventory[data.Equipment.OffHand]
+		local offDef = off and ItemDefinitions.get(off.DefId)
+		if offDef and not ItemRules.handsCompatible(nil, offDef) then
+			data.Equipment.OffHand = nil
+		end
+	end
 	push(player, data, nil, nil)
 	CombatService:RefreshStats(player)
 	RaceService:Redress(player)
@@ -431,13 +466,28 @@ local function onStudioTestGear(player: Player)
 	if data == nil or data.Job == nil then
 		return
 	end
+	-- D-68: every weapon category of the class (warriors two short swords,
+	-- for dual swords) and one of every other piece, at random rarities.
 	local rarities = Enums.Rarity
-	local families = ItemDefinitions.familiesOf(data.Job)
+	local pieces: { { kind: string, family: string? } } = {}
+	for _, family in ItemDefinitions.familiesOf(data.Job) do
+		table.insert(pieces, { kind = "Weapon", family = family })
+	end
+	if data.Job == "Warrior" then
+		table.insert(pieces, { kind = "Weapon", family = "Sword" })
+	end
+	for _, kind in ItemDefinitions.kindsOf(data.Job) do
+		if kind ~= "Weapon" then
+			table.insert(pieces, { kind = kind, family = nil })
+		end
+	end
+	if data.Job ~= nil then
+		table.insert(pieces, { kind = "Ring", family = nil })
+	end
 	local granted = 0
-	for _, slot in Enums.ItemSlot do
+	for _, piece in pieces do
 		local level = math.clamp(data.Level + random:NextInteger(-2, 5), 0, 30)
-		local family = if slot == "Weapon" then families[random:NextInteger(1, #families)] else nil
-		local def = ItemDefinitions.defFor(data.Job, slot, family, level)
+		local def = ItemDefinitions.defFor(data.Job, piece.kind, piece.family, level)
 		if def then
 			local item = InventoryService:GrantItem(
 				player,

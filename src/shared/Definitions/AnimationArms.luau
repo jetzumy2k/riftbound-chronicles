@@ -169,6 +169,176 @@ return table.freeze({
 			RightShoulder = { x = -15, y = -85, z = 113 },
 			RightWrist = { x = -32, y = -22, z = 23 },
 		},
+		["Crossbow.a1.aim"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = 75, y = 6, z = -20 },
+			RightWrist = { x = -36, y = -31, z = 18 },
+		},
+		["Crossbow.a1.fire"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = 75, y = 6, z = -20 },
+			RightWrist = { x = -36, y = -31, z = 18 },
+		},
+		["Crossbow.a1.recoil"] = {
+			RightElbow = { x = 62 },
+			RightShoulder = { x = 77, y = 7, z = -19 },
+			RightWrist = { x = -35, y = -29, z = 16 },
+		},
+		["Crossbow.a2.aim"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = 75, y = 6, z = -20 },
+			RightWrist = { x = -36, y = -31, z = 18 },
+		},
+		["Crossbow.a2.fire"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = 75, y = 6, z = -20 },
+			RightWrist = { x = -36, y = -31, z = 18 },
+		},
+		["Crossbow.a2.recoil"] = {
+			RightElbow = { x = 62 },
+			RightShoulder = { x = 77, y = 7, z = -19 },
+			RightWrist = { x = -35, y = -29, z = 16 },
+		},
+		["Crossbow.a3.aim"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = 75, y = 6, z = -20 },
+			RightWrist = { x = -36, y = -31, z = 18 },
+		},
+		["Crossbow.a3.hold"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = 75, y = 6, z = -20 },
+			RightWrist = { x = -36, y = -31, z = 18 },
+		},
+		["Crossbow.a3.recoil"] = {
+			RightElbow = { x = 65 },
+			RightShoulder = { x = 80, y = 7, z = -20 },
+			RightWrist = { x = -35, y = -31, z = 17 },
+		},
+		["Crossbow.a3.reload"] = {
+			RightElbow = { x = 56 },
+			RightShoulder = { x = 20, y = 7, z = -16 },
+			RightWrist = { x = -18, y = -44, z = 22 },
+		},
+		["Crossbow.hold"] = {
+			RightElbow = { x = 58 },
+			RightShoulder = { x = 15, y = 12, z = -4 },
+			RightWrist = { x = -6, y = 7, z = -17 },
+		},
+		["CrossbowL.a1.aim"] = {
+			LeftElbow = { x = 21 },
+			LeftShoulder = { x = 86, y = -2, z = 25 },
+			LeftWrist = { x = -3, y = -1, z = 5 },
+		},
+		["CrossbowL.a1.fire"] = {
+			LeftElbow = { x = 21 },
+			LeftShoulder = { x = 86, y = -2, z = 25 },
+			LeftWrist = { x = -3, y = -1, z = 5 },
+		},
+		["CrossbowL.a1.recoil"] = {
+			LeftElbow = { x = 23 },
+			LeftShoulder = { x = 91, y = -1, z = 26 },
+			LeftWrist = { x = -3, y = -1, z = 6 },
+		},
+		["CrossbowL.a2.aim"] = {
+			LeftElbow = { x = 21 },
+			LeftShoulder = { x = 86, y = -2, z = 25 },
+			LeftWrist = { x = -3, y = -1, z = 5 },
+		},
+		["CrossbowL.a2.fire"] = {
+			LeftElbow = { x = 21 },
+			LeftShoulder = { x = 86, y = -2, z = 25 },
+			LeftWrist = { x = -3, y = -1, z = 5 },
+		},
+		["CrossbowL.a2.recoil"] = {
+			LeftElbow = { x = 23 },
+			LeftShoulder = { x = 91, y = -1, z = 26 },
+			LeftWrist = { x = -3, y = -1, z = 6 },
+		},
+		["CrossbowL.a3.aim"] = {
+			LeftElbow = { x = 21 },
+			LeftShoulder = { x = 86, y = -2, z = 25 },
+			LeftWrist = { x = -3, y = -1, z = 5 },
+		},
+		["CrossbowL.a3.hold"] = {
+			LeftElbow = { x = 21 },
+			LeftShoulder = { x = 86, y = -2, z = 25 },
+			LeftWrist = { x = -3, y = -1, z = 5 },
+		},
+		["CrossbowL.a3.recoil"] = {
+			LeftElbow = { x = 24 },
+			LeftShoulder = { x = 94, z = 26 },
+			LeftWrist = { x = -3, y = 2, z = 6 },
+		},
+		["CrossbowL.a3.reload"] = {
+			LeftElbow = { x = 96 },
+			LeftShoulder = { x = 53, y = -38, z = 12 },
+			LeftWrist = { x = 2, y = 3, z = 30 },
+		},
+		["CrossbowL.hold"] = {
+			LeftElbow = { x = 28 },
+			LeftShoulder = { x = 38, y = -5, z = 21 },
+			LeftWrist = { x = -4, y = -2, z = 6 },
+		},
+		["Dagger.a1.cock"] = {
+			RightElbow = { x = 46 },
+			RightShoulder = { x = 34, y = 1, z = 4 },
+			RightWrist = { x = -43, y = 2, z = 4 },
+		},
+		["Dagger.a1.follow"] = {
+			RightElbow = { x = 27 },
+			RightShoulder = { x = 68, y = 3, z = -11 },
+			RightWrist = { x = -49, y = -5, z = 4 },
+		},
+		["Dagger.a1.hit"] = {
+			RightElbow = { x = 26 },
+			RightShoulder = { x = 69, y = 2, z = -10 },
+			RightWrist = { x = -49, y = -6, z = -4 },
+		},
+		["Dagger.a2.follow"] = {
+			RightElbow = { x = 46 },
+			RightShoulder = { x = 74, y = 31, z = -38 },
+			RightWrist = { x = -23, y = 73, z = 2 },
+		},
+		["Dagger.a2.hit"] = {
+			RightElbow = { x = 33 },
+			RightShoulder = { x = 71, y = 22, z = -22 },
+			RightWrist = { x = -42, y = 38, z = -19 },
+		},
+		["Dagger.a2.windup"] = {
+			RightElbow = { x = 55 },
+			RightShoulder = { x = 65, y = -7, z = 15 },
+			RightWrist = { x = -46, y = -7, z = 14 },
+		},
+		["Dagger.a3.cock"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = -11, y = 5 },
+			RightWrist = { x = -4, y = -12, z = -25 },
+		},
+		["Dagger.a3.pull"] = {
+			RightElbow = { x = 35 },
+			RightShoulder = { x = 54, y = 5, z = -7 },
+			RightWrist = { x = -42, y = -8, z = 5 },
+		},
+		["Dagger.a3.settle"] = {
+			RightElbow = { x = 25 },
+			RightShoulder = { x = 66, z = -15 },
+			RightWrist = { x = -47, y = -15, z = -2 },
+		},
+		["Dagger.a3.stab1"] = {
+			RightElbow = { x = 26 },
+			RightShoulder = { x = 68, z = -13 },
+			RightWrist = { x = -49, y = -14, z = -5 },
+		},
+		["Dagger.a3.stab2"] = {
+			RightElbow = { x = 25 },
+			RightShoulder = { x = 67, y = -1, z = -15 },
+			RightWrist = { x = -47, y = -15, z = -3 },
+		},
+		["Dagger.hold"] = {
+			RightElbow = { x = 57 },
+			RightShoulder = { x = 19, y = 5, z = -1 },
+			RightWrist = { x = -13, y = -6, z = -5 },
+		},
 		["Healer.a1.follow"] = {
 			RightElbow = { x = 8 },
 			RightShoulder = { x = 82, z = 9 },
@@ -349,6 +519,226 @@ return table.freeze({
 			RightShoulder = { x = 23, y = 12, z = 5 },
 			RightWrist = { x = -19, y = -13, z = 7 },
 		},
+		["Staff.a1.draw"] = {
+			RightElbow = { x = 29 },
+			RightShoulder = { x = 28, y = 11, z = -13 },
+			RightWrist = { x = -41, y = -14, z = 8 },
+		},
+		["Staff.a1.follow"] = {
+			RightElbow = { x = 27 },
+			RightShoulder = { x = 55, y = 5, z = -22 },
+			RightWrist = { x = -51, y = -18, z = -3 },
+		},
+		["Staff.a1.hit"] = {
+			RightElbow = { x = 27 },
+			RightShoulder = { x = 55, y = 5, z = -22 },
+			RightWrist = { x = -51, y = -18, z = -3 },
+		},
+		["Staff.a2.follow"] = {
+			RightElbow = { x = 61 },
+			RightShoulder = { x = 73, y = 34, z = -28 },
+			RightWrist = { x = -12, y = 55, z = -15 },
+		},
+		["Staff.a2.hit"] = {
+			RightElbow = { x = 43 },
+			RightShoulder = { x = 65, y = 23, z = -8 },
+			RightWrist = { x = -39, y = 50, z = -30 },
+		},
+		["Staff.a2.windup"] = {
+			RightElbow = { x = 95 },
+			RightShoulder = { x = 62, y = 5, z = -2 },
+			RightWrist = { x = 5, y = -28, z = -30 },
+		},
+		["Staff.a3.raise"] = {
+			RightElbow = { x = 32 },
+			RightShoulder = { x = 132, y = -1, z = -16 },
+			RightWrist = { x = -52, y = -3, z = -30 },
+		},
+		["Staff.a3.settle"] = {
+			RightElbow = { x = 9 },
+			RightShoulder = { x = 51, y = -6, z = -22 },
+			RightWrist = { x = -60, y = -23, z = 5 },
+		},
+		["Staff.a3.slam"] = {
+			RightElbow = { x = 10 },
+			RightShoulder = { x = 52, y = -6, z = -24 },
+			RightWrist = { x = -60, y = -26, z = 17 },
+		},
+		["Staff.a3.top"] = {
+			RightElbow = { x = 33 },
+			RightShoulder = { x = 133, y = 3, z = -17 },
+			RightWrist = { x = -52, y = -10, z = -26 },
+		},
+		["Staff.hold"] = {
+			RightElbow = { x = 65 },
+			RightShoulder = { x = 21, y = 12, z = -2 },
+			RightWrist = { x = -6, y = 19, z = 4 },
+		},
+		["StaffL.a1.draw"] = {
+			LeftElbow = { x = 16 },
+			LeftShoulder = { x = 51, y = -15, z = 27 },
+			LeftWrist = { x = -3, y = -3, z = 9 },
+		},
+		["StaffL.a1.follow"] = {
+			LeftElbow = { x = 22 },
+			LeftShoulder = { x = 67, y = -9, z = 22 },
+			LeftWrist = { x = -3, y = 2, z = 6 },
+		},
+		["StaffL.a1.hit"] = {
+			LeftElbow = { x = 22 },
+			LeftShoulder = { x = 67, y = -9, z = 22 },
+			LeftWrist = { x = -3, y = 2, z = 6 },
+		},
+		["StaffL.a2.follow"] = {
+			LeftElbow = { x = 89 },
+			LeftShoulder = { x = 49, y = -12, z = -1 },
+			LeftWrist = { x = 12, y = 22, z = 30 },
+		},
+		["StaffL.a2.hit"] = {
+			LeftElbow = { x = 40 },
+			LeftShoulder = { x = 65, y = -12, z = 16 },
+			LeftWrist = { x = -1, y = -1, z = 6 },
+		},
+		["StaffL.a2.windup"] = {
+			LeftElbow = { x = 38 },
+			LeftShoulder = { x = 97, y = -4, z = 58 },
+			LeftWrist = { x = -1, y = -1, z = 19 },
+		},
+		["StaffL.a3.raise"] = {
+			LeftElbow = { x = 22 },
+			LeftShoulder = { x = 147, y = -5, z = 24 },
+			LeftWrist = { x = -2, y = -1, z = 6 },
+		},
+		["StaffL.a3.settle"] = {
+			LeftElbow = { x = 28 },
+			LeftShoulder = { x = 45, y = -3, z = 23 },
+			LeftWrist = { x = -3, y = -1, z = 6 },
+		},
+		["StaffL.a3.slam"] = {
+			LeftElbow = { x = 29 },
+			LeftShoulder = { x = 46, y = -4, z = 24 },
+			LeftWrist = { x = -3, y = -2, z = 6 },
+		},
+		["StaffL.a3.top"] = {
+			LeftElbow = { x = 22 },
+			LeftShoulder = { x = 147, y = -4, z = 23 },
+			LeftWrist = { x = -2, y = 1, z = 13 },
+		},
+		["StaffL.hold"] = {
+			LeftElbow = { x = 34 },
+			LeftShoulder = { x = 63, y = -16, z = 32 },
+			LeftWrist = { x = -2, y = 1, z = 24 },
+		},
+		["TwoHand.a1.follow"] = {
+			RightElbow = { x = 54 },
+			RightShoulder = { x = 40, y = 37, z = -24 },
+			RightWrist = { x = -9, y = 80, z = -3 },
+		},
+		["TwoHand.a1.hit"] = {
+			RightElbow = { x = 36 },
+			RightShoulder = { x = 37, y = 12, z = -17 },
+			RightWrist = { x = -41, y = 14, z = -10 },
+		},
+		["TwoHand.a1.windup"] = {
+			RightElbow = { x = 64 },
+			RightShoulder = { x = 155, y = 6, z = 5 },
+			RightWrist = { x = -33, z = -9 },
+		},
+		["TwoHand.a2.follow"] = {
+			RightElbow = { x = 49 },
+			RightShoulder = { x = 85, y = 25, z = -51 },
+			RightWrist = { x = -13, y = 54, z = -30 },
+		},
+		["TwoHand.a2.hit"] = {
+			RightElbow = { x = 40 },
+			RightShoulder = { x = 71, y = 20, z = -13 },
+			RightWrist = { x = -32, y = 45, z = -22 },
+		},
+		["TwoHand.a2.windup"] = {
+			RightElbow = { x = 104 },
+			RightShoulder = { x = 82, y = -15, z = 9 },
+			RightWrist = { x = -6, y = -22, z = 19 },
+		},
+		["TwoHand.a3.hang"] = {
+			RightElbow = { x = 61 },
+			RightShoulder = { x = 157, y = 9, z = -12 },
+			RightWrist = { x = -22, y = -11, z = -22 },
+		},
+		["TwoHand.a3.hit"] = {
+			RightElbow = { x = 35 },
+			RightShoulder = { x = 30, y = -1, z = -25 },
+			RightWrist = { x = -35, y = -28, z = -2 },
+		},
+		["TwoHand.a3.raise"] = {
+			RightElbow = { x = 59 },
+			RightShoulder = { x = 154, y = 9, z = -14 },
+			RightWrist = { x = -26, y = -12, z = -22 },
+		},
+		["TwoHand.a3.settle"] = {
+			RightElbow = { x = 34 },
+			RightShoulder = { x = 28, y = -1, z = -25 },
+			RightWrist = { x = -36, y = -29, z = -1 },
+		},
+		["TwoHand.hold"] = {
+			RightElbow = { x = 58 },
+			RightShoulder = { x = 26, y = 12, z = -9 },
+			RightWrist = { x = -5, y = 1, z = -13 },
+		},
+		["TwoHandL.a1.follow"] = {
+			LeftElbow = { x = 44 },
+			LeftShoulder = { x = 35, y = -13, z = 28 },
+			LeftWrist = { x = -1, y = -1, z = 14 },
+		},
+		["TwoHandL.a1.hit"] = {
+			LeftElbow = { x = 24 },
+			LeftShoulder = { x = 43, y = -24, z = 34 },
+			LeftWrist = { x = -3, y = -4, z = 16 },
+		},
+		["TwoHandL.a1.windup"] = {
+			LeftElbow = { x = 23 },
+			LeftShoulder = { x = 155, y = -3, z = 44 },
+			LeftWrist = { x = -2, y = -2, z = 11 },
+		},
+		["TwoHandL.a2.follow"] = {
+			LeftElbow = { x = 63 },
+			LeftShoulder = { x = 54, y = -17, z = 8 },
+			LeftWrist = { x = 5, y = 8, z = 25 },
+		},
+		["TwoHandL.a2.hit"] = {
+			LeftElbow = { x = 24 },
+			LeftShoulder = { x = 70, y = -11, z = 37 },
+			LeftWrist = { x = -3, y = 4, z = 10 },
+		},
+		["TwoHandL.a2.windup"] = {
+			LeftElbow = { x = 25 },
+			LeftShoulder = { x = 95, y = 1, z = 52 },
+			LeftWrist = { x = -2, y = -2, z = 13 },
+		},
+		["TwoHandL.a3.hang"] = {
+			LeftElbow = { x = 35 },
+			LeftShoulder = { x = 152, y = -8, z = 30 },
+			LeftWrist = { x = -1, y = -1, z = 15 },
+		},
+		["TwoHandL.a3.hit"] = {
+			LeftElbow = { x = 55 },
+			LeftShoulder = { x = 13, y = -20, z = 17 },
+			LeftWrist = { x = 1, y = 1, z = 27 },
+		},
+		["TwoHandL.a3.raise"] = {
+			LeftElbow = { x = 37 },
+			LeftShoulder = { x = 148, y = -10, z = 29 },
+			LeftWrist = { z = 17 },
+		},
+		["TwoHandL.a3.settle"] = {
+			LeftElbow = { x = 54 },
+			LeftShoulder = { x = 11, y = -19, z = 17 },
+			LeftWrist = { x = 2, y = 2, z = 30 },
+		},
+		["TwoHandL.hold"] = {
+			LeftElbow = { x = 32 },
+			LeftShoulder = { x = 28, y = -12, z = 32 },
+			LeftWrist = { x = -4, y = 5, z = 4 },
+		},
 		["Warrior.a1.follow"] = {
 			RightElbow = { x = 33 },
 			RightShoulder = { x = 91, y = 47, z = -23 },
@@ -500,6 +890,38 @@ return table.freeze({
 			["0.500"] = { "Archer.sky.aim.bow", "Archer.sky.aim.string" },
 			["0.560"] = { "Archer.sky.release.bow", "Archer.sky.release.string" },
 		},
+		Crossbow_Attack1 = {
+			["0.160"] = { "Crossbow.a1.aim", "CrossbowL.a1.aim" },
+			["0.300"] = { "Crossbow.a1.fire", "CrossbowL.a1.fire" },
+			["0.360"] = { "Crossbow.a1.recoil", "CrossbowL.a1.recoil" },
+		},
+		Crossbow_Attack2 = {
+			["0.120"] = { "Crossbow.a2.aim", "CrossbowL.a2.aim" },
+			["0.200"] = { "Crossbow.a2.fire", "CrossbowL.a2.fire" },
+			["0.260"] = { "Crossbow.a2.recoil", "CrossbowL.a2.recoil" },
+		},
+		Crossbow_Attack3 = {
+			["0.200"] = { "Crossbow.a3.aim", "CrossbowL.a3.aim" },
+			["0.660"] = { "Crossbow.a3.recoil", "CrossbowL.a3.recoil" },
+			["0.860"] = { "Crossbow.a3.reload", "CrossbowL.a3.reload" },
+		},
+		Dagger_Attack1 = {
+			["0.080"] = { "Dagger.a1.cock" },
+			["0.160"] = { "Dagger.a1.hit" },
+			["0.240"] = { "Dagger.a1.follow" },
+		},
+		Dagger_Attack2 = {
+			["0.080"] = { "Dagger.a2.windup" },
+			["0.160"] = { "Dagger.a2.hit" },
+			["0.260"] = { "Dagger.a2.follow" },
+		},
+		Dagger_Attack3 = {
+			["0.120"] = { "Dagger.a3.cock" },
+			["0.220"] = { "Dagger.a3.stab1" },
+			["0.280"] = { "Dagger.a3.pull" },
+			["0.340"] = { "Dagger.a3.stab2" },
+			["0.460"] = { "Dagger.a3.settle" },
+		},
 		Healer_Attack1 = {
 			["0.140"] = { "Healer.a1.windup" },
 			["0.270"] = { "Healer.a1.hit" },
@@ -546,6 +968,38 @@ return table.freeze({
 			["0.160"] = { "Mage.push.pull" },
 			["0.340"] = { "Mage.push.hit0" },
 			["0.560"] = { "Mage.push.hit1" },
+		},
+		Staff_Attack1 = {
+			["0.140"] = { "Staff.a1.draw", "StaffL.a1.draw" },
+			["0.270"] = { "Staff.a1.hit", "StaffL.a1.hit" },
+			["0.360"] = { "Staff.a1.follow", "StaffL.a1.follow" },
+		},
+		Staff_Attack2 = {
+			["0.150"] = { "Staff.a2.windup", "StaffL.a2.windup" },
+			["0.280"] = { "Staff.a2.hit", "StaffL.a2.hit" },
+			["0.400"] = { "Staff.a2.follow", "StaffL.a2.follow" },
+		},
+		Staff_Attack3 = {
+			["0.260"] = { "Staff.a3.raise", "StaffL.a3.raise" },
+			["0.420"] = { "Staff.a3.top", "StaffL.a3.top" },
+			["0.500"] = { "Staff.a3.slam", "StaffL.a3.slam" },
+			["0.660"] = { "Staff.a3.settle", "StaffL.a3.settle" },
+		},
+		TwoHand_Attack1 = {
+			["0.180"] = { "TwoHand.a1.windup", "TwoHandL.a1.windup" },
+			["0.300"] = { "TwoHand.a1.hit", "TwoHandL.a1.hit" },
+			["0.420"] = { "TwoHand.a1.follow", "TwoHandL.a1.follow" },
+		},
+		TwoHand_Attack2 = {
+			["0.180"] = { "TwoHand.a2.windup", "TwoHandL.a2.windup" },
+			["0.300"] = { "TwoHand.a2.hit", "TwoHandL.a2.hit" },
+			["0.440"] = { "TwoHand.a2.follow", "TwoHandL.a2.follow" },
+		},
+		TwoHand_Attack3 = {
+			["0.260"] = { "TwoHand.a3.raise", "TwoHandL.a3.raise" },
+			["0.360"] = { "TwoHand.a3.hang", "TwoHandL.a3.hang" },
+			["0.460"] = { "TwoHand.a3.hit", "TwoHandL.a3.hit" },
+			["0.600"] = { "TwoHand.a3.settle", "TwoHandL.a3.settle" },
 		},
 		Warrior_Attack1 = {
 			["0.130"] = { "Warrior.a1.windup" },

@@ -77,6 +77,10 @@ local STRINGS: { [string]: string } = {
 	["inventory.use.cooldown"] = "Ready again in {seconds} s.",
 	["inventory.use.fullHp"] = "Your health is already full.",
 	["inventory.testGear"] = "Studio: {count} test items added to your bag.",
+	-- Equipment overhaul (D-68).
+	["inventory.equip.slot"] = "That piece can't go in that slot.",
+	["inventory.equip.dualNeedsSword"] = "Dual swords: equip a short sword in your main hand first.",
+	["inventory.equip.swapped"] = "Moved back to your bag to make room: {slots}.",
 	-- Phase 10 loot (D-67).
 	["loot.drop"] = "Loot: {name} ({rarity}, item level {level}). Open your bag (B).",
 	["loot.bagFull"] = "Your bag is full: the {rarity} {name} was lost. Salvage something to make room.",

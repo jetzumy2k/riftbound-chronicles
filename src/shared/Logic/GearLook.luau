@@ -9,11 +9,13 @@
 ]]
 
 local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions)
+local ItemRules = require(script.Parent.ItemRules)
 
 export type SlotLook = {
 	tier: number,
 	rarity: string,
 	family: string?, -- weapons only
+	kind: string, -- ItemDef.slot: "Weapon", "Shield", "Ring", ...
 	enhancement: number,
 }
 
@@ -51,11 +53,12 @@ function GearLook.fromEquipment(equipment: { [string]: any }?, inventory: { [str
 	for slot, guid in equipment do
 		local item = inventory[guid]
 		local def = if type(item) == "table" then ItemDefinitions.get(item.DefId) else nil
-		if def and def.slot == slot then
+		if def and ItemRules.fitsSlot(def, slot) then
 			look[slot] = {
 				tier = def.tier,
 				rarity = item.Rarity,
 				family = def.family,
+				kind = def.slot,
 				enhancement = if type(item.Enhancement) == "number" then item.Enhancement else 0,
 			}
 		end

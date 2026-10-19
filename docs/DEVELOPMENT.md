@@ -199,6 +199,36 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Equipment overhaul, stages 2 and 5: weapon meshes and weapon animations (D-69)
+**Importing the sculpted weapons** (once; `python tools/gear/build_weapons.py` rebuilds them; previews in `build/gear/<Family>.png`):
+1. Studio: **File > Import 3D**, select all 15 files in `build/gear/` (Sword, Greatsword, Dagger, Mace, Axe, WarHammer, BattleAxe, Polearm, Staff, Orb, Wand, Tome, Bow, Crossbow, Shield). Units: **studs**. Keep the defaults (no rig).
+2. Each lands in the **Workspace** as a model named after the weapon. For each: right-click > **Save to File...** > `src/server/GearModels/<Family>.rbxm` (exact name), then delete it from the Workspace.
+3. Rojo syncs them; a weapon family without a file keeps its part-built look, so this can be done a few at a time.
+
+**Checks** (after importing; "Studio: add test gear" gives every weapon of your class):
+1. **Look:** every weapon is a sculpted model: broad bevelled blades with a glowing rune line, swept guards, wrapped grips, gem pommels; flanged mace, crescent axes, block war hammer, leaf-bladed polearm, staff with a crystal orb in a crescent cradle, wand with a crystal tip, recurve bow, crossbow with a loaded bolt, kite shield with a boss and rim. Tier 2 adds finials / collars / second axe bit / spikes; tier 3 the realm ornaments (Angel feathers, Devil horns, only your realm's). The rune lines / gems glow in the **rarity colour** (Standard: plain metal); Legendary / Mythical and +7 weapons sparkle. The shield sits on the outside of the left forearm, face out; no weapon floats or sits sideways in the hand.
+2. **Two-handed** (long sword, war hammer, battle axe, polearm): both hands on the grip in the guard; attacks: a diagonal cleave from over the right shoulder, a wide chest-high sweep, an overhead slam into a lunge.
+3. **Dual swords:** one sword in each hand on guard; attack 1 right-hand slash, attack 2 a mirrored left-hand slash, attack 3 both blades raised and crossed down.
+4. **Short sword / mace / hand axe + shield:** the shield arm stays raised across the body in guard, the shield facing forward, through idle, walking and every attack.
+5. **Staff** (Healer / Mage): held upright in both hands; attacks: a two-handed thrust, a sweeping swing, raised overhead in both hands then slammed down.
+6. **Dagger:** quick forward stab, backhand slash, lunging double stab.
+7. **Crossbow:** held across the body in both hands; attacks: shoulder it, aim down the stock, fire with a small recoil; the finisher holds the aim longer, kicks harder, then tips down while the left hand cranks the string.
+8. One-handed swords / maces / axes without a shield keep the Warrior sword set; the bow the Archer set; orb / wand / tome the Mage set.
+9. Hits still land on the animation's strike frame (damage timing unchanged); a second player sees the same animations.
+
+## Equipment overhaul, stage 1: slots and hand rules (D-68)
+Pure rules: `lune run tests/pure/run` (item_rules: hand rules, dual swords, rings, off-hand Attack; migrations v2 -> v3; loot kinds; job weapons). In Studio, "Studio: add test gear" now gives **every weapon of your class** (Warriors: two short swords), a shield (Warriors), shoulders, gloves, necklace, earrings and two rings. Pieces are still drawn with the part-built style; meshes come in stages 2-3, weapon-specific animations in stage 5.
+1. **Slots:** the bag shows 12 equipment slots: main hand, off-hand, helm, shoulders, chest, hands, legs, boots, necklace, earrings, two rings. An old "Accessory" you had equipped now sits in the necklace slot.
+2. **Warrior one-handers + shield:** equip a short sword, then the shield (off-hand): both stay; the shield sits on the left forearm. Same with the mace and the hand axe.
+3. **Two-handers:** with a shield on, equip the long sword / war hammer / battle axe: the shield goes back to the bag and a toast says so. With a two-hander on, equip the shield: the two-hander goes back to the bag (the newest item always wins; nothing is deleted).
+4. **Dual swords:** short sword in the main hand, then the second short sword's "Off-hand (dual)": one sword in each hand. Equip a mace in the main hand: the second sword returns to the bag. Trying to put the same sword in both hands is refused.
+5. **Healer / Mage:** dagger, short sword and staff (plus the orb / wand / tome); no shield exists for them. **Archer:** bow (one-handed class) and crossbow (two-handed); no shield.
+6. The item detail shows how a weapon is held ("Long Sword · Two-handed · no shield", "Short Sword · One-handed · shield allowed · can dual-wield").
+7. **Jewellery:** necklace (pendant on the chest), earrings (both ears), rings ("Ring 1" right hand, "Ring 2" left hand). Each shows on the character; replacing one swaps it (no duplicates).
+8. **Shoulders / hands:** equip and unequip them: pauldrons / gauntlets appear and disappear; the chest piece no longer includes them.
+9. **Loot:** dungeon drops now include shoulders, gloves, shields (Warriors), necklaces, earrings and rings.
+10. Rejoin: everything is where you left it; a second player sees the same.
+
 ## Phase 10 manual tests: dungeon loot (D-67)
 Pure rules: `lune run tests/pure/run` (loot_rules: default tables valid and matching CLAUDE.md §12, invalid tables rejected, 1M-roll drop chance and rarity split within ±0.5%, drops are your own class and realm). Server log: every drop is an `Audit ... action=LootDrop` line.
 1. Enter your realm's dungeon and defeat regular creatures (at a level that still gives EXP): about 1 in 8 drops an item (elites ★ about 1 in 3); a toast "Loot: <name> (<rarity>, item level N)". Drops are Standard, Uncommon or Rare (roughly 45 / 25 / 30).

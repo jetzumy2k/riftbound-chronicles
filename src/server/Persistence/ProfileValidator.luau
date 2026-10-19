@@ -275,12 +275,27 @@ local function repairItems(data: Data, note: (string) -> ())
 	filterMap(data.Equipment, "Equipment", note, function(slot, guid)
 		local item = type(guid) == "string" and data.Inventory[guid]
 		local def = item and ItemDefinitions.get(item.DefId)
-		if not Enums.has(Enums.ItemSlot, slot) or def == nil or def.slot ~= slot or used[guid] then
+		if
+			not Enums.has(Enums.ItemSlot, slot)
+			or def == nil
+			or not ItemRules.fitsSlot(def, slot)
+			or used[guid]
+		then
 			return false
 		end
 		used[guid] = true
 		return true
 	end)
+	-- D-68: the off-hand must go with the main hand (shield / second sword).
+	local function defIn(slot: string): any
+		local guid = data.Equipment[slot]
+		local item = guid and data.Inventory[guid]
+		return item and ItemDefinitions.get(item.DefId)
+	end
+	if not ItemRules.handsCompatible(defIn("Weapon"), defIn("OffHand")) then
+		note("Equipment.OffHand: cleared (doesn't go with the main hand)")
+		data.Equipment.OffHand = nil
+	end
 	filterMap(data.Stackables, "Stackables", note, function(id, count)
 		local def = ItemDefinitions.stackable(id)
 		return def ~= nil and isFinite(count) and count % 1 == 0 and count >= 0 and count <= def.maxStack

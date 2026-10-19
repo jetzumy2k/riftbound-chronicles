@@ -40,6 +40,13 @@ WEAPONS = {
     "Healer": ("Right", grip(-90), -3.1, 3.6, "#c89a5a"),
     "Archer": ("Left", grip(-90), -2.5, 2.5, "#7ad06a"),
     "Mage": ("Right", grip(-160), -0.4, 2.0, "#c070ff"),
+    # Weapon profiles (D-69).
+    "TwoHand": ("Right", grip(-110), -1.05, 5.6, "#d0d8ff"),
+    "Staff": ("Right", grip(-90), -3.1, 3.7, "#c89a5a"),
+    "Dagger": ("Right", grip(-110), -0.35, 2.0, "#d0d8ff"),
+    "Crossbow": ("Right", grip(-160), -0.55, 2.0, "#8a6a40"),
+    "Shield": ("Right", grip(-110), -0.6, 4.3, "#d0d8ff"),
+    "Dual": ("Both", grip(-110), -0.6, 4.3, "#d0d8ff"),
 }
 
 def skeleton(pose, job):
@@ -83,7 +90,13 @@ def skeleton(pose, job):
         hand = at(R3, wrist, [0, -0.25, 0])
         c = "#3060c0" if side == "Left" else "#c03030"
         segs += [(neck, sh, "#444", 3), (sh, elbow, c, 3), (elbow, wrist, c, 3), (wrist, hand, c, 4)]
-        if side == weapon_side:
+        if job == "Shield" and side == "Left":
+            # The shield on the outside of the forearm, facing out (-X).
+            mid = (elbow + wrist) / 2 + R2 @ np.array([-0.3, 0, 0])
+            up = R2 @ np.array([0, 1.0, 0]); across = R2 @ np.array([0, 0, 1.0])
+            segs.append((mid - up * 1.0, mid + up * 1.0, "#b08030", 7))
+            segs.append((mid - across * 0.8, mid + across * 0.8, "#b08030", 7))
+        if side == weapon_side or weapon_side == "Both":
             d = R3 @ wdir
             segs.append((hand + d * w0, hand + d * w1, wc, 3))
             segs.append((hand + d * (w1 - 0.3), hand + d * w1, "#000", 4))

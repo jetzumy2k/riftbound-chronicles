@@ -64,10 +64,29 @@ Enums.WeaponType = list({
 	"Crossbow",
 	"Wand",
 	"Tome",
+	-- Equipment overhaul (D-68): the creator's weapon rules.
+	"Dagger",
+	"WarHammer",
+	"BattleAxe",
 })
 
--- D-25.
-Enums.ItemSlot = list({ "Weapon", "Helm", "Chest", "Legs", "Boots", "Accessory" })
+-- D-25, extended by the equipment overhaul (D-68): Weapon is the main hand;
+-- OffHand holds a shield or a second sword; Necklace replaces the old
+-- "Accessory" slot (profiles migrate, v3); two ring slots.
+Enums.ItemSlot = list({
+	"Weapon",
+	"OffHand",
+	"Helm",
+	"Shoulders",
+	"Chest",
+	"Hands",
+	"Legs",
+	"Boots",
+	"Necklace",
+	"Earrings",
+	"Ring1",
+	"Ring2",
+})
 
 Enums.Zone = list({
 	"AngelCapital",

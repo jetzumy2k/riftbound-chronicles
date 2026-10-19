@@ -33,11 +33,23 @@ return function(t)
 		data.EquippedSkills = { Regular = { "ShieldBash" }, Special = "ChallengersRoar" }
 		local status, result = Migrations.migrate(data)
 		t.eq(status, "ok")
-		t.eq(result.SchemaVersion, 2)
+		t.eq(result.SchemaVersion, 3)
 		t.eq(next(result.OwnedSkills), nil)
 		t.eq(#result.EquippedSkills.Regular, 0)
 		t.eq(result.EquippedSkills.Special, nil)
 		t.eq(result.Level, 7)
+	end)
+
+	t.it("v2 -> v3 moves the Accessory slot to Necklace (D-68)", function()
+		local data = ProfileTemplate.new()
+		data.SchemaVersion = 2
+		data.Equipment = { Accessory = "A", Weapon = "W" }
+		local status, result = Migrations.migrate(data)
+		t.eq(status, "ok")
+		t.eq(result.SchemaVersion, 3)
+		t.eq(result.Equipment.Necklace, "A")
+		t.eq(result.Equipment.Accessory, nil)
+		t.eq(result.Equipment.Weapon, "W")
 	end)
 
 	t.it("treats a missing/invalid version as v1", function()

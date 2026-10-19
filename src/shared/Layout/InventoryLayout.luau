@@ -68,9 +68,13 @@ local function rect(x: number, y: number, w: number, h: number): Rect
 	return { x = x, y = y, w = w, h = h }
 end
 
--- Height of the equipment block for `columns` slots per row (6 slots).
+-- Equipment slots shown (D-68: main hand, off-hand, six armor pieces,
+-- necklace, earrings, two rings).
+InventoryLayout.SLOTS = 12
+
+-- Height of the equipment block for `columns` slots per row.
 function InventoryLayout.slotsHeight(columns: number): number
-	local rows = math.ceil(6 / columns)
+	local rows = math.ceil(InventoryLayout.SLOTS / columns)
 	return rows * (InventoryLayout.TILE + InventoryLayout.SLOT_LABEL + InventoryLayout.GAP)
 end
 

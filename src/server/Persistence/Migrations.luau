@@ -12,6 +12,9 @@
 	and the skill bar start empty and every skill point is available again
 	(points come from the level, so nothing is lost).
 
+	v2 -> v3 (equipment overhaul, D-68): the class accessory's equipment slot
+	"Accessory" is now "Necklace" (item ids are unchanged).
+
 	Pure module: no engine APIs beyond requires (tests load it via tests/pure/loader).
 ]]
 
@@ -29,6 +32,16 @@ Migrations.STEPS = table.freeze({
 	[1] = function(data)
 		data.OwnedSkills = {}
 		data.EquippedSkills = { Regular = {} }
+		return data
+	end,
+	[2] = function(data)
+		local equipment = data.Equipment
+		if type(equipment) == "table" and equipment.Accessory ~= nil then
+			if equipment.Necklace == nil then
+				equipment.Necklace = equipment.Accessory
+			end
+			equipment.Accessory = nil
+		end
 		return data
 	end,
 } :: { [number]: Step })

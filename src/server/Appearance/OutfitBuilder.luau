@@ -119,6 +119,43 @@ local function find(character: Model, ...: string): BasePart?
 	return nil
 end
 
+-- Colour, material and the visual-only flags of an outfit part, then weld it
+-- to `anchor` at `cframe` (world).
+local function paint(
+	ctx: Ctx,
+	part: BasePart,
+	role: string,
+	colorRole: string?,
+	material: Enum.Material?,
+	anchor: BasePart,
+	cframe: CFrame
+)
+	local tint = colorRole or role
+	part.Material = material or MATERIAL_BY_ROLE[role] or Enum.Material.SmoothPlastic
+	part.Color = rgb(FacePresets.roleColor(ctx.preset, tint))
+	-- Gear glow (D-65): the rarity's colour, or plain metal on Standard gear.
+	if tint == "glow" and ctx.style.plain then
+		tint = "metal"
+		part.Material = Enum.Material.Metal
+		part.Color = rgb(FacePresets.roleColor(ctx.preset, "metal"))
+	elseif tint == "glow" and ctx.style.glow then
+		part.Color = ctx.style.glow
+	end
+	part:SetAttribute("RC_Role", tint)
+	part.Anchored = false
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Massless = true
+	part.CastShadow = false
+	part.CFrame = cframe
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = anchor
+	weld.Part1 = part
+	weld.Parent = part
+	part.Parent = ctx.folder
+end
+
 local function piece(
 	ctx: Ctx,
 	anchor: BasePart,
@@ -134,37 +171,14 @@ local function piece(
 	if opts.shape then
 		part.Shape = opts.shape
 	end
-	local colorRole = opts.colorRole or role
-	part.Material = opts.material or MATERIAL_BY_ROLE[role] or Enum.Material.SmoothPlastic
-	part.Color = rgb(FacePresets.roleColor(ctx.preset, colorRole))
-	-- Gear glow (D-65): the rarity's colour, or plain metal on Standard gear.
-	if colorRole == "glow" and ctx.style.plain then
-		colorRole = "metal"
-		part.Material = Enum.Material.Metal
-		part.Color = rgb(FacePresets.roleColor(ctx.preset, "metal"))
-	elseif colorRole == "glow" and ctx.style.glow then
-		part.Color = ctx.style.glow
-	end
-	part:SetAttribute("RC_Role", colorRole)
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Anchored = false
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.Massless = true
-	part.CastShadow = false
 	if opts.ellipsoid then
 		local mesh = Instance.new("SpecialMesh")
 		mesh.MeshType = Enum.MeshType.Sphere
 		mesh.Parent = part
 	end
-	part.CFrame = anchor.CFrame * offset
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = anchor
-	weld.Part1 = part
-	weld.Parent = part
-	part.Parent = ctx.folder
+	paint(ctx, part, role, opts.colorRole, opts.material, anchor, anchor.CFrame * offset)
 	return part
 end
 
@@ -546,9 +560,17 @@ local function warriorChest(ctx: Ctx, body: Body)
 			{ ellipsoid = true }
 		)
 	end
+	for side in SIDES do
+		sleeve(ctx, body.arms[side].upper, "cloth", 1.0, 1.12)
+	end
+	if tier(ctx) >= 2 then
+		cape(ctx, body, 3.1, "metal")
+	end
+end
+
+local function warriorShoulders(ctx: Ctx, body: Body)
 	for side, sign in SIDES do
 		local arm = body.arms[side]
-		sleeve(ctx, arm.upper, "cloth", 1.0, 1.12)
 		local upperArm = arm.upper
 		if upperArm then
 			local s = upperArm.Size
@@ -607,6 +629,11 @@ local function warriorChest(ctx: Ctx, body: Body)
 				end
 			end
 		end
+	end
+end
+
+local function warriorHands(ctx: Ctx, body: Body)
+	for _, arm in body.arms do
 		sleeve(ctx, arm.lower, "metal", 0.7, 1.32, -0.1)
 		local lowerArm = arm.lower
 		if lowerArm then
@@ -622,9 +649,6 @@ local function warriorChest(ctx: Ctx, body: Body)
 		end
 	end
 	gloves(ctx, body, "metal")
-	if tier(ctx) >= 2 then
-		cape(ctx, body, 3.1, "metal")
-	end
 end
 
 local function warriorLegs(ctx: Ctx, body: Body)
@@ -713,25 +737,25 @@ local function healerChest(ctx: Ctx, body: Body)
 	end
 	mantle(ctx, body, if tier(ctx) >= 2 then 1.0 else 0.9)
 	bellSleeves(ctx, body)
-	if tier(ctx) >= 2 then
-		for side, sign in SIDES do
-			local upperArm = body.arms[side].upper
-			if upperArm then
-				local s = upperArm.Size
-				piece(
-					ctx,
-					upperArm,
-					"metal",
-					Vector3.new(s.X * 1.7, s.Y * 0.32, s.Z * 1.7),
-					CFrame.new(sign * s.X * 0.12, s.Y * 0.42, 0),
-					{ ellipsoid = true }
-				)
-			end
-		end
-	end
-	gloves(ctx, body, "leather")
 	if tier(ctx) >= 3 then
 		cape(ctx, body, 2.6, "metal")
+	end
+end
+
+local function healerShoulders(ctx: Ctx, body: Body)
+	for side, sign in SIDES do
+		local upperArm = body.arms[side].upper
+		if upperArm then
+			local s = upperArm.Size
+			piece(
+				ctx,
+				upperArm,
+				"metal",
+				Vector3.new(s.X * 1.7, s.Y * 0.32, s.Z * 1.7),
+				CFrame.new(sign * s.X * 0.12, s.Y * 0.42, 0),
+				{ ellipsoid = true }
+			)
+		end
 	end
 end
 
@@ -802,9 +826,15 @@ local function archerChest(ctx: Ctx, body: Body)
 			)
 		end
 	end
+	for side in SIDES do
+		sleeve(ctx, body.arms[side].upper, "cloth", 1.0, 1.1)
+	end
+end
+
+local function archerShoulders(ctx: Ctx, body: Body)
 	-- A single pauldron on the left shoulder.
 	local leftUpperArm = body.arms.Left.upper
-	if leftUpperArm and tier(ctx) >= 2 then
+	if leftUpperArm then
 		local s = leftUpperArm.Size
 		piece(
 			ctx,
@@ -823,9 +853,10 @@ local function archerChest(ctx: Ctx, body: Body)
 			{ ellipsoid = true }
 		)
 	end
-	for side in SIDES do
-		local arm = body.arms[side]
-		sleeve(ctx, arm.upper, "cloth", 1.0, 1.1)
+end
+
+local function archerHands(ctx: Ctx, body: Body)
+	for _, arm in body.arms do
 		sleeve(ctx, arm.lower, "leather", 0.75, 1.3, -0.1)
 	end
 	gloves(ctx, body, "leather")
@@ -901,9 +932,47 @@ local function mageChest(ctx: Ctx, body: Body)
 	end
 	mantle(ctx, body, 0.92)
 	bellSleeves(ctx, body)
-	gloves(ctx, body, "leather")
 	if tier(ctx) >= 3 then
 		cape(ctx, body, 2.8, "metal")
+	end
+end
+
+-- Small layered spaulders with a glowing edge (Mage).
+local function mageShoulders(ctx: Ctx, body: Body)
+	for side, sign in SIDES do
+		local upperArm = body.arms[side].upper
+		if upperArm then
+			local s = upperArm.Size
+			piece(
+				ctx,
+				upperArm,
+				"cloth",
+				Vector3.new(s.X * 1.8, s.Y * 0.36, s.Z * 1.75),
+				CFrame.new(sign * s.X * 0.12, s.Y * 0.4, 0),
+				{ ellipsoid = true, colorRole = "metal", material = Enum.Material.Fabric }
+			)
+			piece(
+				ctx,
+				upperArm,
+				"glow",
+				Vector3.new(s.X * 1.85, 0.06, s.Z * 1.8),
+				CFrame.new(sign * s.X * 0.12, s.Y * 0.3, 0),
+				{ ellipsoid = true }
+			)
+			if tier(ctx) >= 3 then
+				gem(ctx, upperArm, 0.2, CFrame.new(sign * s.X * 0.9, s.Y * 0.42, 0))
+			end
+		end
+	end
+end
+
+-- Cloth hand wraps (Healer / Mage).
+local function softHands(ctx: Ctx, body: Body)
+	gloves(ctx, body, "leather")
+	if tier(ctx) >= 2 then
+		for _, arm in body.arms do
+			sleeve(ctx, arm.lower, "glow", 0.08, 1.4, -0.44)
+		end
 	end
 end
 
@@ -937,6 +1006,13 @@ local function jobBoots(ctx: Ctx, body: Body, job: string)
 end
 
 local CHEST = { Warrior = warriorChest, Healer = healerChest, Archer = archerChest, Mage = mageChest }
+local SHOULDERS = {
+	Warrior = warriorShoulders,
+	Healer = healerShoulders,
+	Archer = archerShoulders,
+	Mage = mageShoulders,
+}
+local HANDS = { Warrior = warriorHands, Healer = softHands, Archer = archerHands, Mage = softHands }
 local LEGS = { Warrior = warriorLegs, Healer = healerLegs, Archer = archerLegs, Mage = mageLegs }
 local BELT_GEMS = { Warrior = 1, Healer = 3, Archer = 1, Mage = 3 }
 
@@ -954,6 +1030,17 @@ local function jobOutfit(ctx: Ctx, body: Body, job: string)
 		end)
 	else
 		plainBottom(ctx, body)
+	end
+	-- D-68: shoulders and hands are their own slots.
+	if wears(ctx, "Shoulders") then
+		styled(ctx, "Shoulders", function()
+			SHOULDERS[job](ctx, body)
+		end)
+	end
+	if wears(ctx, "Hands") then
+		styled(ctx, "Hands", function()
+			HANDS[job](ctx, body)
+		end)
 	end
 	belt(ctx, body, if job == "Healer" then "metal" else "leather", BELT_GEMS[job])
 	if wears(ctx, "Boots") then
@@ -1132,8 +1219,8 @@ local function helm(ctx: Ctx, body: Body, job: string)
 	end
 end
 
--- The class accessory: a pendant on the chest and glowing wrist bands.
-local function accessory(ctx: Ctx, body: Body)
+-- The necklace (the D-64 class accessory): a pendant on the chest.
+local function necklace(ctx: Ctx, body: Body)
 	local upper = body.upper
 	if upper then
 		local u = upper.Size
@@ -1157,8 +1244,48 @@ local function accessory(ctx: Ctx, body: Body)
 			)
 		end
 	end
-	for _, arm in body.arms do
-		sleeve(ctx, arm.lower, "glow", 0.1, 1.42, -0.42)
+end
+
+-- Earrings (D-68): a small drop at each side of the head.
+local function earrings(ctx: Ctx, body: Body)
+	local head = body.head
+	if head == nil then
+		return
+	end
+	local h = head.Size
+	for _, x in { -1, 1 } do
+		local at = CFrame.new(x * h.X * 0.52, -h.Y * 0.12, h.Z * 0.02)
+		piece(ctx, head, "metal", Vector3.new(0.06, 0.12, 0.06), at, { ellipsoid = true })
+		piece(
+			ctx,
+			head,
+			"glow",
+			Vector3.new(0.12, 0.2, 0.12) * (0.9 + 0.1 * tier(ctx)),
+			at * CFrame.new(0, -0.15, 0),
+			{ ellipsoid = true }
+		)
+	end
+end
+
+-- A ring (D-68): a band on the hand (Ring1 right, Ring2 left).
+local function ringOn(ctx: Ctx, body: Body, side: string)
+	local hand = body.arms[side].hand
+	if hand == nil then
+		return
+	end
+	local h = hand.Size
+	ring(ctx, hand, "metal", CFrame.new(0, -h.Y * 0.1, 0), math.max(h.X, h.Z) * 0.56, 0.06, 10)
+	gem(ctx, hand, 0.14, CFrame.new(0, -h.Y * 0.1, -h.Z * 0.58))
+	if tier(ctx) < 2 then
+		-- Tier 1 rings have no gem: a small stud instead.
+		piece(
+			ctx,
+			hand,
+			"glow",
+			Vector3.new(0.1, 0.1, 0.06),
+			CFrame.new(0, -h.Y * 0.1, -h.Z * 0.56),
+			{ ellipsoid = true }
+		)
 	end
 end
 
@@ -1329,9 +1456,10 @@ end
 -- The hand's +Y points up the forearm; a closed fist holds a shaft across
 -- the palm, along the hand's -Z. These grips must match the arm solver in
 -- tools/anim/generate_arms.py (GRIP) so the authored animation aims them.
---   FORWARD_GRIP  sword: across the fist, tilted 20 degrees toward the fingers
+--   FORWARD_GRIP  swords, daggers, maces, axes and every two-hander (D-69):
+--                 across the fist, tilted 20 degrees toward the fingers
 --   POLE_GRIP     staff and bow: straight across the fist
---   POINT_GRIP    wand: along the fingers, like a pointer
+--   POINT_GRIP    wand and crossbow (trigger hand): along the fingers
 local FORWARD_GRIP = CFrame.new(0, -0.1, 0) * CFrame.Angles(math.rad(-110), 0, 0)
 local POLE_GRIP = CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-90), 0, 0)
 local POINT_GRIP = CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(-160), 0, 0)
@@ -1359,6 +1487,123 @@ local function sparkle(ctx: Ctx, part: BasePart?)
 	emitter.Transparency =
 		NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
 	emitter.Parent = part
+end
+
+--------------------------------------------------------------------------------
+-- Sculpted meshes (D-69): ServerScriptService.Server.GearModels.<Family>,
+-- imported from tools/gear/build_weapons.py. MeshParts are named
+-- <Role>[_T2|_T3][_Angel|_Devil]; three marker meshes (Grip, GripY, GripX)
+-- give the model's grip frame whatever the importer did to it.
+--------------------------------------------------------------------------------
+
+local GEAR_MODELS = script.Parent.Parent:FindFirstChild("GearModels")
+
+-- Model roles -> outfit colour roles.
+local MESH_ROLE: { [string]: string } = {
+	Steel = "blade",
+	Gold = "metal",
+	Leather = "leather",
+	Wood = "wood",
+	Horn = "horn",
+	Cloth = "cloth",
+	Glow = "glow",
+}
+
+type MeshPiece = {
+	template: MeshPart,
+	role: string,
+	tier: number,
+	realm: string?,
+	offset: CFrame, -- in the grip frame, at size 1
+	size: Vector3,
+}
+
+local meshCache: { [string]: { MeshPiece } | false } = {}
+
+local function meshPieces(family: string): { MeshPiece }?
+	local cached = meshCache[family]
+	if cached == false then
+		return nil
+	elseif cached ~= nil then
+		return cached :: { MeshPiece }
+	end
+	local template = GEAR_MODELS and GEAR_MODELS:FindFirstChild(family)
+	local markers: { [string]: BasePart? } = {}
+	if template then
+		for _, d in template:GetDescendants() do
+			if d:IsA("BasePart") and (d.Name == "Grip" or d.Name == "GripY" or d.Name == "GripX") then
+				markers[d.Name] = d
+			end
+		end
+	end
+	local grip, gripY, gripX = markers.Grip, markers.GripY, markers.GripX
+	if template == nil or grip == nil or gripY == nil or gripX == nil then
+		meshCache[family] = false
+		return nil
+	end
+	local origin = grip.Position
+	local yv = gripY.Position - origin
+	local scale = yv.Magnitude
+	local y = yv.Unit
+	local xv = gripX.Position - origin
+	local x = (xv - y * xv:Dot(y)).Unit
+	local frame = CFrame.fromMatrix(origin, x, y, x:Cross(y))
+	local pieces: { MeshPiece } = {}
+	for _, d in template:GetDescendants() do
+		if not d:IsA("MeshPart") or markers[d.Name] then
+			continue
+		end
+		local name = string.gsub(d.Name, "%d+$", "")
+		local role = string.match(name, "^(%a+)") or "Steel"
+		local local_ = frame:ToObjectSpace(d.CFrame)
+		table.insert(pieces, {
+			template = d,
+			role = role,
+			tier = tonumber(string.match(name, "_T(%d)")) or 1,
+			realm = string.match(name, "_(Angel)") or string.match(name, "_(Devil)"),
+			offset = CFrame.new(local_.Position / scale) * local_.Rotation,
+			size = d.Size / scale,
+		})
+	end
+	meshCache[family] = pieces
+	return pieces
+end
+
+--[[
+	Draws the sculpted `family` model on `anchor` with its grip at `grip`
+	(anchor space), sized `k`. Pieces above the worn tier, or for the other
+	realm, are left out. Returns false if that model isn't imported (the
+	part-built version is drawn instead).
+]]
+local function meshGear(ctx: Ctx, family: string, anchor: BasePart, grip: CFrame, k: number): boolean
+	local pieces = meshPieces(family)
+	if pieces == nil then
+		return false
+	end
+	local glow: BasePart? = nil
+	for _, info in pieces do
+		if info.tier > tier(ctx) or (info.realm and info.realm ~= ctx.race) then
+			continue
+		end
+		local part = info.template:Clone()
+		part:ClearAllChildren()
+		part.Size = info.size * k
+		local role = MESH_ROLE[info.role] or "blade"
+		paint(
+			ctx,
+			part,
+			role,
+			nil,
+			if role == "glow" then Enum.Material.Neon else nil,
+			anchor,
+			anchor.CFrame * grip * CFrame.new(info.offset.Position * k) * info.offset.Rotation
+		)
+		if role == "glow" and glow == nil then
+			glow = part
+		end
+	end
+	sparkle(ctx, glow)
+	return true
 end
 
 -- Realm ornaments either side of a guard / head (tier 3).
@@ -1389,13 +1634,16 @@ local function ornaments(ctx: Ctx, hand: BasePart, frame: CFrame, spread: number
 	end
 end
 
-local function sword(ctx: Ctx, body: Body, great: boolean)
-	local hand = handOrArm(body, "Right")
+local function sword(ctx: Ctx, body: Body, great: boolean, side: string?)
+	local hand = handOrArm(body, side or "Right")
 	if hand == nil then
 		return
 	end
 	local g = FORWARD_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, if great then "Greatsword" else "Sword", hand, g, k) then
+		return
+	end
 	local gripLow = if great then -0.95 else -0.55
 	segment(
 		ctx,
@@ -1451,8 +1699,11 @@ local function polearm(ctx: Ctx, body: Body)
 	if hand == nil then
 		return
 	end
-	local g = POLE_GRIP
+	local g = FORWARD_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, "Polearm", hand, g, k) then
+		return
+	end
 	local top = 3.4 * k
 	segment(
 		ctx,
@@ -1495,6 +1746,9 @@ local function mace(ctx: Ctx, body: Body)
 	end
 	local g = FORWARD_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, "Mace", hand, g, k) then
+		return
+	end
 	local top = 2.1 * k
 	segment(
 		ctx,
@@ -1540,6 +1794,9 @@ local function axe(ctx: Ctx, body: Body)
 	end
 	local g = FORWARD_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, "Axe", hand, g, k) then
+		return
+	end
 	local top = 2.6 * k
 	segment(
 		ctx,
@@ -1592,6 +1849,9 @@ local function staff(ctx: Ctx, body: Body)
 	end
 	local g = POLE_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, "Staff", hand, g, k) then
+		return
+	end
 	local top = 3.0 * k
 	segment(
 		ctx,
@@ -1661,6 +1921,10 @@ local function orb(ctx: Ctx, body: Body)
 	end
 	local k = reach(ctx)
 	local center = CFrame.new(0, -0.55, -0.75)
+	if meshGear(ctx, "Orb", hand, center, k) then
+		sleeve(ctx, body.arms.Right.lower, "metal", 0.14, 1.4, -0.4)
+		return
+	end
 	sparkle(
 		ctx,
 		piece(ctx, hand, "glow", Vector3.new(0.8, 0.8, 0.8) * k, center, { shape = Enum.PartType.Ball })
@@ -1689,6 +1953,9 @@ local function bow(ctx: Ctx, body: Body)
 	end
 	local g = POLE_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, "Bow", hand, g, k) then
+		return
+	end
 	local angel = ctx.race == "Angel"
 	local points = {}
 	local steps = 6
@@ -1727,12 +1994,15 @@ end
 
 -- A crossbow held out in the left hand: stock forward, limbs across.
 local function crossbow(ctx: Ctx, body: Body)
-	local hand = handOrArm(body, "Left")
+	local hand = handOrArm(body, "Right")
 	if hand == nil then
 		return
 	end
-	local g = POLE_GRIP
+	local g = POINT_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, "Crossbow", hand, g, k) then
+		return
+	end
 	segment(
 		ctx,
 		hand,
@@ -1774,6 +2044,9 @@ local function wand(ctx: Ctx, body: Body)
 	end
 	local g = POINT_GRIP
 	local k = reach(ctx)
+	if meshGear(ctx, "Wand", hand, g, k) then
+		return
+	end
 	segment(
 		ctx,
 		hand,
@@ -1823,6 +2096,9 @@ local function tome(ctx: Ctx, body: Body, inHand: boolean)
 		return
 	end
 	local k = if inHand then reach(ctx) else 1
+	if meshGear(ctx, "Tome", anchor, frame, k) then
+		return
+	end
 	piece(ctx, anchor, "leather", Vector3.new(0.95, 1.25, 0.32) * k, frame)
 	piece(
 		ctx,
@@ -1852,6 +2128,200 @@ local function tome(ctx: Ctx, body: Body, inHand: boolean)
 	end
 end
 
+-- A dagger (D-68): a short broad blade, a cross guard, a wrapped grip.
+local function dagger(ctx: Ctx, body: Body)
+	local hand = handOrArm(body, "Right")
+	if hand == nil then
+		return
+	end
+	local g = FORWARD_GRIP
+	local k = reach(ctx)
+	if meshGear(ctx, "Dagger", hand, g, k) then
+		return
+	end
+	segment(
+		ctx,
+		hand,
+		"leather",
+		(g * CFrame.new(0, -0.35, 0)).Position,
+		(g * CFrame.new(0, 0.3, 0)).Position,
+		0.18
+	)
+	piece(
+		ctx,
+		hand,
+		"metal",
+		Vector3.new(0.24, 0.24, 0.24),
+		g * CFrame.new(0, -0.42, 0),
+		{ ellipsoid = true }
+	)
+	piece(ctx, hand, "metal", Vector3.new(0.8, 0.14, 0.24), g * CFrame.new(0, 0.38, 0))
+	gem(ctx, hand, 0.16, g * CFrame.new(0, 0.38, -0.13))
+	local length = 1.5 * k
+	piece(ctx, hand, "blade", Vector3.new(0.34, length, 0.08), g * CFrame.new(0, 0.45 + length / 2, 0))
+	piece(
+		ctx,
+		hand,
+		"blade",
+		Vector3.new(0.34, 0.45, 0.08),
+		g * CFrame.new(0, 0.45 + length + 0.12, 0),
+		{ ellipsoid = true }
+	)
+	sparkle(
+		ctx,
+		piece(
+			ctx,
+			hand,
+			"glow",
+			Vector3.new(0.06, length * 0.8, 0.1),
+			g * CFrame.new(0, 0.5 + length * 0.45, 0)
+		)
+	)
+end
+
+-- A two-handed war hammer (D-68): a long haft and a heavy block head.
+local function warHammer(ctx: Ctx, body: Body)
+	local hand = handOrArm(body, "Right")
+	if hand == nil then
+		return
+	end
+	local g = FORWARD_GRIP
+	local k = reach(ctx)
+	if meshGear(ctx, "WarHammer", hand, g, k) then
+		return
+	end
+	local top = 2.9 * k
+	segment(
+		ctx,
+		hand,
+		"wood",
+		(g * CFrame.new(0, -1.6, 0)).Position,
+		(g * CFrame.new(0, top, 0)).Position,
+		0.22
+	)
+	segment(
+		ctx,
+		hand,
+		"leather",
+		(g * CFrame.new(0, -0.9, 0)).Position,
+		(g * CFrame.new(0, 0.6, 0)).Position,
+		0.26
+	)
+	local head = g * CFrame.new(0, top + 0.3, 0)
+	piece(ctx, hand, "metal", Vector3.new(1.5, 0.8, 0.8) * k, head)
+	for _, x in { -1, 1 } do
+		piece(ctx, hand, "metal", Vector3.new(0.2, 0.95, 0.95) * k, head * CFrame.new(x * 0.78 * k, 0, 0))
+	end
+	sparkle(ctx, piece(ctx, hand, "glow", Vector3.new(1.52, 0.1, 0.82) * k, head))
+	if tier(ctx) >= 2 then
+		piece(
+			ctx,
+			hand,
+			"horn",
+			Vector3.new(0.3, 0.7, 0.3),
+			head * CFrame.new(0, 0.6 * k, 0),
+			{ ellipsoid = true }
+		)
+	end
+	ornaments(ctx, hand, head * CFrame.new(0, -0.5, 0), 0.6)
+end
+
+-- A two-handed battle axe (D-68): a long haft and a broad crescent head.
+local function battleAxe(ctx: Ctx, body: Body)
+	local hand = handOrArm(body, "Right")
+	if hand == nil then
+		return
+	end
+	local g = FORWARD_GRIP
+	local k = reach(ctx)
+	if meshGear(ctx, "BattleAxe", hand, g, k) then
+		return
+	end
+	local top = 3.0 * k
+	segment(
+		ctx,
+		hand,
+		"wood",
+		(g * CFrame.new(0, -1.6, 0)).Position,
+		(g * CFrame.new(0, top, 0)).Position,
+		0.2
+	)
+	local head = g * CFrame.new(0, top - 0.5, 0)
+	piece(
+		ctx,
+		hand,
+		"blade",
+		Vector3.new(1.7, 1.6, 0.1) * k,
+		head * CFrame.new(-0.8 * k, 0, 0),
+		{ ellipsoid = true }
+	)
+	sparkle(
+		ctx,
+		piece(ctx, hand, "glow", Vector3.new(0.1, 1.5, 0.12) * k, head * CFrame.new(-1.62 * k, 0, 0))
+	)
+	piece(ctx, hand, "metal", Vector3.new(0.45, 0.7, 0.26), head)
+	if tier(ctx) >= 2 then
+		piece(
+			ctx,
+			hand,
+			"blade",
+			Vector3.new(1.2, 1.1, 0.1) * k,
+			head * CFrame.new(0.6 * k, 0, 0),
+			{ ellipsoid = true }
+		)
+	end
+	ornaments(ctx, hand, head * CFrame.new(0, 0.5, 0), 0.3)
+end
+
+-- A shield on the left forearm (D-68), its face turned outward.
+local function shield(ctx: Ctx, body: Body)
+	local arm = body.arms.Left.lower or body.arms.Left.upper
+	if arm == nil then
+		return
+	end
+	local s = arm.Size
+	local k = reach(ctx)
+	-- Facing out from the arm (-X), slightly forward.
+	local face = CFrame.new(-(s.X / 2 + 0.16), 0, -0.1) * CFrame.Angles(0, math.rad(90), 0)
+	-- The sculpted shield's strap sits on the arm, its face toward -Z (out).
+	if
+		meshGear(ctx, "Shield", arm, CFrame.new(-(s.X / 2), 0, -0.05) * CFrame.Angles(0, math.rad(90), 0), k)
+	then
+		return
+	end
+	local w, h = 1.9 * k, 2.5 * k
+	piece(ctx, arm, "metal", Vector3.new(w, h, 0.16), face, { ellipsoid = true })
+	piece(ctx, arm, "leather", Vector3.new(w * 0.86, h * 0.86, 0.18), face * CFrame.new(0, 0, -0.02), {
+		ellipsoid = true,
+		colorRole = if ctx.race == "Angel" then "cloth" else "horn",
+	})
+	-- Rim and boss.
+	ring(
+		ctx,
+		arm,
+		"glow",
+		face * CFrame.Angles(math.rad(90), 0, 0) * CFrame.new(0, 0.1, 0),
+		w * 0.46,
+		0.07,
+		14
+	)
+	piece(ctx, arm, "metal", Vector3.new(0.5, 0.5, 0.3), face * CFrame.new(0, 0, -0.14), { ellipsoid = true })
+	gem(ctx, arm, 0.28, face * CFrame.new(0, 0, -0.3))
+	if tier(ctx) >= 3 then
+		-- Realm emblem: spread wings or swept horns either side of the boss.
+		for _, x in { -1, 1 } do
+			piece(
+				ctx,
+				arm,
+				if ctx.race == "Angel" then "metal" else "horn",
+				Vector3.new(0.16, 0.9, 0.12),
+				face * CFrame.new(x * 0.45, 0.25, -0.16) * CFrame.Angles(0, 0, math.rad(-x * 40)),
+				{ ellipsoid = true }
+			)
+		end
+	end
+end
+
 local WEAPONS: { [string]: (Ctx, Body) -> () } = {
 	Sword = function(ctx, body)
 		sword(ctx, body, false)
@@ -1870,6 +2340,9 @@ local WEAPONS: { [string]: (Ctx, Body) -> () } = {
 	Tome = function(ctx, body)
 		tome(ctx, body, true)
 	end,
+	Dagger = dagger,
+	WarHammer = warHammer,
+	BattleAxe = battleAxe,
 }
 
 -- The full look's weapon per job (previews, no gear list).
@@ -1894,6 +2367,23 @@ local function weapon(ctx: Ctx, body: Body, job: string?)
 	styled(ctx, "Weapon", function()
 		ctx.sparkle = GearLook.sparkles(worn)
 		draw(ctx, body)
+		ctx.sparkle = false
+	end)
+end
+
+-- The off-hand (D-68): a shield on the left arm or a second short sword.
+local function offHand(ctx: Ctx, body: Body)
+	local worn = ctx.look and ctx.look.OffHand
+	if worn == nil then
+		return
+	end
+	styled(ctx, "OffHand", function()
+		ctx.sparkle = worn.kind == "Weapon" and GearLook.sparkles(worn)
+		if worn.kind == "Shield" then
+			shield(ctx, body)
+		elseif worn.family == "Sword" then
+			sword(ctx, body, false, "Left")
+		end
 		ctx.sparkle = false
 	end)
 end
@@ -1949,10 +2439,24 @@ function OutfitBuilder.build(
 					helm(ctx, body, job)
 				end)
 			end
-			if look and look.Accessory then
-				styled(ctx, "Accessory", function()
-					accessory(ctx, body)
+			-- Jewellery (D-68): necklace, earrings, two rings.
+			if look and look.Necklace then
+				styled(ctx, "Necklace", function()
+					necklace(ctx, body)
 				end)
+			end
+			if look and look.Earrings then
+				styled(ctx, "Earrings", function()
+					earrings(ctx, body)
+				end)
+			end
+			local ringSides: { [string]: string } = { Ring1 = "Right", Ring2 = "Left" }
+			for slot, side in ringSides do
+				if look and look[slot] then
+					styled(ctx, slot, function()
+						ringOn(ctx, body, side)
+					end)
+				end
 			end
 		else
 			recruit(ctx, body)
@@ -1961,6 +2465,7 @@ function OutfitBuilder.build(
 
 	if wants("Weapon") then
 		weapon(ctx, body, job)
+		offHand(ctx, body)
 	end
 
 	if race == "Angel" then

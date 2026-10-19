@@ -33,6 +33,7 @@ local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local WeaponRules = require(Shared.Definitions.WeaponRules)
 local EnhanceRules = require(Shared.Logic.EnhanceRules)
 local InventoryLayout = require(Shared.Layout.InventoryLayout)
 local NetClient = require(Shared.Net.Client)
@@ -65,11 +66,24 @@ local RARITY_LETTER: { [string]: string } = {
 }
 local SLOT_GLYPH: { [string]: string } = {
 	Weapon = "⚔",
+	OffHand = "🛡",
 	Helm = "⛑",
+	Shoulders = "🦺",
 	Chest = "🛡",
+	Hands = "🧤",
 	Legs = "👖",
 	Boots = "👢",
-	Accessory = "💍",
+	Necklace = "📿",
+	Earrings = "✧",
+	Ring1 = "💍",
+	Ring2 = "💍",
+}
+-- Slot labels under the equipment tiles (D-68).
+local SLOT_LABEL: { [string]: string } = {
+	Weapon = "Main hand",
+	OffHand = "Off-hand",
+	Ring1 = "Ring",
+	Ring2 = "Ring",
 }
 local FILTERS = {
 	{ id = "All", text = "All" },
@@ -254,7 +268,8 @@ local function sortedItems(): { Item }
 	local list = {}
 	for _, item in state().Inventory do
 		local def = defOf(item)
-		if def and (filter == "All" or def.category == filter) then
+		local category = if def and def.category == "Shield" then "Armor" else def and def.category
+		if def and (filter == "All" or category == filter) then
 			table.insert(list, item)
 		end
 	end
@@ -330,7 +345,7 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(cell.Position.X.Offset - 6, cell.Position.Y.Offset + tileSize),
 			Size = UDim2.fromOffset(tileSize + 12, InventoryLayout.SLOT_LABEL),
-			Text = slot,
+			Text = SLOT_LABEL[slot] or slot,
 			TextSize = 11,
 			FontFace = Theme.Fonts.Body,
 			TextColor3 = Theme.Colors.TextDim,
@@ -595,6 +610,15 @@ local function drawDetail(parent: Instance)
 	).LayoutOrder =
 		2
 	text(parent, `{if job then job.displayName else def.job} gear`, 12, Theme.Colors.TextDim).LayoutOrder = 3
+	-- D-68: how it is held and what goes with it.
+	local hold = if def.family
+		then WeaponRules.describe(def.family)
+		elseif def.slot == "Shield" then "Shield · off-hand · with a short sword, mace or hand axe"
+		elseif def.slot == "Ring" then "Ring · two can be worn"
+		else nil
+	if hold then
+		text(parent, hold, 12, Theme.Colors.GoldBright, Theme.Fonts.BodyBold).LayoutOrder = 3
+	end
 
 	local base = ItemRules.baseStats(def, item.Rarity, item.ItemLevel, item.Enhancement)
 	local lines = {}
@@ -648,12 +672,32 @@ local function drawDetail(parent: Instance)
 			NetClient.fire("UnequipItem", slot)
 		end)
 	elseif ok then
-		local equip = button("Equip", 112, Theme.Colors.Gold)
-		equip.LayoutOrder = 1
-		equip.Parent = buttons
-		equip.Activated:Connect(function()
-			NetClient.fire("EquipItem", guid)
-		end)
+		-- D-68: rings pick a finger; a Warrior's second short sword can go in
+		-- the off-hand (dual swords) when a short sword is in the main hand.
+		local targets: { { text: string, slot: string? } } = {}
+		if def.slot == "Ring" then
+			targets = { { text = "Ring 1", slot = "Ring1" }, { text = "Ring 2", slot = "Ring2" } }
+		else
+			table.insert(
+				targets,
+				{ text = if def.slot == "Shield" then "Equip (off-hand)" else "Equip", slot = nil }
+			)
+			local rule = WeaponRules.get(def.family)
+			local mainGuid = state().Equipment.Weapon
+			local main = mainGuid and state().Inventory[mainGuid]
+			local mainDef = main and defOf(main)
+			if rule and rule.dual and mainDef and mainDef.family == def.family then
+				table.insert(targets, { text = "Off-hand (dual)", slot = "OffHand" })
+			end
+		end
+		for index, target in targets do
+			local equip = button(target.text, 112, Theme.Colors.Gold)
+			equip.LayoutOrder = index
+			equip.Parent = buttons
+			equip.Activated:Connect(function()
+				NetClient.fire("EquipItem", guid, target.slot)
+			end)
+		end
 	end
 	local lock = button(if item.Locked then "🔓 Unlock" else "🔒 Lock", 112)
 	lock.LayoutOrder = 2

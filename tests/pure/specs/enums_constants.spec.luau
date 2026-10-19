@@ -36,7 +36,10 @@ return function(t)
 		end)
 
 		t.it("ItemSlot matches D-25", function()
-			t.eq(table.concat(Enums.ItemSlot, ","), "Weapon,Helm,Chest,Legs,Boots,Accessory")
+			t.eq(
+				table.concat(Enums.ItemSlot, ","),
+				"Weapon,OffHand,Helm,Shoulders,Chest,Hands,Legs,Boots,Necklace,Earrings,Ring1,Ring2"
+			)
 		end)
 	end)
 

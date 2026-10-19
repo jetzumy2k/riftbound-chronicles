@@ -36,14 +36,20 @@ local LootRules = {}
 LootRules.TABLE_IDS =
 	table.freeze({ "DungeonMob", "DungeonElite", "DungeonMiniBoss", "DungeonFloorBoss", "DungeonBoss" })
 
--- Which slot drops, by weight: weapons most, the accessory least.
+-- Which kind of piece drops, by weight (D-68): weapons most, armor
+-- pieces next, shields (Warrior only) and jewellery least.
 LootRules.SLOT_WEIGHTS = table.freeze({
-	{ slot = "Weapon", weight = 3 },
+	{ slot = "Weapon", weight = 4 },
 	{ slot = "Helm", weight = 2 },
+	{ slot = "Shoulders", weight = 2 },
 	{ slot = "Chest", weight = 2 },
+	{ slot = "Hands", weight = 2 },
 	{ slot = "Legs", weight = 2 },
 	{ slot = "Boots", weight = 2 },
-	{ slot = "Accessory", weight = 1 },
+	{ slot = "Shield", weight = 1 },
+	{ slot = "Necklace", weight = 1 },
+	{ slot = "Earrings", weight = 1 },
+	{ slot = "Ring", weight = 1 },
 })
 
 local EPSILON = 1e-6
@@ -113,13 +119,19 @@ function LootRules.pickPiece(
 	slotRoll: number,
 	familyRoll: number
 ): ItemDefinitions.ItemDef?
+	-- Only kinds the class has (shields are Warrior gear).
+	local kinds = ItemDefinitions.kindsOf(job)
+	local entries = {}
 	local total = 0
 	for _, entry in LootRules.SLOT_WEIGHTS do
-		total += entry.weight
+		if table.find(kinds, entry.slot) then
+			table.insert(entries, entry)
+			total += entry.weight
+		end
 	end
 	local pick = slotRoll * total
 	local slot = "Weapon"
-	for _, entry in LootRules.SLOT_WEIGHTS do
+	for _, entry in entries do
 		pick -= entry.weight
 		if pick < 0 then
 			slot = entry.slot

@@ -48,9 +48,10 @@ JobDefinitions.Warrior = freezeDeep({
 	description = "Frontline champion who guards allies, shrugs off blows and controls the fight up close.",
 	-- CLAUDE.md §6.2
 	allowedSkillCategories = { "Guard", "Shield", "DefenseBuff", "MeleeAttack", "AreaMelee", "Taunt" },
+	-- D-68 (creator's weapon rules): every warrior weapon in both realms.
 	weaponsByRace = {
-		Angel = { "Sword", "Greatsword", "Polearm", "Mace" },
-		Devil = { "Sword", "Greatsword", "Axe", "Polearm" },
+		Angel = { "Sword", "Mace", "Axe", "Greatsword", "WarHammer", "BattleAxe", "Polearm" },
+		Devil = { "Sword", "Mace", "Axe", "Greatsword", "WarHammer", "BattleAxe", "Polearm" },
 	},
 } :: JobDefinition)
 
@@ -65,9 +66,10 @@ JobDefinitions.Healer = freezeDeep({
 	description = "Keeps the party standing with healing and shields, and turns the tide with arcane power.",
 	-- CLAUDE.md §6.1 (HolyAttack is the internal id of the radiant/arcane attack category).
 	allowedSkillCategories = { "Heal", "Shield", "Cleanse", "HolyAttack", "AreaSupport" },
+	-- D-68: dagger and short sword added; the orb stays as an extra.
 	weaponsByRace = {
-		Angel = { "Staff", "Orb" },
-		Devil = { "Staff", "Orb" },
+		Angel = { "Staff", "Dagger", "Sword", "Orb" },
+		Devil = { "Staff", "Dagger", "Sword", "Orb" },
 	},
 } :: JobDefinition)
 
@@ -99,9 +101,10 @@ JobDefinitions.Mage = freezeDeep({
 	},
 	description = "Master of raw arcane power: devastating area spells, crowd control and barriers, but fragile up close.",
 	allowedSkillCategories = { "MagicAttack", "AreaMagic", "Control", "Barrier" },
+	-- D-68: dagger and short sword added; wand and tome stay as extras.
 	weaponsByRace = {
-		Angel = { "Staff", "Wand", "Tome" },
-		Devil = { "Staff", "Wand", "Tome" },
+		Angel = { "Staff", "Dagger", "Sword", "Wand", "Tome" },
+		Devil = { "Staff", "Dagger", "Sword", "Wand", "Tome" },
 	},
 } :: JobDefinition)
 

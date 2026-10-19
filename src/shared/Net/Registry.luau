@@ -61,7 +61,7 @@ return function(S: any)
 		Locked = S.boolean(),
 		CreatedAt = S.number(0),
 	})
-	local equipment = S.map(S.enum(Enums.ItemSlot), guid, 6)
+	local equipment = S.map(S.enum(Enums.ItemSlot), guid, 12)
 	local stackables = S.map(S.enum(STACKABLE_IDS), S.int(0), 16)
 	local wallet = S.struct({ Gold = S.int(0), PvPMarks = S.int(0) })
 
@@ -154,10 +154,12 @@ return function(S: any)
 		-- Inventory intents (Phase 7, D-64). The server owns every item: it
 		-- checks ownership (the guid must be in the caller's own inventory),
 		-- job, race weapon family, level, slot, locks and combat state.
+		-- D-68: the optional slot picks Ring1 / Ring2, or OffHand for a
+		-- second sword (dual swords); the server applies the hand rules.
 		EquipItem = {
 			direction = "ClientToServer",
 			kind = "Event",
-			args = { guid },
+			args = { guid, S.optional(S.enum({ "OffHand", "Ring1", "Ring2" })) },
 			rate = { capacity = 6, refillPerSecond = 2 },
 			states = { "ProfileLoaded", "HasJob" },
 		},

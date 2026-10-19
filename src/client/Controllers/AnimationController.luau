@@ -32,6 +32,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local AnimationAssets = require(Shared.Definitions.AnimationAssets)
 local AnimationClips = require(Shared.Definitions.AnimationClips)
+local WeaponRules = require(Shared.Definitions.WeaponRules)
 local ClipBuilder = require(Shared.Animation.ClipBuilder)
 local Log = require(Shared.Util.Log)
 
@@ -48,6 +49,8 @@ type Variant = ClipBuilder.Variant
 
 type Action = {
 	name: string,
+	-- The clip actually playing (the weapon profile's version of `name`).
+	clip: string,
 	variant: Variant,
 	track: AnimationTrack,
 	startedAt: number,
@@ -174,6 +177,38 @@ local function jobOf(character: Model): string?
 	return if type(job) == "string" then job else nil
 end
 
+--[[
+	D-69: the clip set for what the character holds ("WeaponProfile",
+	set by the server), e.g. "TwoHand" or "Warrior"; nil = the job's own.
+]]
+local function clipSetOf(character: Model): string?
+	local profile = character:GetAttribute("WeaponProfile")
+	return if type(profile) == "string" then WeaponRules.CLIP_SET[profile] else nil
+end
+
+--[[
+	The clip to play for `name` on `character`: a job attack ("Healer_Attack2")
+	becomes the weapon profile's ("Staff_Attack2") when that set has it, sped
+	up or slowed so its Hit lands when the original's does (the server times
+	damage from the original). Returns the clip name and a speed factor.
+]]
+local function resolve(character: Model, name: string): (string, number)
+	local set = clipSetOf(character)
+	local prefix, step = string.match(name, "^(%a+)_Attack(%d)$")
+	if set == nil or prefix == nil or prefix == set then
+		return name, 1
+	end
+	local replacement = `{set}_Attack{step}`
+	local clip, original = AnimationClips.get(replacement), AnimationClips.get(name)
+	if clip == nil or original == nil then
+		return name, 1
+	end
+	local hitNew = clip.markers and clip.markers.Hit
+	local hitOld = original.markers and original.markers.Hit
+	local factor = if hitNew and hitOld and hitOld > 0 then math.clamp(hitNew / hitOld, 0.6, 1.6) else 1
+	return replacement, factor
+end
+
 local function isAirborne(humanoid: Humanoid): boolean
 	local state = humanoid:GetState()
 	return state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall
@@ -231,7 +266,13 @@ local function updateState(state: State)
 	else
 		local job = jobOf(character)
 		local airborne = isAirborne(humanoid)
-		local base = if job == nil then nil elseif moving or airborne then job .. "_Hold" else job .. "_Idle"
+		-- D-69: the weapon profile's stance, else the job's.
+		local set = clipSetOf(character)
+		local holdSet = if set and AnimationClips.get(set .. "_Idle") then set else job
+		local base = if holdSet == nil
+			then nil
+			elseif moving or airborne then holdSet .. "_Hold"
+			else holdSet .. "_Idle"
 		setLoop(state, "base", base, 1)
 
 		local stance = character:GetAttribute("Stance")
@@ -266,9 +307,9 @@ local function updateState(state: State)
 	end
 	-- Started moving mid-attack: hand the legs back to locomotion.
 	if action.variant == "Full" and moving then
-		local clip = AnimationClips.get(action.name)
+		local clip = AnimationClips.get(action.clip)
 		if clip and ClipBuilder.hasLowerBody(clip) and track.TimePosition < track.Length - 0.12 then
-			local upper = trackFor(state, action.name, "Upper")
+			local upper = trackFor(state, action.clip, "Upper")
 			if upper then
 				local position = track.TimePosition
 				upper:Play(0.1, 1, action.speed)
@@ -369,7 +410,8 @@ export type PlayOptions = { speed: number? }
 ]]
 function AnimationController.play(character: Model, name: string, options: PlayOptions?): boolean
 	local state = states[character]
-	local clip = AnimationClips.get(name)
+	local clipName, factor = resolve(character, name)
+	local clip = AnimationClips.get(clipName)
 	if state == nil or clip == nil then
 		return false
 	end
@@ -383,17 +425,18 @@ function AnimationController.play(character: Model, name: string, options: PlayO
 			and ClipBuilder.hasLowerBody(clip)
 		then "Upper"
 		else "Full"
-	local track = trackFor(state, name, variant)
+	local track = trackFor(state, clipName, variant)
 	if track == nil then
 		return false
 	end
 	if current and current.track ~= track then
 		current.track:Stop(ACTION_FADE)
 	end
-	local speed = (options and options.speed) or 1
+	local speed = ((options and options.speed) or 1) * factor
 	track:Play(ACTION_FADE, 1, speed)
 	local action: Action = {
 		name = name :: string,
+		clip = clipName,
 		variant = variant,
 		track = track,
 		startedAt = os.clock(),
