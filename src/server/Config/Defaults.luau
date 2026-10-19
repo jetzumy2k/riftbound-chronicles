@@ -149,6 +149,12 @@ return {
 		StudioBossRespawnSeconds = 120,
 	},
 
+	-- Phase 8 (D-08 / D-66): percent chance to reach +1 … +10 with an
+	-- Enhancement Stone (a Perfect Stone always succeeds). Shown to players.
+	Enhancement = {
+		RatesPct = { 100, 100, 100, 100, 100, 90, 80, 70, 60, 50 },
+	},
+
 	-- Server mob AI (ARCHITECTURE.md §7: one scheduler, ≤ 10 Hz, sleep when idle).
 	Mobs = {
 		TickHz = 8,

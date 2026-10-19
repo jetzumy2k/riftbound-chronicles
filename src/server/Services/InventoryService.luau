@@ -222,6 +222,20 @@ function InventoryService:GrantStackable(player: Player, id: string, count: numb
 	return added
 end
 
+-- Tells the owner about changed items (other item services, e.g. enhancement).
+function InventoryService:Push(player: Player, changed: { string }?)
+	local data = PlayerDataService:GetData(player)
+	if data then
+		push(player, data, changed, nil)
+	end
+end
+
+-- The slot `guid` is equipped in, if any.
+function InventoryService:EquippedSlot(player: Player, guid: string): string?
+	local data = PlayerDataService:GetData(player)
+	return if data then equippedSlotOf(data, guid) else nil
+end
+
 function InventoryService:GetEquipped(player: Player, slot: string): Item?
 	local data = PlayerDataService:GetData(player)
 	local guid = data and data.Equipment[slot]
@@ -439,6 +453,8 @@ local function onStudioTestGear(player: Player)
 	end
 	InventoryService:GrantStackable(player, "HealingPotion", 5, "Studio:TestGear")
 	InventoryService:GrantStackable(player, "StoneFragment", 25, "Studio:TestGear")
+	InventoryService:GrantStackable(player, "EnhancementStone", 10, "Studio:TestGear")
+	InventoryService:GrantStackable(player, "PerfectStone", 2, "Studio:TestGear")
 	notify(player, "Info", "testGear", { count = tostring(granted) })
 end
 

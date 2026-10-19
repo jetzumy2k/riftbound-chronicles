@@ -33,6 +33,7 @@ local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local EnhanceRules = require(Shared.Logic.EnhanceRules)
 local InventoryLayout = require(Shared.Layout.InventoryLayout)
 local NetClient = require(Shared.Net.Client)
 
@@ -41,6 +42,7 @@ local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
+local NotificationController = require(script.Parent.NotificationController)
 
 type Item = PlayerDataController.Item
 
@@ -98,6 +100,9 @@ local confirm: string? = nil
 local confirmUntil = 0
 local gridScroll = Vector2.zero
 local renderToken = 0
+-- The last enhancement result, shown in the detail for a few seconds.
+local lastEnhance: { guid: string, success: boolean, level: number, at: number }? = nil
+local ENHANCE_RESULT_SECONDS = 4
 
 local render: () -> ()
 
@@ -478,6 +483,97 @@ local function drawGrid(parent: GuiObject, width: number, layout: InventoryLayou
 	return math.max(1, math.ceil(#items / columns)) * step
 end
 
+-- Server-published rates (ReplicatedStorage "RC_EnhanceRates"), else D-08.
+local function enhanceRates(): { number }?
+	local raw = ReplicatedStorage:GetAttribute("RC_EnhanceRates")
+	if type(raw) ~= "string" then
+		return nil
+	end
+	local out = {}
+	for value in string.gmatch(raw, "[^,]+") do
+		table.insert(out, tonumber(value) or 0)
+	end
+	return out
+end
+
+-- Enhancement (Phase 8, D-66): the odds, what +1 adds, the two stone
+-- buttons and the last result. Failure never lowers the item.
+local function drawEnhance(parent: Instance, item: Item, def: ItemDefinitions.ItemDef)
+	local box = Kit.new("Frame", {
+		BackgroundColor3 = Theme.Colors.Ink,
+		BackgroundTransparency = 0.35,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 8,
+		Parent = parent,
+	})
+	Kit.corner(box, 10)
+	Kit.padding(box, 8, 8)
+	local list = Kit.list(box, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Left)
+	list.VerticalAlignment = Enum.VerticalAlignment.Top
+	local level = item.Enhancement
+	local result = lastEnhance
+	if result and result.guid == item.Guid and os.clock() - result.at < ENHANCE_RESULT_SECONDS then
+		text(
+			box,
+			if result.success
+				then `✓ Success! Now +{result.level}`
+				else `✗ Failed: still +{result.level} (a stone was used, the item is unchanged)`,
+			13,
+			if result.success then Theme.Colors.Safe else Color3.fromRGB(255, 150, 130),
+			Theme.Fonts.BodyBold
+		).LayoutOrder =
+			0
+	end
+	if level >= EnhanceRules.MAX then
+		text(box, `Enhancement +{level}: maximum reached.`, 13, Theme.Colors.GoldBright, Theme.Fonts.BodyBold).LayoutOrder =
+			1
+		return
+	end
+	local rate = EnhanceRules.rateFor(level, enhanceRates())
+	local gain = if def.category == "Weapon" then "+20 Attack, +2.5% Crit Damage" else "+8 Defense"
+	text(
+		box,
+		`Enhance +{level} → +{level + 1}:  {rate}% chance  ·  each +1 adds {gain}. A failure only uses the stone.`,
+		12,
+		Theme.Colors.Text
+	).LayoutOrder =
+		1
+	local stones = state().Stackables[EnhanceRules.STONE] or 0
+	local perfects = state().Stackables[EnhanceRules.PERFECT] or 0
+	local row = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 2,
+		Parent = box,
+	})
+	Kit.new("UIGridLayout", {
+		CellSize = UDim2.fromOffset(112, 44),
+		CellPadding = UDim2.fromOffset(6, 6),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = row,
+	})
+	local guid = item.Guid
+	local normal = button(`💎 Enhance ({stones})`, 112, if stones > 0 then Theme.Colors.Gold else nil)
+	normal.LayoutOrder = 1
+	normal.Parent = row
+	normal.Activated:Connect(function()
+		if stones > 0 then
+			NetClient.fire("EnhanceItem", guid, false)
+		end
+	end)
+	local perfect =
+		button(`✨ Perfect 100% ({perfects})`, 112, if perfects > 0 then Theme.Colors.Gold else nil)
+	perfect.LayoutOrder = 2
+	perfect.Parent = row
+	perfect.Activated:Connect(function()
+		if perfects > 0 then
+			NetClient.fire("EnhanceItem", guid, true)
+		end
+	end)
+end
+
 local function drawDetail(parent: Instance)
 	local list = Kit.list(parent, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Left)
 	list.VerticalAlignment = Enum.VerticalAlignment.Top
@@ -527,6 +623,7 @@ local function drawDetail(parent: Instance)
 	if slot then
 		text(parent, `✓ Equipped ({slot})`, 12, Theme.Colors.Safe).LayoutOrder = 6
 	end
+	drawEnhance(parent, item, def)
 
 	local buttons = Kit.new("Frame", {
 		BackgroundTransparency = 1,
@@ -812,6 +909,24 @@ function InventoryController:Start()
 	gui.Parent = localPlayer():WaitForChild("PlayerGui")
 
 	render()
+	NetClient.on("EnhanceResult", function(result)
+		if type(result) ~= "table" then
+			return
+		end
+		lastEnhance = { guid = result.Guid, success = result.Success, level = result.Level, at = os.clock() }
+		NotificationController:ShowKey(
+			if result.Success then "Info" else "Warning",
+			if result.Success then "enhance.success" else "enhance.failed",
+			{ level = tostring(result.Level) }
+		)
+		render()
+		local token = renderToken
+		task.delay(ENHANCE_RESULT_SECONDS + 0.1, function()
+			if open and token == renderToken then
+				render()
+			end
+		end)
+	end)
 	PlayerDataController.Changed:Connect(function(_, reason)
 		-- Levels change what can be worn; everything else is inventory.
 		if reason == "inventory" or reason == "snapshot" or open then

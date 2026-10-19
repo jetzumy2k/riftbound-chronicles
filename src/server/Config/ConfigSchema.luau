@@ -59,6 +59,12 @@ return function(S: any)
 			ResetNeedsSafeZone = S.boolean(),
 		}),
 
+		Enhancement = S.struct({
+			-- One rate per level (+1 … +10); EnhanceRules falls back to the
+			-- D-08 defaults if the list is not exactly 10 long.
+			RatesPct = S.array(S.number(0, 100), 10),
+		}),
+
 		Movement = S.struct({
 			WalkSpeed = S.number(4, 40),
 			SprintSpeed = S.number(4, 60),

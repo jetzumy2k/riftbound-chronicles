@@ -199,6 +199,18 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 8 manual tests: enhancement (D-66)
+Pure rules: `lune run tests/pure/run` (enhance_rules: rates, the +10 cap, 20 requests on 5 stones use exactly 5, no downgrade, Perfect Stones, +20 Attack / +2.5% Crit Damage per weapon level, +8 Defense per armor level and never Attack). In Studio, "Studio: add test gear" now also gives 10 Enhancement Stones and 2 Perfect Stones (and 25 fragments = 2 more stones via Combine).
+1. Open the bag (B), tap an item: the Enhance box shows "+N → +N+1", the chance (100% up to +5, then 90 / 80 / 70 / 60 / 50%), what each +1 adds, and the two buttons with your stone counts.
+2. **Enhance** an equipped weapon: on success the tile shows +N, the detail "✓ Success! Now +N", a toast, and your hits get stronger (gear bonus: +20 Attack per level). Armor: +8 Defense per level, never Attack.
+3. Keep going past +5: some attempts fail: "✗ Failed: still +N", one stone gone, the item unchanged (never lower, never destroyed).
+4. **Perfect** always succeeds and uses only a Perfect Stone.
+5. At +10 the box says "maximum reached" and no button shows; a forged request is refused (toast "already +10"), nothing is consumed.
+6. Without stones the button is grey; a forged request is refused ("You don't have that stone"), nothing changes.
+7. Spam the button (or fire `EnhanceItem` 20 times from the command bar with 5 stones): exactly 5 attempts happen, stones never go negative.
+8. A weapon at +7 or more sparkles on the character.
+9. Leave right after enhancing and rejoin: the level and stone count are what the last result said.
+
 ## Phase 7 manual tests: inventory and gear (D-64)
 Pure rules: `lune run tests/pure/run` (item_rules with a 100k-roll fuzz, inventory_layout, profile_validator, profile_view). In Studio the bag's **"Studio: add test gear"** button (Studio only) gives one random piece for each slot of your class, 5 potions and 25 fragments.
 1. **Open:** "🎒 BAG" (right edge, under SKILLS) or **B**. Phone portrait / landscape (Device emulator): equipment, materials and the bag scroll in one column, and tapping an item opens a sheet at the bottom with ✕. Tablet / desktop: three columns. Nothing overlaps the combat buttons.

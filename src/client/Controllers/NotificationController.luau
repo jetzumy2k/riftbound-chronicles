@@ -77,6 +77,11 @@ local STRINGS: { [string]: string } = {
 	["inventory.use.cooldown"] = "Ready again in {seconds} s.",
 	["inventory.use.fullHp"] = "Your health is already full.",
 	["inventory.testGear"] = "Studio: {count} test items added to your bag.",
+	-- Phase 8 enhancement (D-66).
+	["enhance.success"] = "Enhancement succeeded: +{level}!",
+	["enhance.failed"] = "Enhancement failed: the item stays +{level}, one stone used.",
+	["enhance.max"] = "That item is already +10.",
+	["enhance.noStone"] = "You don't have that stone.",
 	["dungeon.full"] = "Too many players for this dungeon.",
 	["dungeon.level"] = "You need level {level} for this dungeon. Train on the Rift Sprites in the Training Grounds.",
 	["dungeon.busy"] = "All dungeon instances are busy. Try again in a moment.",

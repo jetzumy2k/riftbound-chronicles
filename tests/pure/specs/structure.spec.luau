@@ -220,6 +220,11 @@ return function(t)
 				UseConsumable = true,
 				-- No arguments; refused (and security-logged) outside Studio.
 				StudioTestGear = true,
+				-- Phase 8 review (D-66, SECURITY_MODEL T-11): own item guid +
+				-- boolean; the server reads the level from the profile, checks
+				-- the +10 cap and stones, consumes one stone, rolls and applies
+				-- synchronously (no yield, so requests can't overlap).
+				EnhanceItem = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

@@ -199,6 +199,32 @@ return function(S: any)
 			rate = { capacity = 4, refillPerSecond = 1 },
 			states = { "ProfileLoaded", "HasJob", "Alive" },
 		},
+		-- Enhancement intent (Phase 8, D-08 / D-66): the caller's own item
+		-- and whether to use a Perfect Stone. The server checks ownership,
+		-- the +10 cap and stones, then consumes one stone, rolls and applies
+		-- in one synchronous step (SECURITY_MODEL T-11).
+		EnhanceItem = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { guid, S.boolean() },
+			rate = { capacity = 3, refillPerSecond = 2 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+
+		-- Server -> owner: how an enhancement attempt went (display only).
+		EnhanceResult = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					Guid = guid,
+					Success = S.boolean(),
+					Level = S.int(0, Constants.Enhancement.Max),
+					Perfect = S.boolean(),
+				}),
+			},
+		},
+
 		-- Studio play-tests only: a handful of random gear and stackables to
 		-- try the inventory before loot exists (Phase 10). Live servers
 		-- refuse it and log a security event.

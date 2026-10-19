@@ -1892,7 +1892,7 @@ local function weapon(ctx: Ctx, body: Body, job: string?)
 		return
 	end
 	styled(ctx, "Weapon", function()
-		ctx.sparkle = GearLook.SPARKLE[worn.rarity] == true
+		ctx.sparkle = GearLook.sparkles(worn)
 		draw(ctx, body)
 		ctx.sparkle = false
 	end)

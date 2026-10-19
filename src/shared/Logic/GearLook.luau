@@ -30,8 +30,14 @@ GearLook.RARITY_GLOW = table.freeze({
 	Mythical = table.freeze({ 255, 80, 110 }),
 })
 
--- Rarities whose weapon sheds a few sparkles.
+-- Rarities whose weapon sheds a few sparkles; any weapon at +7 or more
+-- sparkles too (D-66).
 GearLook.SPARKLE = table.freeze({ Legendary = true, Mythical = true })
+GearLook.SPARKLE_ENHANCEMENT = 7
+
+function GearLook.sparkles(worn: SlotLook): boolean
+	return GearLook.SPARKLE[worn.rarity] == true or worn.enhancement >= GearLook.SPARKLE_ENHANCEMENT
+end
 
 --[[
 	The look of what's equipped. `equipment` maps slot -> guid, `inventory`

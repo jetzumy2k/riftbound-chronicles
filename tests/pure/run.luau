@@ -47,6 +47,7 @@ local specs = {
 	{ "level_gap", require("./specs/level_gap.spec") },
 	{ "item_rules", require("./specs/item_rules.spec") },
 	{ "inventory_layout", require("./specs/inventory_layout.spec") },
+	{ "enhance_rules", require("./specs/enhance_rules.spec") },
 	{ "pvp", require("./specs/pvp.spec") },
 	{ "skills", require("./specs/skills.spec") },
 	{ "structure", require("./specs/structure.spec") },
