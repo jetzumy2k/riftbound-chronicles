@@ -22,6 +22,7 @@ export type State = {
 	Race: string?,
 	Job: string?,
 	FacePreset: number,
+	HeadStyle: string,
 	Level: number,
 	Experience: number,
 	XPToNext: number,
@@ -56,6 +57,7 @@ local PlayerDataController = {
 local state: State = {
 	loaded = false,
 	FacePreset = 1,
+	HeadStyle = "Man",
 	Level = 0,
 	Experience = 0,
 	XPToNext = 0,
@@ -78,6 +80,7 @@ function PlayerDataController:Init()
 			Race = snapshot.Race,
 			Job = snapshot.Job,
 			FacePreset = snapshot.FacePreset,
+			HeadStyle = snapshot.HeadStyle or "Man",
 			Level = snapshot.Level,
 			Experience = snapshot.Experience,
 			XPToNext = snapshot.XPToNext,

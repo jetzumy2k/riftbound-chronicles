@@ -199,6 +199,20 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Equipment overhaul, stage 6: bag / equipment screen (D-72)
+**Checks** (open the bag with B or the BAG button; "Studio: add test gear" fills it):
+1. The equipment block shows your character in 3D between the slots: armor on the left, Main hand / Off-hand / Necklace / Earrings / Ring 1 / Ring 2 on the right. It wears exactly what you wear (weapon, shield, armor meshes, jewellery).
+2. Drag the character sideways (mouse or finger): it turns, and eases back when you let go. Dragging never moves the camera behind the screen.
+3. Equip or unequip something: within about half a second the 3D copy updates. Respawn with the bag open: it shows the new character.
+4. Select a bag piece you aren't wearing: the detail shows "If you wear it (slot):" with one ▲ (gain) or ▼ (loss) line per stat and "Takes off ..." naming what goes back to the bag; the target slot glows gold with a ▼ on the doll. Try a two-hander while wearing a sword and shield: both are named, and the shield's Defense shows as a loss.
+5. Tap an empty slot: the bag shows only pieces that fit it, with a gold "<Slot> ✕" chip that shows everything again.
+6. "Your stats" lists HP, Attack, Defense and crit with the gear's share in brackets; it changes when you equip.
+8. The preview is bright: armor colours read clearly against a lighter purple backdrop, and the character fills the frame head to toe (wings may be cut at the sides).
+9. Every bag tile has an icon (earrings 💠, staff 🌟, wand 🎇; no empty boxes) for all four classes.
+10. Quick potion: a round 🧪 button with the count sits above the run toggle (landscape) or under BAG (portrait); tap it or press H while hurt: you heal, it shows the cooldown seconds and dims; at 0 potions it stays dim. It never covers a skill, run / crouch or the jump button.
+11. Faces: on the realm screen, Man / Woman (top right of the preview) rebuild the preview with that adult head within a few seconds. In the bag, Man / Woman on the 3D preview change your real character's head (the outfit is rebuilt on top) and the copy follows. The choice is kept after rejoining. Bodies look broader and more muscular than before.
+12. Phones (portrait and landscape) and a tablet: the slots are full-size touch targets, nothing overlaps, the side column scrolls if the screen is short. Close the bag and play: no frame-rate cost remains (the copy stops updating when closed).
+
 ## Equipment overhaul, stage 3: armor and jewellery meshes (D-71)
 **Importing** (once; `python tools/gear/build_armor.py` rebuilds them; previews in `build/armor/<Name>.png`):
 1. Studio: **File > Import 3D**, select all 27 files in `build/armor/`: `Warrior_`, `Healer_`, `Archer_`, `Mage_` x `Helm`, `Shoulders`, `Chest`, `Hands`, `Legs`, `Boots`, plus `Necklace`, `Earrings`, `Ring`. Units: **studs**, defaults.

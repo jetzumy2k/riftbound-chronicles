@@ -109,6 +109,19 @@ return function(t)
 			t.eq(data.FacePreset, 1)
 		end)
 
+		t.it("head style: kept when valid, missing or unknown becomes Man (D-72)", function()
+			local data = fresh()
+			data.HeadStyle = "Woman"
+			t.eq(#ProfileValidator.repair(data), 0)
+			t.eq(data.HeadStyle, "Woman")
+			data.HeadStyle = nil -- an older profile
+			ProfileValidator.repair(data)
+			t.eq(data.HeadStyle, "Man")
+			data.HeadStyle = "rbxassetid://1"
+			ProfileValidator.repair(data)
+			t.eq(data.HeadStyle, "Man")
+		end)
+
 		t.it("a face preset must belong to the chosen race", function()
 			local data = fresh()
 			data.Race = "Devil"

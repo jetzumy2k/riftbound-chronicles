@@ -1,11 +1,13 @@
 --!strict
 --[[
 	InventoryLayout — responsive layout of the inventory screen (Phase 7,
-	D-64). Pure function of the safe-area size; checked on real device
-	sizes in tests/pure/specs/inventory_layout.spec.luau.
+	D-64; stage 6 of the equipment overhaul, D-72: the equipment "doll").
+	Pure function of the safe-area size; checked on real device sizes in
+	tests/pure/specs/inventory_layout.spec.luau.
 
 	  header   title, item count, wallet, Close
-	  side     equipment slots, gear bonus, stackables (wide: own column)
+	  side     the doll (armor slots | live character preview | weapons and
+	           jewellery), character stats, stackables (wide: own column)
 	  filters  All / Weapons / Armor / Accessories, bulk salvage
 	  grid     the bag (scrolls)
 	  detail   the selected item and its buttons
@@ -33,7 +35,18 @@ export type Layout = {
 	detail: Rect, -- wide: a column; stacked: the bottom sheet
 	tile: number,
 	gap: number,
-	slotColumns: number, -- equipment slots per row
+	doll: Doll, -- at the top of `side`
+}
+
+-- The equipment block: two columns of slot tiles around the preview. All
+-- rects relative to the doll's top-left corner.
+export type Doll = {
+	w: number,
+	h: number,
+	tile: number,
+	label: number, -- slot label height under each tile (0 when short)
+	preview: Rect,
+	slots: { [string]: Rect },
 }
 
 local InventoryLayout = {}
@@ -43,12 +56,19 @@ InventoryLayout.WIDE_MIN_WIDTH = 760
 InventoryLayout.TILE = 64
 InventoryLayout.GAP = 8
 InventoryLayout.SIDE_WIDTH = 220
+InventoryLayout.SIDE_MAX = 300
 InventoryLayout.DETAIL_WIDTH = 270
+InventoryLayout.DETAIL_MIN = 230
 InventoryLayout.FILTERS_HEIGHT = 48
--- Equipment block: rows of slot tiles with a label under each.
+-- Slot label under each doll tile (dropped on short screens).
 InventoryLayout.SLOT_LABEL = 16
--- Gear bonus text and the stackables list under the slots.
-InventoryLayout.SIDE_EXTRA = 420
+InventoryLayout.PREVIEW_MIN = 96
+InventoryLayout.PREVIEW_MAX = 200
+-- Character stats and the stackables list under the doll (stacked mode).
+InventoryLayout.SIDE_EXTRA = 520
+-- Doll columns, top to bottom: armor left, weapons and jewellery right.
+InventoryLayout.LEFT_SLOTS = table.freeze({ "Helm", "Shoulders", "Chest", "Hands", "Legs", "Boots" })
+InventoryLayout.RIGHT_SLOTS = table.freeze({ "Weapon", "OffHand", "Necklace", "Earrings", "Ring1", "Ring2" })
 
 -- The "BAG" toggle on the HUD: right edge, just below the SKILLS toggle
 -- (centre `offset` px from the screen's middle). Every combat button sits
@@ -68,14 +88,39 @@ local function rect(x: number, y: number, w: number, h: number): Rect
 	return { x = x, y = y, w = w, h = h }
 end
 
--- Equipment slots shown (D-68: main hand, off-hand, six armor pieces,
--- necklace, earrings, two rings).
-InventoryLayout.SLOTS = 12
-
--- Height of the equipment block for `columns` slots per row.
-function InventoryLayout.slotsHeight(columns: number): number
-	local rows = math.ceil(InventoryLayout.SLOTS / columns)
-	return rows * (InventoryLayout.TILE + InventoryLayout.SLOT_LABEL + InventoryLayout.GAP)
+--[[
+	The doll `width` wide, fitting `height` when it can (tiles shrink to
+	the touch minimum and labels drop; below that the side column scrolls).
+]]
+function InventoryLayout.doll(width: number, height: number): Doll
+	local gap = InventoryLayout.GAP
+	local rows = #InventoryLayout.LEFT_SLOTS
+	local perRow = math.floor((height + gap) / rows)
+	local label = if perRow >= InventoryLayout.MIN_TOUCH_PX + InventoryLayout.SLOT_LABEL + gap
+		then InventoryLayout.SLOT_LABEL
+		else 0
+	local widest = math.floor((width - 2 * gap - InventoryLayout.PREVIEW_MIN) / 2)
+	local tile =
+		math.clamp(math.min(perRow - label - gap, widest), InventoryLayout.MIN_TOUCH_PX, InventoryLayout.TILE)
+	local step = tile + label + gap
+	local h = rows * step - gap
+	local previewW = math.min(width - 2 * (tile + gap), InventoryLayout.PREVIEW_MAX)
+	local previewX = math.floor((width - previewW) / 2)
+	local slots = {}
+	for index, slot in InventoryLayout.LEFT_SLOTS do
+		slots[slot] = rect(0, (index - 1) * step, tile, tile)
+	end
+	for index, slot in InventoryLayout.RIGHT_SLOTS do
+		slots[slot] = rect(width - tile, (index - 1) * step, tile, tile)
+	end
+	return {
+		w = width,
+		h = h,
+		tile = tile,
+		label = label,
+		preview = rect(previewX, 0, previewW, h),
+		slots = slots,
+	}
 end
 
 -- Bag tiles per row in a grid `width` wide.
@@ -96,8 +141,16 @@ function InventoryLayout.compute(width: number, height: number): Layout
 	local tile, gap = InventoryLayout.TILE, InventoryLayout.GAP
 
 	if panelW >= InventoryLayout.WIDE_MIN_WIDTH then
-		local side = rect(PAD, top, InventoryLayout.SIDE_WIDTH, bodyH)
-		local detailW = InventoryLayout.DETAIL_WIDTH
+		local detailW =
+			math.floor(math.clamp(panelW * 0.28, InventoryLayout.DETAIL_MIN, InventoryLayout.DETAIL_WIDTH))
+		-- The bag keeps room for 3 tiles a row (plus its scroll bar).
+		local bagMin = 3 * (tile + gap) - gap + 12
+		local sideW = math.clamp(
+			panelW - PAD * 4 - detailW - bagMin,
+			InventoryLayout.SIDE_WIDTH,
+			InventoryLayout.SIDE_MAX
+		)
+		local side = rect(PAD, top, sideW, bodyH)
 		local detail = rect(panelW - PAD - detailW, top, detailW, bodyH)
 		local middleX = side.x + side.w + PAD
 		local middleW = detail.x - PAD - middleX
@@ -114,14 +167,14 @@ function InventoryLayout.compute(width: number, height: number): Layout
 			detail = detail,
 			tile = tile,
 			gap = gap,
-			slotColumns = 3,
+			doll = InventoryLayout.doll(sideW - 8, bodyH - 4),
 		}
 	end
 
 	local body = rect(PAD, top, panelW - PAD * 2, bodyH)
 	local innerW = body.w - 8 -- room for the scroll bar
-	local slotColumns = if innerW >= 6 * (tile + gap) then 6 else 3
-	local sideH = InventoryLayout.slotsHeight(slotColumns) + InventoryLayout.SIDE_EXTRA
+	local doll = InventoryLayout.doll(innerW, math.huge)
+	local sideH = doll.h + InventoryLayout.SIDE_EXTRA
 	local side = rect(0, 0, innerW, sideH)
 	local filters = rect(0, sideH + gap, innerW, InventoryLayout.FILTERS_HEIGHT)
 	local grid = rect(0, filters.y + filters.h + 4, innerW, 0)
@@ -137,7 +190,7 @@ function InventoryLayout.compute(width: number, height: number): Layout
 		detail = rect(PAD, panelH - PAD - sheetH, panelW - PAD * 2, sheetH),
 		tile = tile,
 		gap = gap,
-		slotColumns = slotColumns,
+		doll = doll,
 	}
 end
 

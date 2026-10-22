@@ -162,6 +162,10 @@ local function repairIdentity(data: Data, note: (string) -> ())
 		note(`FacePreset: {tostring(preset)} -> {fallback}`)
 		data.FacePreset = fallback
 	end
+	if not Enums.has(Enums.HeadStyle, data.HeadStyle) then
+		note(`HeadStyle: invalid '{tostring(data.HeadStyle)}' -> Man`)
+		data.HeadStyle = "Man"
+	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
 end

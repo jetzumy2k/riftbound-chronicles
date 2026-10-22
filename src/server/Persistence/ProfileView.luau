@@ -112,6 +112,7 @@ function ProfileView.snapshot(data: { [string]: any }): { [string]: any }
 		Race = data.Race,
 		Job = data.Job,
 		FacePreset = data.FacePreset,
+		HeadStyle = data.HeadStyle,
 		Level = data.Level,
 		Experience = data.Experience,
 		XPToNext = XPTable.toNext(data.Level),

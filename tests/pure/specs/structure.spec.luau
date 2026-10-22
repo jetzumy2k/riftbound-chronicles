@@ -170,6 +170,9 @@ return function(t)
 				-- Phase 3 review: one-shot, enum + preset id only, ProfileLoaded state,
 				-- server validates preset/race pairing (SECURITY_MODEL.md T-30).
 				SelectRace = true,
+				-- D-72 review: enum only, ProfileLoaded, 2 per 10 s; the server maps
+				-- it to fixed official head ids (BodyStyle.HEADS), never client ids.
+				SetHeadStyle = true,
 				-- Phase 4 review: one-shot, job enum only, ProfileLoaded + HasRace
 				-- states; job decides skill categories, never stats directly.
 				SelectJob = true,

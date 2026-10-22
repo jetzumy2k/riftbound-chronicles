@@ -136,7 +136,7 @@ local SLOT_GLYPH = {
 	Boots = "👢",
 	Shield = "🛡",
 	Accessory = "📿",
-	Earrings = "✧",
+	Earrings = "💠",
 	Ring = "💍",
 }
 

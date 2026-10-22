@@ -696,6 +696,55 @@ function ItemRules.planEquip(
 	return plan, nil
 end
 
+export type Comparison = {
+	slot: string,
+	-- Items that leave the body (the slot's current piece, a cleared hand).
+	replaces: { string },
+	-- Gear total changes, in STAT_ORDER; only stats that change.
+	deltas: { { stat: string, value: number } },
+}
+
+--[[
+	What equipping `guid` (into `target`, as planEquip) would change: the
+	pieces it replaces and the gear totals before vs after, caps included
+	(stage 6, D-72). Nil and planEquip's reason when it can't go there.
+]]
+function ItemRules.compareEquip(
+	equipment: { [string]: string },
+	inventory: { [string]: Item },
+	guid: string,
+	target: string?
+): (Comparison?, string?)
+	local plan, reason = ItemRules.planEquip(equipment, inventory, guid, target)
+	if plan == nil then
+		return nil, reason
+	end
+	local after = table.clone(equipment)
+	local replaces = {}
+	local function leave(slot: string)
+		local current = after[slot]
+		if current and current ~= guid and not table.find(replaces, current) then
+			table.insert(replaces, current)
+		end
+		after[slot] = nil
+	end
+	for _, slot in plan.clear do
+		leave(slot)
+	end
+	leave(plan.slot)
+	after[plan.slot] = guid
+	local before = ItemRules.gearTotals(equipment, inventory)
+	local now = ItemRules.gearTotals(after, inventory)
+	local deltas = {}
+	for _, stat in ItemRules.STAT_ORDER do
+		local value = (now :: any)[stat] - (before :: any)[stat]
+		if math.abs(value) > 1e-6 then
+			table.insert(deltas, { stat = stat, value = value })
+		end
+	end
+	return { slot = plan.slot, replaces = replaces, deltas = deltas }, nil
+end
+
 function ItemRules.salvageYield(item: Item): number
 	return ItemRules.SALVAGE[item.Rarity] or 0
 end
@@ -717,6 +766,15 @@ function ItemRules.formatStat(stat: string, value: number): string
 		return `+{text}% {spec.name}`
 	end
 	return `+{math.floor(value + 0.5)} {spec.name}`
+end
+
+-- "▲ +12 Attack" / "▼ -1.25% Crit Chance": the arrow carries the sign, so
+-- colour is never the only cue (CLAUDE.md §28).
+function ItemRules.formatDelta(stat: string, value: number): string
+	if value < 0 then
+		return "▼ -" .. string.sub(ItemRules.formatStat(stat, -value), 2)
+	end
+	return "▲ " .. ItemRules.formatStat(stat, value)
 end
 
 return table.freeze(ItemRules)

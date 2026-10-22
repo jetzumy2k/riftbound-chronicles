@@ -1,11 +1,16 @@
 --!strict
 --[[
 	InventoryController — the bag and equipment screen (Phase 7, PLAN.md
-	D-64; CLAUDE.md §8-9, §28).
+	D-64; redesigned in equipment overhaul stage 6, D-72; CLAUDE.md §8-9,
+	§28).
 
-	  - Equipment: the six D-25 slots (tap one to inspect what's in it), the
-	    total gear bonus, the stackables (Healing Potion "Use", fragments
-	    "Combine" 10 -> 1 Enhancement Stone) and the wallet.
+	  - Equipment "doll": a live 3D copy of your character (UI/
+	    CharacterPreview; drag to turn) between the armor slots (left) and
+	    the weapon and jewellery slots (right). Tap a worn piece to inspect
+	    it, an empty slot to show only the bag pieces that fit it; Man /
+	    Woman on the preview picks the face (SetHeadStyle). Under it:
+	    your stats with gear, the stackables (Healing Potion "Use",
+	    fragments "Combine" 10 -> 1 Enhancement Stone) and the wallet.
 	  - The bag: every item as a tile (icon, rarity border and letter, item
 	    level, +N, 🔒 locked, ✓ equipped), strongest first, filtered by All /
 	    Weapons / Armor / Accessories. Bulk salvage of unlocked Standard and
@@ -13,12 +18,16 @@
 	  - Detail: name in its rarity colour plus the rarity word (never colour
 	    alone), slot, job, item level, the piece's stats and rolled
 	    attributes, why it can't be worn (if so), and Equip / Unequip, Lock /
-	    Unlock, Salvage (tap twice).
+	    Unlock, Salvage (tap twice). For a piece you aren't wearing: what it
+	    would change (▲ / ▼ per stat, ItemRules.compareEquip) and what it
+	    replaces; its slot glows on the doll.
 
 	Every button is an intent (EquipItem, UnequipItem, LockItem,
 	SalvageItems, CombineFragments, UseConsumable); the server validates it
 	and answers with InventoryUpdate, which is what this screen shows. Open
-	with the "🎒 BAG" button (right edge, under SKILLS) or B. Layout:
+	with the "🎒 BAG" button (right edge, under SKILLS) or B. The quick
+	Healing Potion button (🧪 with the count and cooldown, key H) sits with
+	the combat buttons so a potion never needs the bag (D-72). Layout:
 	Layout/InventoryLayout (device-tested). Studio only: a "test gear"
 	button (StudioTestGear) until loot exists (Phase 10).
 ]]
@@ -29,6 +38,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local StatFormulas = require(Shared.Logic.StatFormulas)
 local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
@@ -36,11 +46,13 @@ local ItemRules = require(Shared.Logic.ItemRules)
 local WeaponRules = require(Shared.Definitions.WeaponRules)
 local EnhanceRules = require(Shared.Logic.EnhanceRules)
 local InventoryLayout = require(Shared.Layout.InventoryLayout)
+local CombatButtonsLayout = require(Shared.Layout.CombatButtonsLayout)
 local NetClient = require(Shared.Net.Client)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local CharacterPreview = require(UI.CharacterPreview)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
 local NotificationController = require(script.Parent.NotificationController)
@@ -74,7 +86,7 @@ local SLOT_GLYPH: { [string]: string } = {
 	Legs = "👖",
 	Boots = "👢",
 	Necklace = "📿",
-	Earrings = "✧",
+	Earrings = "💠",
 	Ring1 = "💍",
 	Ring2 = "💍",
 }
@@ -82,9 +94,14 @@ local SLOT_GLYPH: { [string]: string } = {
 local SLOT_LABEL: { [string]: string } = {
 	Weapon = "Main hand",
 	OffHand = "Off-hand",
-	Ring1 = "Ring",
-	Ring2 = "Ring",
+	Ring1 = "Ring 1",
+	Ring2 = "Ring 2",
 }
+local GAIN_COLOR = Color3.fromRGB(124, 230, 168)
+local LOSS_COLOR = Color3.fromRGB(255, 150, 130)
+-- An empty doll slot filters the bag to what fits it ("slot:<Slot>").
+local SLOT_FILTER_PREFIX = "slot:"
+
 local FILTERS = {
 	{ id = "All", text = "All" },
 	{ id = "Weapon", text = "Weapons" },
@@ -105,6 +122,9 @@ local InventoryController = {}
 
 local gui: ScreenGui
 local toggle: TextButton
+local potionButton: TextButton
+local POTION = "HealingPotion"
+local potionTicking = false
 local panel: Frame? = nil
 local open = false
 local selected: string? = nil
@@ -119,6 +139,7 @@ local lastEnhance: { guid: string, success: boolean, level: number, at: number }
 local ENHANCE_RESULT_SECONDS = 4
 
 local render: () -> ()
+local drawComparison: (parent: Instance, comparison: ItemRules.Comparison) -> ()
 
 local function localPlayer(): Player
 	return Players.LocalPlayer :: Player
@@ -269,7 +290,11 @@ local function sortedItems(): { Item }
 	for _, item in state().Inventory do
 		local def = defOf(item)
 		local category = if def and def.category == "Shield" then "Armor" else def and def.category
-		if def and (filter == "All" or category == filter) then
+		local slotFilter = string.match(filter, "^" .. SLOT_FILTER_PREFIX .. "(%w+)$")
+		local shown = if slotFilter
+			then def ~= nil and ItemRules.fitsSlot(def, slotFilter)
+			else def ~= nil and (filter == "All" or category == filter)
+		if shown then
 			table.insert(list, item)
 		end
 	end
@@ -303,6 +328,20 @@ local function bulkCandidates(): { string }
 	return out
 end
 
+-- What equipping the selected bag piece would do (nil if it is worn or
+-- can't be worn).
+local function selectedComparison(): ItemRules.Comparison?
+	local data = state()
+	local item = if selected then data.Inventory[selected] else nil
+	if item == nil or equippedSlot(item.Guid) ~= nil then
+		return nil
+	end
+	if not ItemRules.canEquip(item :: any, data.Job, data.Race, data.Level) then
+		return nil
+	end
+	return (ItemRules.compareEquip(data.Equipment, data.Inventory :: any, item.Guid))
+end
+
 local function choose(guid: string?)
 	selected = guid
 	confirm = nil
@@ -317,62 +356,133 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 	local list = Kit.list(parent, Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Left)
 	list.VerticalAlignment = Enum.VerticalAlignment.Top
 
-	-- Equipment slots.
-	local slotsFrame = Kit.new("Frame", {
+	-- The doll: armor | live preview | weapons and jewellery.
+	local doll = layout.doll
+	local dollFrame = Kit.new("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, InventoryLayout.slotsHeight(layout.slotColumns)),
+		Size = UDim2.fromOffset(doll.w, doll.h),
 		LayoutOrder = 1,
 		Parent = parent,
 	})
-	local tileSize = layout.tile
-	for index, slot in Enums.ItemSlot do
-		local column = (index - 1) % layout.slotColumns
-		local row = (index - 1) // layout.slotColumns
+	local stage = Kit.new("Frame", {
+		Name = "PreviewStage",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(doll.preview.x, doll.preview.y),
+		Size = UDim2.fromOffset(doll.preview.w, doll.preview.h),
+		Parent = dollFrame,
+	})
+	CharacterPreview.show(stage)
+	-- The face (D-72): the server re-applies the body, the copy follows.
+	local faces = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(4, 4),
+		Size = UDim2.new(1, -8, 0, 44),
+		ZIndex = 2,
+		Parent = stage,
+	})
+	Kit.list(faces, Enum.FillDirection.Horizontal, 4, Enum.HorizontalAlignment.Center)
+	for index, style in Enums.HeadStyle do
+		local chosen = state().HeadStyle == style
+		local face =
+			button(style, math.floor((doll.preview.w - 12) / 2), if chosen then Theme.Colors.Gold else nil)
+		face.LayoutOrder = index
+		face.TextSize = 12
+		face.BackgroundTransparency = if chosen then 0.05 else 0.35
+		face.ZIndex = 3
+		face.Parent = faces
+		face.Activated:Connect(function()
+			if state().HeadStyle ~= style then
+				NetClient.fire("SetHeadStyle", style)
+			end
+		end)
+	end
+	Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -4),
+		Size = UDim2.new(1, -8, 0, 14),
+		Text = "drag to turn",
+		TextSize = 10,
+		FontFace = Theme.Fonts.Body,
+		TextColor3 = Theme.Colors.TextMuted,
+		ZIndex = 2,
+		Parent = stage,
+	})
+	local comparison = selectedComparison()
+	for slot, r in doll.slots do
 		local guid = state().Equipment[slot]
 		local item = if guid then state().Inventory[guid] else nil
-		local cell = tile(tileSize, item, SLOT_GLYPH[slot])
-		cell.Position = UDim2.fromOffset(
-			column * (tileSize + layout.gap),
-			row * (tileSize + InventoryLayout.SLOT_LABEL + layout.gap)
-		)
-		cell.Parent = slotsFrame
-		if item then
-			cell.Activated:Connect(function()
-				choose(item.Guid)
-			end)
+		local cell = tile(doll.tile, item, SLOT_GLYPH[slot])
+		cell.Position = UDim2.fromOffset(r.x, r.y)
+		cell.Parent = dollFrame
+		if comparison and comparison.slot == slot then
+			-- Where the selected piece would go.
+			local stroke = cell:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = Theme.Colors.GoldBright
+				stroke.Thickness = 3
+				stroke.Transparency = 0
+			end
+			badge(cell, "▼", Vector2.new(0.5, 0), Theme.Colors.GoldBright)
 		end
-		Kit.new("TextLabel", {
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(cell.Position.X.Offset - 6, cell.Position.Y.Offset + tileSize),
-			Size = UDim2.fromOffset(tileSize + 12, InventoryLayout.SLOT_LABEL),
-			Text = SLOT_LABEL[slot] or slot,
-			TextSize = 11,
-			FontFace = Theme.Fonts.Body,
-			TextColor3 = Theme.Colors.TextDim,
-			Parent = slotsFrame,
-		})
+		cell.Activated:Connect(function()
+			if item then
+				choose(item.Guid)
+			else
+				filter = SLOT_FILTER_PREFIX .. slot
+				gridScroll = Vector2.zero
+				choose(nil)
+			end
+		end)
+		if doll.label > 0 then
+			Kit.new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(r.x - 6, r.y + doll.tile),
+				Size = UDim2.fromOffset(doll.tile + 12, doll.label),
+				Text = SLOT_LABEL[slot] or slot,
+				TextSize = 11,
+				FontFace = Theme.Fonts.Body,
+				TextColor3 = Theme.Colors.TextDim,
+				Parent = dollFrame,
+			})
+		end
 	end
 
-	-- Gear bonus.
-	local totals = ItemRules.gearTotals(state().Equipment, state().Inventory :: any)
-	local lines = {}
-	for _, stat in ItemRules.STAT_ORDER do
-		local value = (totals :: any)[stat]
+	-- Stats with gear (the gear's share in brackets).
+	local data = state()
+	local gear = ItemRules.gearTotals(data.Equipment, data.Inventory :: any)
+	local total = ItemRules.withGear(StatFormulas.forLevel(data.Level), gear)
+	local function amount(value: number): string
+		return tostring(math.floor(value + 0.5))
+	end
+	local function share(value: number, percent: boolean?): string
+		if value <= 0 then
+			return ""
+		end
+		return if percent then string.format("  (+%.2f%%)", value) else `  (+{amount(value)})`
+	end
+	local lines = {
+		`HP {amount(total.MaxHP)}{share(gear.MaxHP)}`,
+		`Attack {amount(total.Attack)}{share(gear.Attack)}`,
+		`Defense {amount(total.Defense)}{share(gear.Defense)}`,
+		string.format("Crit chance %.2f%%", total.CritChancePct) .. share(gear.CritChance, true),
+		string.format("Crit damage %.2f%%", total.CritDamagePct) .. share(gear.CritDamage, true),
+	}
+	for _, stat in { "HPRegen", "SkillPower", "HealingPower", "Mitigation", "FocusEfficiency" } do
+		local value = (gear :: any)[stat]
 		if value > 0 then
 			table.insert(lines, ItemRules.formatStat(stat, value))
 		end
 	end
-	local bonus = text(
-		parent,
-		if #lines > 0 then "Gear bonus:  " .. table.concat(lines, ",  ") else "Gear bonus: nothing equipped",
-		12,
-		Theme.Colors.TextDim
-	)
-	bonus.LayoutOrder = 2
+	local heading =
+		text(parent, `Your stats (level {data.Level})`, 13, Theme.Colors.GoldBright, Theme.Fonts.BodyBold)
+	heading.LayoutOrder = 2
+	local stats = text(parent, table.concat(lines, "\n"), 12, Theme.Colors.Text)
+	stats.LayoutOrder = 2
 
 	-- Stackables.
-	local heading = text(parent, "Materials and potions", 13, Theme.Colors.GoldBright, Theme.Fonts.BodyBold)
-	heading.LayoutOrder = 3
+	local materials = text(parent, "Materials and potions", 13, Theme.Colors.GoldBright, Theme.Fonts.BodyBold)
+	materials.LayoutOrder = 3
 	local order = 4
 	for _, id in ItemDefinitions.STACKABLE_ORDER do
 		local def = ItemDefinitions.stackable(id) :: ItemDefinitions.StackableDef
@@ -440,6 +550,18 @@ end
 
 local function drawFilters(parent: ScrollingFrame)
 	Kit.list(parent, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Left)
+	local slotFilter = string.match(filter, "^" .. SLOT_FILTER_PREFIX .. "(%w+)$")
+	if slotFilter then
+		-- From an empty doll slot: tap to show everything again.
+		local chip = button(`{SLOT_LABEL[slotFilter] or slotFilter} ✕`, 96, Theme.Colors.Gold)
+		chip.LayoutOrder = 0
+		chip.Parent = parent
+		chip.Activated:Connect(function()
+			filter = "All"
+			gridScroll = Vector2.zero
+			render()
+		end)
+	end
 	for index, entry in FILTERS do
 		local b = button(entry.text, 96, if filter == entry.id then Theme.Colors.Gold else nil)
 		b.LayoutOrder = index
@@ -489,6 +611,9 @@ local function drawGrid(parent: GuiObject, width: number, layout: InventoryLayou
 			parent,
 			if filter == "All"
 				then "Your bag is empty. Defeat creatures and bosses to find gear."
+				elseif
+					string.find(filter, SLOT_FILTER_PREFIX, 1, true) == 1
+				then "Nothing for this slot in your bag yet."
 				else "Nothing of this kind yet.",
 			13,
 			Theme.Colors.TextDim
@@ -589,6 +714,51 @@ local function drawEnhance(parent: Instance, item: Item, def: ItemDefinitions.It
 	end)
 end
 
+-- What wearing the selected piece would change (D-72): one line per stat
+-- with ▲ / ▼, then what it takes off.
+function drawComparison(parent: Instance, comparison: ItemRules.Comparison)
+	local box = Kit.new("Frame", {
+		BackgroundColor3 = Theme.Colors.Ink,
+		BackgroundTransparency = 0.35,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 6,
+		Parent = parent,
+	})
+	Kit.corner(box, 10)
+	Kit.padding(box, 8, 8)
+	local list = Kit.list(box, Enum.FillDirection.Vertical, 3, Enum.HorizontalAlignment.Left)
+	list.VerticalAlignment = Enum.VerticalAlignment.Top
+	local where = SLOT_LABEL[comparison.slot] or comparison.slot
+	text(box, `If you wear it ({where}):`, 12, Theme.Colors.GoldBright, Theme.Fonts.BodyBold).LayoutOrder = 0
+	if #comparison.deltas == 0 then
+		text(box, "No change to your stats.", 12, Theme.Colors.TextDim).LayoutOrder = 1
+	end
+	for index, delta in comparison.deltas do
+		local line = text(
+			box,
+			ItemRules.formatDelta(delta.stat, delta.value),
+			12,
+			if delta.value > 0 then GAIN_COLOR else LOSS_COLOR,
+			Theme.Fonts.BodyBold
+		)
+		line.LayoutOrder = index
+	end
+	local names = {}
+	for _, guid in comparison.replaces do
+		local worn = state().Inventory[guid]
+		local wornDef = worn and defOf(worn)
+		if wornDef then
+			table.insert(names, wornDef.name .. (if worn.Enhancement > 0 then ` +{worn.Enhancement}` else ""))
+		end
+	end
+	if #names > 0 then
+		local off =
+			text(box, "Takes off (back to the bag): " .. table.concat(names, ", "), 11, Theme.Colors.TextDim)
+		off.LayoutOrder = 100
+	end
+end
+
 local function drawDetail(parent: Instance)
 	local list = Kit.list(parent, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Left)
 	list.VerticalAlignment = Enum.VerticalAlignment.Top
@@ -646,6 +816,10 @@ local function drawDetail(parent: Instance)
 	end
 	if slot then
 		text(parent, `✓ Equipped ({slot})`, 12, Theme.Colors.Safe).LayoutOrder = 6
+	end
+	local comparison = selectedComparison()
+	if comparison then
+		drawComparison(parent, comparison)
 	end
 	drawEnhance(parent, item, def)
 
@@ -739,10 +913,13 @@ function render()
 		if oldGrid and oldGrid:IsA("ScrollingFrame") then
 			gridScroll = oldGrid.CanvasPosition
 		end
+		-- The 3D preview is kept across re-renders.
+		CharacterPreview.detach()
 		panel:Destroy()
 		panel = nil
 	end
 	if not open then
+		CharacterPreview.hide()
 		return
 	end
 	if selected and state().Inventory[selected] == nil then
@@ -912,6 +1089,35 @@ function render()
 	end
 end
 
+-- The quick potion button: count, cooldown seconds, dimmed when it can't
+-- be used. The server still checks everything (UseConsumable).
+local function refreshPotion()
+	local data = state()
+	local have = data.Stackables[POTION] or 0
+	local wait = math.ceil((data.ReadyAt[POTION] or 0) - os.clock())
+	local slot = CombatButtonsLayout.compute(gui.AbsoluteSize.X, gui.AbsoluteSize.Y).potion
+	potionButton.Visible = data.Job ~= nil
+	potionButton.Size = UDim2.fromOffset(slot.size, slot.size)
+	potionButton.Position = UDim2.new(1, -slot.right, 1, -slot.bottom)
+	potionButton.Text = if wait > 0 then `🧪\n{wait}s` else `🧪\n×{have}`
+	local ready = have > 0 and wait <= 0
+	potionButton.BackgroundTransparency = if ready then 0.1 else 0.45
+	potionButton.TextTransparency = if ready then 0 else 0.35
+	if wait > 0 and not potionTicking then
+		potionTicking = true
+		task.delay(1, function()
+			potionTicking = false
+			refreshPotion()
+		end)
+	end
+end
+
+local function drinkPotion()
+	if (state().Stackables[POTION] or 0) > 0 then
+		NetClient.fire("UseConsumable", POTION)
+	end
+end
+
 function InventoryController.setOpen(value: boolean)
 	open = value
 	if not value then
@@ -950,6 +1156,21 @@ function InventoryController:Start()
 	Kit.corner(toggle, 12)
 	Kit.goldStroke(toggle, 1.5, 0.2)
 	toggle.Activated:Connect(InventoryController.toggle)
+	potionButton = Kit.new("TextButton", {
+		Name = "PotionButton",
+		AnchorPoint = Vector2.new(1, 1),
+		BackgroundColor3 = Theme.Colors.Glass,
+		TextSize = 14,
+		LineHeight = 0.95,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.Text,
+		AutoButtonColor = true,
+		Visible = false,
+		Parent = gui,
+	})
+	Kit.corner(potionButton, 26)
+	Kit.goldStroke(potionButton, 1.5, 0.2)
+	potionButton.Activated:Connect(drinkPotion)
 	gui.Parent = localPlayer():WaitForChild("PlayerGui")
 
 	render()
@@ -976,15 +1197,23 @@ function InventoryController:Start()
 		if reason == "inventory" or reason == "snapshot" or open then
 			render()
 		end
+		refreshPotion()
 	end)
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		refreshPotion()
 		if open then
 			render()
 		end
 	end)
+	refreshPotion()
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if not processed and input.KeyCode == Enum.KeyCode.B then
+		if processed then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.B then
 			InventoryController.toggle()
+		elseif input.KeyCode == Enum.KeyCode.H then
+			drinkPotion()
 		end
 	end)
 end

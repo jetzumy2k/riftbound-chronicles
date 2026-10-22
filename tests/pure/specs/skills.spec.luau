@@ -738,7 +738,8 @@ return function(t)
 			local name, width, height = device[1], device[2], device[3]
 			t.it(`{name}: on screen, ≥ 44 px, no overlaps, clear of the jump button and HUD`, function()
 				local layout = CombatButtonsLayout.compute(width, height)
-				local keys = { "attack", "sprint", "crouch", "skill1", "skill2", "skill3", "special" }
+				local keys =
+					{ "attack", "sprint", "crouch", "skill1", "skill2", "skill3", "special", "potion" }
 				local rects = {}
 				for _, key in keys do
 					local slot = (layout :: any)[key]

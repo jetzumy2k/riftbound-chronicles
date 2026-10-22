@@ -3,6 +3,8 @@
 	ProfileTemplate — player profile schema v2 (docs/DATA_MODEL.md §2).
 	v2 (Phase 5, D-45): OwnedSkills maps skill id -> rank (skill tree).
 	v3 (equipment overhaul, D-68): the "Accessory" equipment slot is "Necklace".
+	HeadStyle (D-72) needs no migration: a missing field is filled with the
+	default on load (ProfileValidator).
 
 	`new()` returns a fresh deep copy. Fields owned by later phases ship as empty
 	defaults so those phases can fill them without a migration.
@@ -32,6 +34,8 @@ function ProfileTemplate.new(): { [string]: any }
 
 		-- Identity (Phase 3/4). Race and Job are nil until chosen.
 		FacePreset = 1,
+		-- D-72: the adult head (Enums.HeadStyle), changeable any time.
+		HeadStyle = "Man",
 
 		-- Progression (Phase 2)
 		Level = 0,

@@ -25,6 +25,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Enums = require(Shared.Enums)
 local RaceDefinitions = require(Shared.Definitions.RaceDefinitions)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
@@ -528,8 +529,60 @@ local function buildPreview(parent: Instance): (Frame, (string?, number?) -> ())
 	local playerGui = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
 	track(playerGui.ChildAdded:Connect(function(child)
 		if child.Name == PREVIEW_FOLDER then
+			-- Rebuilt previews (a new face, D-72): show the new model.
+			if current then
+				current:Destroy()
+				current = nil
+			end
 			task.defer(refresh)
 		end
+	end))
+
+	-- The face (D-72): Man / Woman, top right of the preview. The server
+	-- rebuilds the previews with the new head.
+	local faces = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -8, 0, 8),
+		Size = UDim2.fromOffset(2 * 72 + 6, 44),
+		ZIndex = 5,
+		Parent = frame,
+	})
+	Kit.list(faces, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Right)
+	local faceButtons: { [string]: TextButton } = {}
+	local function paintFaces()
+		local chosen = PlayerDataController:Get().HeadStyle
+		for style, faceButton in faceButtons do
+			local on = style == chosen
+			faceButton.BackgroundColor3 = if on then Theme.Colors.Gold else Theme.Colors.GlassRaised
+			faceButton.TextColor3 = if on then Color3.fromRGB(30, 20, 8) else Theme.Colors.Text
+		end
+	end
+	for index, style in Enums.HeadStyle do
+		local faceButton = Kit.new("TextButton", {
+			Name = style,
+			LayoutOrder = index,
+			Size = UDim2.fromOffset(72, 44),
+			BackgroundTransparency = 0.1,
+			Text = style,
+			TextSize = 14,
+			FontFace = Theme.Fonts.BodyBold,
+			AutoButtonColor = true,
+			ZIndex = 6,
+			Parent = faces,
+		})
+		Kit.corner(faceButton, 10)
+		faceButtons[style] = faceButton
+		track(faceButton.Activated:Connect(function()
+			if PlayerDataController:Get().HeadStyle ~= style then
+				NetClient.fire("SetHeadStyle", style)
+			end
+		end))
+	end
+	paintFaces()
+	local facesChanged = PlayerDataController.Changed:Connect(paintFaces)
+	track(frame.Destroying:Connect(function()
+		facesChanged:Disconnect()
 	end))
 
 	table.insert(layoutAppliers, function(layout)

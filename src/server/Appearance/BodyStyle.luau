@@ -4,21 +4,31 @@
 	PLAN.md D-70; creator's reviews 2026-10-19: smooth body for all; the
 	slim realistic body with the classic head looked thin and ugly; the
 	anime body read as a child, then a baby; the creator asked for an adult
-	with some muscle, "like a pro athlete").
+	with some muscle, "like a pro athlete"; 2026-10-22: still too thin and
+	the faces looked like children, so the build is broader and the head is
+	an adult one the player picks, D-72; the "Man Face" / "Woman Face"
+	cartoon heads tried next looked ugly, so the heads are the most mature
+	of the realistic base-body heads).
 
 	Every character gets Roblox's free official "Base Body - Jordan"
 	(bundle 994, creator Roblox, free; asset ids checked against the
-	catalog API 2026-10-19): adult-proportioned smooth torso, arms and legs
-	with the matching animated head, eyebrows, eyelashes and mood face.
-	The player's own hair and skin colours stay. The build is made
-	athletic after the body is applied: the Humanoid's width / depth scale
-	values are raised past the avatar defaults (broad shoulders, muscular
-	limbs) at full adult height. Everyone gets the same build, so gear
-	fits every character alike.
+	catalog API 2026-10-19) for the torso, arms and legs. The head is the
+	player's pick (profile HeadStyle, Enums.HeadStyle) of the two most
+	mature realistic heads among the 16 free official base bodies (the
+	others have large, childlike eyes): "Man" is Harper's (bundle 989:
+	strong nose and jaw, smaller eyes), "Woman" Addison's (bundle 988),
+	each with its own brows and eyelashes and the realistic mood face (ids
+	checked against the catalog API 2026-10-22). The player's own hair and skin
+	colours stay. The build is made athletic after the body is applied:
+	the Humanoid's width / depth scale values are raised past the avatar
+	defaults (broad shoulders, muscular limbs) at full adult height, with a
+	slightly smaller head for adult proportions. Everyone gets the same
+	build, so gear fits every character alike.
 
-	`apply` runs once per character, on the server, before the outfit is
-	built; it yields (HumanoidDescription), so callers must allow that.
-	Turn it off with config Appearance.SmoothBody.
+	`apply` runs once per character (again when the head style changes),
+	on the server, before the outfit is built; it yields
+	(HumanoidDescription), so callers must allow that. Turn it off with
+	config Appearance.SmoothBody.
 ]]
 
 local BodyStyle = {}
@@ -30,13 +40,27 @@ BodyStyle.PARTS = table.freeze({
 	RightArm = 11740055375,
 	LeftLeg = 11740052832,
 	RightLeg = 11740057815,
-	Head = 11740063830,
 })
-BodyStyle.FACE = table.freeze({
-	Eyebrows = 11740066767,
-	Eyelashes = 11740069153,
-	Mood = 11573370910,
+
+-- The adult heads (Enums.HeadStyle): head, mood face, brows.
+export type Head = { Head: number, Mood: number, Eyebrows: number, Eyelashes: number }
+BodyStyle.HEADS = table.freeze({
+	-- Base Body - Harper (bundle 989).
+	Man = table.freeze({
+		Head = 11702751287,
+		Mood = 11573370910,
+		Eyebrows = 11702755085,
+		Eyelashes = 11702757409,
+	}),
+	-- Base Body - Addison (bundle 988).
+	Woman = table.freeze({
+		Head = 11702291006,
+		Mood = 11573370910,
+		Eyebrows = 11702295477,
+		Eyelashes = 11702297008,
+	}),
 })
+BodyStyle.DEFAULT_HEAD = "Man"
 
 -- Adult proportions from the description (standard ranges)...
 BodyStyle.SCALES = table.freeze({
@@ -49,47 +73,54 @@ BodyStyle.SCALES = table.freeze({
 })
 
 -- ...then an athletic build on the Humanoid itself (past the avatar
--- editor's limits): broader shoulders and chest, thicker limbs.
+-- editor's limits): broader shoulders and chest, thicker limbs, and a
+-- head a little smaller than the body's default (adult proportions).
 BodyStyle.ATHLETE = table.freeze({
-	Width = 1.3,
-	Depth = 1.25,
+	Width = 1.45,
+	Depth = 1.4,
+	Head = 0.92,
 })
 
 local APPLIED_ATTRIBUTE = "RC_SmoothBody"
+local HEAD_ATTRIBUTE = "RC_HeadStyle"
+
+local function headFor(style: string?): Head
+	return BodyStyle.HEADS[style or ""] or BodyStyle.HEADS[BodyStyle.DEFAULT_HEAD]
+end
 
 -- Puts the body, head and scales on `description` (players' hair and
 -- colours untouched). Also used for the realm previews.
-function BodyStyle.dress(description: HumanoidDescription)
+function BodyStyle.dress(description: HumanoidDescription, headStyle: string?)
 	local parts = BodyStyle.PARTS
+	local head = headFor(headStyle)
 	description.Torso = parts.Torso
 	description.LeftArm = parts.LeftArm
 	description.RightArm = parts.RightArm
 	description.LeftLeg = parts.LeftLeg
 	description.RightLeg = parts.RightLeg
-	description.Head = parts.Head
+	description.Head = head.Head
 	-- The animated head draws its own face.
 	description.Face = 0
-	description.MoodAnimation = BodyStyle.FACE.Mood
-	-- The head's own eyebrows and eyelashes replace the avatar's (hair and
-	-- other accessories stay; casual ones are stripped by the Wardrobe).
+	description.MoodAnimation = head.Mood
+	-- The head's own brows and lashes replace the avatar's (hair and other
+	-- accessories stay; casual ones are stripped by the Wardrobe).
 	local accessories = {}
-	-- Only layered clothing carries an Order; rigid accessories must not.
 	for _, entry in description:GetAccessories(true) do
 		local kind = entry.AccessoryType
 		if kind ~= Enum.AccessoryType.Eyebrow and kind ~= Enum.AccessoryType.Eyelash then
+			-- Layered entries need an Order (SetAccessories warns without
+			-- one); rigid ones must not carry one.
+			if entry.IsLayered and entry.Order == nil then
+				entry.Order = #accessories + 1
+			end
 			table.insert(accessories, entry)
 		end
 	end
-	table.insert(accessories, {
-		AssetId = BodyStyle.FACE.Eyebrows,
-		AccessoryType = Enum.AccessoryType.Eyebrow,
-		IsLayered = false,
-	})
-	table.insert(accessories, {
-		AssetId = BodyStyle.FACE.Eyelashes,
-		AccessoryType = Enum.AccessoryType.Eyelash,
-		IsLayered = false,
-	})
+	for kind, id in
+		{ [Enum.AccessoryType.Eyebrow] = head.Eyebrows, [Enum.AccessoryType.Eyelash] = head.Eyelashes }
+	do
+		table.insert(accessories, { AssetId = id, AccessoryType = kind, IsLayered = false })
+	end
 	description:SetAccessories(accessories, true)
 	local scales = BodyStyle.SCALES
 	description.HeightScale = scales.Height
@@ -111,14 +142,20 @@ function BodyStyle.athlete(humanoid: Humanoid)
 	end
 	set("BodyWidthScale", BodyStyle.ATHLETE.Width)
 	set("BodyDepthScale", BodyStyle.ATHLETE.Depth)
+	set("HeadScale", BodyStyle.ATHLETE.Head)
 end
 
 --[[
-	Gives `character` the body (once). Returns true if it is on (now or
-	already), or false and why. Failures leave the avatar's own body.
+	Gives `character` the body with the `headStyle` head (once; again only
+	if the head style changed). Returns true if it is on (now or already),
+	or false and why. Failures leave the character as it was.
 ]]
-function BodyStyle.apply(character: Model): (boolean, string?)
-	if character:GetAttribute(APPLIED_ATTRIBUTE) == true then
+function BodyStyle.apply(character: Model, headStyle: string?): (boolean, string?)
+	local style = if BodyStyle.HEADS[headStyle or ""] then headStyle :: string else BodyStyle.DEFAULT_HEAD
+	if
+		character:GetAttribute(APPLIED_ATTRIBUTE) == true
+		and character:GetAttribute(HEAD_ATTRIBUTE) == style
+	then
 		return true, nil
 	end
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -127,7 +164,7 @@ function BodyStyle.apply(character: Model): (boolean, string?)
 	end
 	local ok, err = pcall(function()
 		local description = humanoid:GetAppliedDescription()
-		BodyStyle.dress(description)
+		BodyStyle.dress(description, style)
 		humanoid:ApplyDescriptionAsync(description)
 		BodyStyle.athlete(humanoid)
 	end)
@@ -135,6 +172,7 @@ function BodyStyle.apply(character: Model): (boolean, string?)
 		return false, tostring(err)
 	end
 	character:SetAttribute(APPLIED_ATTRIBUTE, true)
+	character:SetAttribute(HEAD_ATTRIBUTE, style)
 	return true, nil
 end
 

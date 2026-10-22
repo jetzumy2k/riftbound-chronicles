@@ -16,6 +16,9 @@ end
 
 Enums.Race = list({ "Angel", "Devil" })
 
+-- The adult head a player picks (D-72; Appearance/BodyStyle.HEADS).
+Enums.HeadStyle = list({ "Man", "Woman" })
+
 -- Mage added by the creator 2026-10-11 (PLAN.md D-30).
 Enums.Job = list({ "Healer", "Warrior", "Archer", "Mage" })
 

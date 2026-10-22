@@ -87,6 +87,17 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 		},
 
+		-- The adult head (D-72): any time after the profile loads (realm
+		-- screen and bag). The server re-applies the body; rate-limited
+		-- because each change rebuilds the character's appearance.
+		SetHeadStyle = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(Enums.HeadStyle) },
+			rate = { capacity = 2, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded" },
+		},
+
 		-- First-time job choice (Phase 4). One-shot, after a race is chosen.
 		-- Job changes are an admin action (PLAN.md D-21).
 		SelectJob = {
@@ -535,6 +546,7 @@ return function(S: any)
 					Race = S.optional(S.enum(Enums.Race)),
 					Job = S.optional(S.enum(Enums.Job)),
 					FacePreset = S.int(1, FacePresets.maxId()),
+					HeadStyle = S.enum(Enums.HeadStyle),
 					Level = S.int(0, MAX_LEVEL),
 					Experience = S.int(0),
 					XPToNext = S.int(0),

@@ -2,8 +2,9 @@
 --[[
 	CombatButtonsLayout — where the touch combat buttons sit (Phase 5).
 	One source of truth for the attack button (CombatController), the run /
-	crouch toggles (MovementModeController) and the four skill buttons
-	(SkillBarController), so they never overlap (CLAUDE.md §28).
+	crouch toggles (MovementModeController), the four skill buttons
+	(SkillBarController) and the quick Healing Potion button
+	(InventoryController, D-72), so they never overlap (CLAUDE.md §28).
 
 	Every button is placed by its distance from the bottom-right corner of
 	the device safe area: `right` / `bottom` are the gaps to that corner and
@@ -27,6 +28,7 @@ export type Layout = {
 	skill2: Slot,
 	skill3: Slot,
 	special: Slot,
+	potion: Slot,
 }
 
 local CombatButtonsLayout = {}
@@ -42,7 +44,7 @@ local function slot(right: number, bottom: number, size: number): Slot
 	return { right = right, bottom = bottom, size = size }
 end
 
-function CombatButtonsLayout.compute(width: number, _height: number): Layout
+function CombatButtonsLayout.compute(width: number, height: number): Layout
 	local attack = slot(120, 28, 92)
 	local sprint = slot(120, 136, 64)
 	local crouch = slot(196, 136, 64)
@@ -58,6 +60,8 @@ function CombatButtonsLayout.compute(width: number, _height: number): Layout
 			skill2 = slot(284, 28, 52),
 			skill3 = slot(270, 90, 52),
 			special = slot(332, 90, 56),
+			-- Above the run toggle, next to the SKILLS / BAG column.
+			potion = slot(120, 208, 52),
 		}
 	end
 	return {
@@ -69,6 +73,9 @@ function CombatButtonsLayout.compute(width: number, _height: number): Layout
 		skill2 = slot(192, 212, 60),
 		skill3 = slot(120, 282, 60),
 		special = slot(192, 280, 66),
+		-- The right-edge column, just under the BAG toggle (centre at
+		-- height / 2 - 4, 44 tall): the skills fill the space above run.
+		potion = slot(8, math.max(CombatButtonsLayout.JUMP_ZONE, math.floor(height / 2) - 78), 52),
 	}
 end
 

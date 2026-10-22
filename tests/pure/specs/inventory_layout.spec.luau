@@ -39,11 +39,27 @@ return function(t)
 					t.ok(inside(layout.body, p.w, p.h), "body")
 					t.ok(layout.side.w <= layout.body.w and layout.grid.w <= layout.body.w, "inside body")
 					t.ok(InventoryLayout.columns(layout.grid.w) >= 3, "3+ tiles a row")
-					t.ok(
-						layout.side.w >= layout.slotColumns * (layout.tile + layout.gap) - layout.gap,
-						"slots fit"
-					)
 				end
+				-- The doll (D-72): every slot touch-sized, inside the side
+				-- column, clear of the preview and of each other.
+				local doll = layout.doll
+				t.ok(doll.w <= layout.side.w, "doll fits the side")
+				t.ok(doll.tile >= InventoryLayout.MIN_TOUCH_PX, "doll tile size")
+				t.ok(doll.preview.w >= InventoryLayout.PREVIEW_MIN, "preview width")
+				t.ok(inside(doll.preview, doll.w, doll.h), "preview inside")
+				local rects = {}
+				for _, list in { InventoryLayout.LEFT_SLOTS, InventoryLayout.RIGHT_SLOTS } do
+					for _, slot in list do
+						local r = doll.slots[slot]
+						t.ok(r ~= nil and inside(r, doll.w, doll.h), slot)
+						t.ok(not overlaps(r, doll.preview), `{slot} / preview`)
+						for _, other in rects do
+							t.ok(not overlaps(r, other), `{slot} overlaps`)
+						end
+						table.insert(rects, r)
+					end
+				end
+				t.eq(#rects, 12)
 			end)
 
 			t.it(`{name}: the BAG toggle clears the combat buttons and jump corner`, function()
@@ -51,7 +67,9 @@ return function(t)
 				t.ok(inside(toggle, width, height), "on screen")
 				t.ok(toggle.h >= InventoryLayout.MIN_TOUCH_PX, "touch size")
 				local combat = CombatButtonsLayout.compute(width, height)
-				for _, key in { "attack", "sprint", "crouch", "skill1", "skill2", "skill3", "special" } do
+				for _, key in
+					{ "attack", "sprint", "crouch", "skill1", "skill2", "skill3", "special", "potion" }
+				do
 					local r = CombatButtonsLayout.rect((combat :: any)[key], width, height)
 					t.ok(not overlaps(toggle, r), key)
 				end

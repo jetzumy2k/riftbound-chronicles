@@ -7,6 +7,9 @@
 	    attempt is rejected and logged; changing race is an admin action
 	    (Phase 17).
 	  - The preset must belong to the chosen race (FacePresets allowlist).
+	  - `SetHeadStyle(style)` picks the adult head (D-72; Man / Woman) any
+	    time: before a race, the previews are rebuilt; after, the body is
+	    re-applied and the outfit rebuilt on the live character.
 	  - Publishes the public "Race" player attribute and dresses every
 	    character the player spawns in its race look (Appearance/Wardrobe).
 	  - While a player is choosing, builds one preview model per race from
@@ -64,10 +67,18 @@ local function applyToCharacter(player: Player, character: Model)
 	end
 	-- D-70: the smooth body first (yields), then the outfit on top of it.
 	if ConfigurationService:Get("Appearance.SmoothBody") then
-		local ok, err = BodyStyle.apply(character)
-		if not ok then
-			log:Warn("smooth body not applied for %d: %s", player.UserId, tostring(err))
-		end
+		-- Again if the head style changed during the yield (SetHeadStyle
+		-- leaves a character whose body is still being applied to this).
+		local data = PlayerDataService:GetData(player)
+		repeat
+			local ok, err = BodyStyle.apply(character, data and data.HeadStyle)
+			if not ok then
+				log:Warn("smooth body not applied for %d: %s", player.UserId, tostring(err))
+				break
+			end
+		until player.Character ~= character
+			or data == nil
+			or character:GetAttribute("RC_HeadStyle") == data.HeadStyle
 		if player.Character ~= character then
 			return
 		end
@@ -122,7 +133,8 @@ local function buildPreviews(player: Player)
 	description = if fetched and result then result else Instance.new("HumanoidDescription")
 	-- D-70: previews show the same smooth body the character will get.
 	if ConfigurationService:Get("Appearance.SmoothBody") then
-		BodyStyle.dress(description)
+		local owner = PlayerDataService:GetData(player)
+		BodyStyle.dress(description, owner and owner.HeadStyle)
 	end
 
 	local built, rig = pcall(function()
@@ -203,6 +215,48 @@ local function onSelectRace(player: Player, race: string, presetId: number)
 	RaceService.RaceChosen:Fire(player, race)
 end
 
+-- Players whose head change is being applied (one at a time).
+local restyling: { [Player]: boolean } = {}
+
+local function onSetHeadStyle(player: Player, style: string)
+	local data = PlayerDataService:GetData(player)
+	if data == nil or not Enums.has(Enums.HeadStyle, style) or data.HeadStyle == style then
+		return
+	end
+	data.HeadStyle = style
+	PlayerDataService:PushSnapshot(player)
+	log:Info("user=%d head style %s", player.UserId, style)
+	if data.Race == nil then
+		task.spawn(buildPreviews, player)
+		return
+	end
+	local character = player.Character
+	if
+		character == nil
+		or restyling[player]
+		or character:GetAttribute("RC_SmoothBody") ~= true
+		or not ConfigurationService:Get("Appearance.SmoothBody")
+	then
+		-- No body yet: the spawn path applies the new style when it gets there.
+		return
+	end
+	restyling[player] = true
+	task.spawn(function()
+		-- Repeat while the choice moved on during the yield.
+		while player.Character == character and character:GetAttribute("RC_HeadStyle") ~= data.HeadStyle do
+			local ok, err = BodyStyle.apply(character, data.HeadStyle)
+			if not ok then
+				log:Warn("head style not applied for %d: %s", player.UserId, tostring(err))
+				break
+			end
+		end
+		restyling[player] = nil
+		if player.Character == character then
+			RaceService:Redress(player)
+		end
+	end)
+end
+
 local function watchPlayer(player: Player)
 	player.CharacterAdded:Connect(function(character)
 		task.spawn(applyToCharacter, player, character)
@@ -219,6 +273,10 @@ function RaceService:Init()
 	end)
 
 	NetService:Handle("SelectRace", onSelectRace)
+	NetService:Handle("SetHeadStyle", onSetHeadStyle)
+	Players.PlayerRemoving:Connect(function(player)
+		restyling[player] = nil
+	end)
 
 	PlayerDataService.ProfileLoaded:Connect(function(player, data)
 		publish(player, data.Race)

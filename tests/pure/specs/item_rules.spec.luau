@@ -304,10 +304,56 @@ return function(t)
 			end
 		end)
 
+		t.it("compares a piece against what is worn (D-72)", function()
+			local function make(id: string, level: number): any
+				return item(ItemDefinitions.All[id], "Standard", level, {})
+			end
+			local inv = {
+				sword = make("W_Warrior_Sword_T1", 5),
+				great = make("W_Warrior_Greatsword_T1", 5),
+				shield = make("A_Warrior_Shield_T1", 5),
+				helmA = make("A_Warrior_Helm_T1", 5),
+				helmB = make("A_Warrior_Helm_T1", 9),
+			}
+			-- An empty slot: everything the piece gives is a gain.
+			local c = ItemRules.compareEquip({}, inv, "helmA") :: any
+			t.eq(c.slot, "Helm")
+			t.eq(#c.replaces, 0)
+			local base = ItemRules.itemStats(inv.helmA) :: any
+			t.eq(c.deltas[1].stat, "Defense")
+			t.near(c.deltas[1].value, base.Defense, 1e-6)
+			-- A stronger helm replaces the old one; only the difference shows.
+			c = ItemRules.compareEquip({ Helm = "helmA" }, inv, "helmB") :: any
+			t.eq(c.replaces[1], "helmA")
+			for _, d in c.deltas do
+				t.ok(d.value > 0, d.stat)
+			end
+			-- The worn piece itself: no change.
+			c = ItemRules.compareEquip({ Helm = "helmA" }, inv, "helmA") :: any
+			t.eq(#c.deltas, 0)
+			t.eq(#c.replaces, 0)
+			-- A two-hander clears sword and shield: both are listed, and the
+			-- shield's Defense is lost.
+			c = ItemRules.compareEquip({ Weapon = "sword", OffHand = "shield" }, inv, "great") :: any
+			t.eq(#c.replaces, 2)
+			local lost = false
+			for _, d in c.deltas do
+				if d.stat == "Defense" then
+					lost = d.value < 0
+				end
+			end
+			t.ok(lost, "shield defense lost")
+			-- Same refusals as planEquip.
+			t.eq(select(2, ItemRules.compareEquip({}, inv, "shield", "Ring1")), "slot")
+			t.eq(select(2, ItemRules.compareEquip({}, inv, "missing")), "unknown")
+		end)
+
 		t.it("formats stats for display", function()
 			t.eq(ItemRules.formatStat("Attack", 12), "+12 Attack")
 			t.eq(ItemRules.formatStat("CritChance", 1.5), "+1.5% Crit Chance")
 			t.eq(ItemRules.formatStat("CritDamage", 2), "+2% Crit Damage")
+			t.eq(ItemRules.formatDelta("Attack", 12), "▲ +12 Attack")
+			t.eq(ItemRules.formatDelta("CritChance", -1.5), "▼ -1.5% Crit Chance")
 		end)
 	end)
 end
