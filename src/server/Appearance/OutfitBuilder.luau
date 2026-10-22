@@ -1016,17 +1016,30 @@ local HANDS = { Warrior = warriorHands, Healer = softHands, Archer = archerHands
 local LEGS = { Warrior = warriorLegs, Healer = healerLegs, Archer = archerLegs, Mage = mageLegs }
 local BELT_GEMS = { Warrior = 1, Healer = 3, Archer = 1, Mage = 3 }
 
+-- D-71: the sculpted armor model for a slot ("<Job>_<Slot>", "Necklace",
+-- ...), drawn on the body parts it covers; false if not imported (the
+-- part-built piece is drawn instead). Assigned with the mesh helpers below.
+local meshArmor: (ctx: Ctx, model: string, handSide: string?) -> boolean = function()
+	return false
+end
+
 local function jobOutfit(ctx: Ctx, body: Body, job: string)
+	local sculptedChest = false
 	if wears(ctx, "Chest") then
 		styled(ctx, "Chest", function()
-			CHEST[job](ctx, body)
+			sculptedChest = ctx.look ~= nil and meshArmor(ctx, job .. "_Chest")
+			if not sculptedChest then
+				CHEST[job](ctx, body)
+			end
 		end)
 	else
 		plainTop(ctx, body)
 	end
 	if wears(ctx, "Legs") then
 		styled(ctx, "Legs", function()
-			LEGS[job](ctx, body)
+			if not (ctx.look and meshArmor(ctx, job .. "_Legs")) then
+				LEGS[job](ctx, body)
+			end
 		end)
 	else
 		plainBottom(ctx, body)
@@ -1034,18 +1047,27 @@ local function jobOutfit(ctx: Ctx, body: Body, job: string)
 	-- D-68: shoulders and hands are their own slots.
 	if wears(ctx, "Shoulders") then
 		styled(ctx, "Shoulders", function()
-			SHOULDERS[job](ctx, body)
+			if not (ctx.look and meshArmor(ctx, job .. "_Shoulders")) then
+				SHOULDERS[job](ctx, body)
+			end
 		end)
 	end
 	if wears(ctx, "Hands") then
 		styled(ctx, "Hands", function()
-			HANDS[job](ctx, body)
+			if not (ctx.look and meshArmor(ctx, job .. "_Hands")) then
+				HANDS[job](ctx, body)
+			end
 		end)
 	end
-	belt(ctx, body, if job == "Healer" then "metal" else "leather", BELT_GEMS[job])
+	-- The sculpted chests carry their own belt.
+	if not sculptedChest then
+		belt(ctx, body, if job == "Healer" then "metal" else "leather", BELT_GEMS[job])
+	end
 	if wears(ctx, "Boots") then
 		styled(ctx, "Boots", function()
-			jobBoots(ctx, body, job)
+			if not (ctx.look and meshArmor(ctx, job .. "_Boots")) then
+				jobBoots(ctx, body, job)
+			end
 		end)
 	end
 end
@@ -1512,6 +1534,9 @@ local MESH_ROLE: { [string]: string } = {
 type MeshPiece = {
 	template: MeshPart,
 	role: string,
+	-- Armor (D-71): the R15 part the piece sits on ("Hand" = the ring's
+	-- side); its offset and size are then in that part's unit box.
+	part: string?,
 	tier: number,
 	realm: string?,
 	offset: CFrame, -- in the grip frame, at size 1
@@ -1559,6 +1584,7 @@ local function meshPieces(family: string): { MeshPiece }?
 		table.insert(pieces, {
 			template = d,
 			role = role,
+			part = string.match(name, "@(%a+)"),
 			tier = tonumber(string.match(name, "_T(%d)")) or 1,
 			realm = string.match(name, "_(Angel)") or string.match(name, "_(Devil)"),
 			offset = CFrame.new(local_.Position / scale) * local_.Rotation,
@@ -1567,6 +1593,47 @@ local function meshPieces(family: string): { MeshPiece }?
 	end
 	meshCache[family] = pieces
 	return pieces
+end
+
+--[[
+	D-71: draws the sculpted armor `model` on the character: each piece is
+	stretched by its body part's size (it was sculpted in that part's unit
+	box) and welded there. Pieces above the worn tier or of the other realm
+	are left out. `handSide` places a ring ("Right" / "Left").
+]]
+meshArmor = function(ctx: Ctx, model: string, handSide: string?): boolean
+	local pieces = meshPieces(model)
+	if pieces == nil then
+		return false
+	end
+	for _, info in pieces do
+		local partName = info.part
+		if partName == nil or info.tier > tier(ctx) or (info.realm and info.realm ~= ctx.race) then
+			continue
+		end
+		if partName == "Hand" then
+			partName = (handSide or "Right") .. "Hand"
+		end
+		local anchor = ctx.character:FindFirstChild(partName)
+		if anchor == nil or not anchor:IsA("BasePart") then
+			continue
+		end
+		local box = anchor.Size
+		local part = info.template:Clone()
+		part:ClearAllChildren()
+		part.Size = info.size * box
+		local role = MESH_ROLE[info.role] or "metal"
+		paint(
+			ctx,
+			part,
+			role,
+			nil,
+			if role == "glow" then Enum.Material.Neon else nil,
+			anchor,
+			anchor.CFrame * CFrame.new(info.offset.Position * box) * info.offset.Rotation
+		)
+	end
+	return true
 end
 
 --[[
@@ -2436,25 +2503,33 @@ function OutfitBuilder.build(
 			jobOutfit(ctx, body, job)
 			if look and look.Helm then
 				styled(ctx, "Helm", function()
-					helm(ctx, body, job)
+					if not meshArmor(ctx, job .. "_Helm") then
+						helm(ctx, body, job)
+					end
 				end)
 			end
 			-- Jewellery (D-68): necklace, earrings, two rings.
 			if look and look.Necklace then
 				styled(ctx, "Necklace", function()
-					necklace(ctx, body)
+					if not meshArmor(ctx, "Necklace") then
+						necklace(ctx, body)
+					end
 				end)
 			end
 			if look and look.Earrings then
 				styled(ctx, "Earrings", function()
-					earrings(ctx, body)
+					if not meshArmor(ctx, "Earrings") then
+						earrings(ctx, body)
+					end
 				end)
 			end
 			local ringSides: { [string]: string } = { Ring1 = "Right", Ring2 = "Left" }
 			for slot, side in ringSides do
 				if look and look[slot] then
 					styled(ctx, slot, function()
-						ringOn(ctx, body, side)
+						if not meshArmor(ctx, "Ring", side) then
+							ringOn(ctx, body, side)
+						end
 					end)
 				end
 			end

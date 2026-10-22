@@ -199,6 +199,20 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Equipment overhaul, stage 3: armor and jewellery meshes (D-71)
+**Importing** (once; `python tools/gear/build_armor.py` rebuilds them; previews in `build/armor/<Name>.png`):
+1. Studio: **File > Import 3D**, select all 27 files in `build/armor/`: `Warrior_`, `Healer_`, `Archer_`, `Mage_` x `Helm`, `Shoulders`, `Chest`, `Hands`, `Legs`, `Boots`, plus `Necklace`, `Earrings`, `Ring`. Units: **studs**, defaults.
+2. Each lands in the Workspace: right-click > **Save to File...** > `src/server/GearModels/<Name>.rbxm` (the same folder as the weapons; exact names), then delete it from the Workspace.
+3. A slot without its model keeps the part-built piece, so this can be done in batches.
+
+**Checks** ("Studio: add test gear" gives every piece of your class):
+1. Each worn piece is a smooth sculpted shell that follows its body part: Warrior plate (open-faced helm with cheek and nape guards, layered pauldrons, cuirass with a ridge and crest gem plus abdomen plates, gauntlets with elbow cops, tassets / thigh plates / greaves with knee cops, sabatons); Healer robes (circlet, mantle caps, robe top with mantle collar and gem strip, cuffs and gloves, a long panelled robe skirt, soft boots); Archer leather (hood, one pauldron, jerkin with straps and a quiver, bracers, breeches with shin guards and a pouch, tall boots); Mage coat (wide-brimmed pointed hat, spaulders, coat with lapels and gem, wraps, an open robe skirt, tall boots).
+2. Pieces stay on their part while walking, running, jumping and attacking (each is welded to its own part); nothing floats, the body shows where nothing is worn.
+3. Tier 2 adds trims, crests, collars and capes; tier 3 the realm ornaments (Angel feathers, Devil horns, only your realm's). Glow trims take the rarity colour (Standard: plain metal).
+4. Jewellery: the necklace sits at the neck with a pendant on the chest; earrings at both ears; Ring 1 on the right hand, Ring 2 on the left.
+5. Mobile: a full set is about 80k triangles (about 12k a model); with 10+ armored players in view the frame rate holds.
+6. A second player sees the same armor.
+
 ## Equipment overhaul, stage 4: smooth body (D-70)
 Config switch: `Appearance.SmoothBody` (on). Body and head: Roblox's free "Base Body - Jordan" (bundle 994), adult proportions, athletic build (Humanoid width 1.3, depth 1.25).
 1. Spawn: your character is an adult with an athletic build (broad shoulders, muscular arms and legs, full height, a head in proportion) and the matching animated face with eyebrows and eyelashes; your own hair and skin tone are kept. No "SetAccessories" / "IsLayered" warnings in the Output. Check from the front, side and back, standing and walking.
