@@ -59,6 +59,10 @@ return function(S: any)
 			ResetNeedsSafeZone = S.boolean(),
 		}),
 
+		Appearance = S.struct({
+			SmoothBody = S.boolean(),
+		}),
+
 		Loot = S.struct({
 			-- LootRules.validate also checks the weights sum to 100.
 			Tables = S.map(

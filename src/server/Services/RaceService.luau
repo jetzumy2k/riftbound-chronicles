@@ -18,6 +18,8 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local Enums = require(Shared.Enums)
@@ -28,9 +30,11 @@ local GearLook = require(Shared.Logic.GearLook)
 local WeaponRules = require(Shared.Definitions.WeaponRules)
 
 local Wardrobe = require(script.Parent.Parent.Appearance.Wardrobe)
+local BodyStyle = require(script.Parent.Parent.Appearance.BodyStyle)
 
 local AuditLogService = require(script.Parent.AuditLogService)
 local NetService = require(script.Parent.NetService)
+local ConfigurationService = require(script.Parent.ConfigurationService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
 local log = Log.new("RaceService")
@@ -57,6 +61,16 @@ local function applyToCharacter(player: Player, character: Model)
 	end
 	if player.Character ~= character then
 		return
+	end
+	-- D-70: the smooth body first (yields), then the outfit on top of it.
+	if ConfigurationService:Get("Appearance.SmoothBody") then
+		local ok, err = BodyStyle.apply(character)
+		if not ok then
+			log:Warn("smooth body not applied for %d: %s", player.UserId, tostring(err))
+		end
+		if player.Character ~= character then
+			return
+		end
 	end
 	RaceService:Redress(player)
 end
@@ -106,6 +120,10 @@ local function buildPreviews(player: Player)
 		end)
 	end
 	description = if fetched and result then result else Instance.new("HumanoidDescription")
+	-- D-70: previews show the same smooth body the character will get.
+	if ConfigurationService:Get("Appearance.SmoothBody") then
+		BodyStyle.dress(description)
+	end
 
 	local built, rig = pcall(function()
 		return Players:CreateHumanoidModelFromDescriptionAsync(description, Enum.HumanoidRigType.R15)
@@ -114,6 +132,23 @@ local function buildPreviews(player: Player)
 		log:Warn("preview rig failed for %d: %s", player.UserId, tostring(rig))
 		return
 	end
+	-- D-70: joints only settle in the world. Outside it, a scaled body keeps
+	-- its parts where the unscaled rig had them (the head floated above a
+	-- long gap). Rebuild the rig, let it settle out of sight, then use it.
+	local rigHumanoid = rig:FindFirstChildOfClass("Humanoid")
+	if rigHumanoid then
+		if ConfigurationService:Get("Appearance.SmoothBody") then
+			BodyStyle.athlete(rigHumanoid)
+		end
+		pcall(function()
+			rigHumanoid:BuildRigFromAttachments()
+		end)
+	end
+	rig:PivotTo(CFrame.new(0, 5000, 0))
+	rig.Parent = Workspace
+	RunService.Heartbeat:Wait()
+	RunService.Heartbeat:Wait()
+	rig.Parent = nil
 
 	local playerGui = player:FindFirstChildOfClass("PlayerGui")
 	local data = PlayerDataService:GetData(player)

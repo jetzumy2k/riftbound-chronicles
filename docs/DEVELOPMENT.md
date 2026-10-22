@@ -199,6 +199,16 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Equipment overhaul, stage 4: smooth body (D-70)
+Config switch: `Appearance.SmoothBody` (on). Body and head: Roblox's free "Base Body - Jordan" (bundle 994), adult proportions, athletic build (Humanoid width 1.3, depth 1.25).
+1. Spawn: your character is an adult with an athletic build (broad shoulders, muscular arms and legs, full height, a head in proportion) and the matching animated face with eyebrows and eyelashes; your own hair and skin tone are kept. No "SetAccessories" / "IsLayered" warnings in the Output. Check from the front, side and back, standing and walking.
+2. All players and test players get the same body proportions (no giant / tiny avatars), so armor and weapons sit the same on everyone.
+3. Outfits, the shield, two-handed grips and both hands on the crossbow / staff still line up with the new limbs; nothing floats.
+4. Combat, movement, jumping, sprint / crouch and respawning behave as before (the hit box is the root part, unchanged).
+5. The realm-selection previews show the same body with the head on the shoulders (no long neck).
+6. Output: no "smooth body not applied" warnings (if there are, the avatar keeps its own body and the reason is logged).
+7. A second player sees your new body.
+
 ## Equipment overhaul, stages 2 and 5: weapon meshes and weapon animations (D-69)
 **Importing the sculpted weapons** (once; `python tools/gear/build_weapons.py` rebuilds them; previews in `build/gear/<Family>.png`):
 1. Studio: **File > Import 3D**, select all 15 files in `build/gear/` (Sword, Greatsword, Dagger, Mace, Axe, WarHammer, BattleAxe, Polearm, Staff, Orb, Wand, Tome, Bow, Crossbow, Shield). Units: **studs**. Keep the defaults (no rig).

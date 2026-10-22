@@ -149,6 +149,12 @@ return {
 		StudioBossRespawnSeconds = 120,
 	},
 
+	-- Equipment overhaul stage 4 (D-70): every character gets the smooth
+	-- Base Body (Appearance/BodyStyle), keeping head, face, hair and skin.
+	Appearance = {
+		SmoothBody = true,
+	},
+
 	-- Phase 10 dungeon loot (D-06 / D-07 / D-67). Each table: the chance
 	-- anything drops, then rarity weights (must sum to 100; an invalid table
 	-- is rejected and the built-in default used). CLAUDE.md §12
