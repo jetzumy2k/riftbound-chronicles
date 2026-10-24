@@ -4,8 +4,11 @@
 
 	One selected target that stays selected until you pick another, it is
 	defeated, it goes far away, or you press × on the target frame:
-	  Desktop  click a creature or player (a near miss still counts: the
-	           fighter closest to the click within a small radius); Tab
+	  Desktop  click a creature or player; the fighter under the mouse
+	           lights up first. The click ray only looks at fighters
+	           (scenery and invisible zone parts never block it), anywhere
+	           inside a fighter's on-screen body box counts, and a near miss
+	           still picks the closest fighter within a small radius; Tab
 	           cycles enemies in front of you
 	  Gamepad  DPad right cycles enemies
 	  Touch    tap a creature or player (same near-miss help)
@@ -14,7 +17,14 @@
 	selected, an attack picks the nearest enemy in front of you and selects
 	it, so the next attacks keep following it. If the target is out of range
 	the character walks to it first and then attacks (any movement input
-	cancels the walk).
+	cancels the walk). While walking there the character faces the target
+	(creator review 2026-10-24: it used to keep its last facing and walk
+	sideways or backward).
+
+	Click positions are screen points (InputObject.Position, top bar inset
+	excluded), so picking uses ScreenPointToRay / WorldToScreenPoint
+	(creator review 2026-10-24: mixing in viewport points aimed every click
+	one top-bar height above the cursor).
 
 	Shows a ring under the target (red enemy / green ally, with a different
 	dash pattern so colour is not the only cue) and a plate over its head:
@@ -24,6 +34,7 @@
 ]]
 
 local CollectionService = game:GetService("CollectionService")
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -37,6 +48,8 @@ local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local LevelTier = require(UI.LevelTier)
+
+local CharacterMotionController = require(script.Parent.CharacterMotionController)
 
 local TAG = "RC_Combatant"
 local RAY_LENGTH = 400
@@ -174,41 +187,89 @@ function TargetController.set(model: Model?)
 	TargetController.Changed:Fire(model)
 end
 
+-- A fighter's body box on screen: (min, max) corners, or nil off screen.
+local function screenBox(camera: Camera, model: Model): (Vector2?, Vector2?)
+	local ok, cframe, size = pcall(model.GetBoundingBox, model)
+	if not ok then
+		return nil, nil
+	end
+	local half = size / 2
+	local low, high = Vector2.new(math.huge, math.huge), Vector2.new(-math.huge, -math.huge)
+	local any = false
+	for _, x in { -1, 1 } do
+		for _, y in { -1, 1 } do
+			for _, z in { -1, 1 } do
+				local corner = (cframe * CFrame.new(half * Vector3.new(x, y, z))).Position
+				local point = camera:WorldToScreenPoint(corner)
+				if point.Z > 0 then
+					any = true
+					local flat = Vector2.new(point.X, point.Y)
+					low, high = low:Min(flat), high:Max(flat)
+				end
+			end
+		end
+	end
+	if not any then
+		return nil, nil
+	end
+	return low, high
+end
+
 --[[
-	The fighter at a screen position: whatever the click ray hits, else the
-	fighter whose body is closest on screen within PICK_RADIUS_PX.
+	The fighter at a screen point (InputObject.Position, top bar inset
+	excluded): the fighter the click ray hits (only fighters are tested, so
+	scenery never blocks it), else the fighter whose on-screen body box
+	holds the point, else the closest within PICK_RADIUS_PX.
 ]]
 function TargetController.pickAt(screen: Vector2): Model?
 	local camera = Workspace.CurrentCamera
 	if camera == nil then
 		return nil
 	end
-	local ray = camera:ViewportPointToRay(screen.X, screen.Y)
+	local candidates = fighters()
+	if #candidates == 0 then
+		return nil
+	end
+	local ray = camera:ScreenPointToRay(screen.X, screen.Y)
 	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local exclude: { Instance } = {}
-	local character = localCharacter()
-	if character then
-		table.insert(exclude, character)
-	end
-	local vfx = Workspace:FindFirstChild("RC_ClientVfx")
-	if vfx then
-		table.insert(exclude, vfx)
-	end
-	params.FilterDescendantsInstances = exclude
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = candidates :: { any }
 	local hit = Workspace:Raycast(ray.Origin, ray.Direction * RAY_LENGTH, params)
 	local direct = if hit then fighterOf(hit.Instance) else nil
 	if direct and alive(direct) then
 		return direct
 	end
-	-- Near miss: closest fighter on screen.
+
+	local scale = math.clamp(camera.ViewportSize.Y / 720, 0.8, 1.6)
+	local margin = 14 * scale
 	local best: Model? = nil
-	local bestPx = PICK_RADIUS_PX * math.clamp(camera.ViewportSize.Y / 720, 0.8, 1.6)
-	for _, model in fighters() do
+	local bestPx = math.huge
+	-- Inside a body box (a little padded): the one whose centre is closest.
+	for _, model in candidates do
+		local low, high = screenBox(camera, model)
+		if low and high then
+			local inside = screen.X >= low.X - margin
+				and screen.X <= high.X + margin
+				and screen.Y >= low.Y - margin
+				and screen.Y <= high.Y + margin
+			if inside then
+				local px = ((low + high) / 2 - screen).Magnitude
+				if px < bestPx then
+					best, bestPx = model, px
+				end
+			end
+		end
+	end
+	if best then
+		return best
+	end
+	-- Near miss: closest fighter on screen.
+	bestPx = PICK_RADIUS_PX * scale
+	for _, model in candidates do
 		local root = rootOf(model) :: BasePart
 		for _, offset in { 0, 1.5 } do
-			local point, onScreen = camera:WorldToViewportPoint(root.Position + Vector3.new(0, offset, 0))
-			if onScreen then
+			local point = camera:WorldToScreenPoint(root.Position + Vector3.new(0, offset, 0))
+			if point.Z > 0 then
 				local px = (Vector2.new(point.X, point.Y) - screen).Magnitude
 				if px < bestPx then
 					best, bestPx = model, px
@@ -217,6 +278,12 @@ function TargetController.pickAt(screen: Vector2): Model?
 		end
 	end
 	return best
+end
+
+-- The mouse position as a screen point (like InputObject.Position).
+function TargetController.mouseScreen(): Vector2
+	local inset = GuiService:GetGuiInset()
+	return UserInputService:GetMouseLocation() - inset
 end
 
 -- Nearest enemy within `range` in front of the character (or the camera).
@@ -279,6 +346,33 @@ function TargetController.nearestCreature(range: number): Model?
 		end
 	end
 	return bestCreature or bestPlayer
+end
+
+--[[
+	Auto-attack: the nearest hostile creature within `range` (never a player
+	or a training dummy), skipping models in `skip`.
+]]
+function TargetController.nearestMob(range: number, skip: { [Model]: boolean }?): Model?
+	local root = rootOf(localCharacter())
+	if root == nil then
+		return nil
+	end
+	local best: Model?, bestDistance = nil, range
+	for _, model in fighters() do
+		if
+			not TargetController.isHostile(model)
+			or Players:GetPlayerFromCharacter(model) ~= nil
+			or model:GetAttribute("RC_Npc") == "TrainingDummy"
+			or (skip and skip[model])
+		then
+			continue
+		end
+		local distance = ((rootOf(model) :: BasePart).Position - root.Position).Magnitude
+		if distance <= bestDistance then
+			best, bestDistance = model, distance
+		end
+	end
+	return best
 end
 
 --[[
@@ -446,6 +540,8 @@ local function stepApproach()
 		job.action()
 		return
 	end
+	-- Face the target while walking (also in shift-lock), never sideways.
+	CharacterMotionController.faceToward(targetRoot.Position, 0.2)
 	if t >= job.nextPathAt then
 		job.nextPathAt = t + APPROACH_REPATH
 		humanoid:MoveTo(targetRoot.Position)
@@ -650,8 +746,66 @@ end
 -- Lifecycle
 --------------------------------------------------------------------------------
 
+-- Is a visible, click-catching GUI element under this screen point?
+local function guiUnder(screen: Vector2): boolean
+	local gui = localPlayer():FindFirstChildOfClass("PlayerGui")
+	if gui == nil then
+		return false
+	end
+	for _, object in gui:GetGuiObjectsAtPosition(screen.X, screen.Y) do
+		if object.Visible and object.Active and object.BackgroundTransparency < 1 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Desktop: the fighter under the mouse lights up, so you can see what a
+-- click will pick before clicking.
+local function startHover()
+	if not UserInputService.MouseEnabled then
+		return
+	end
+	local glow = Instance.new("Highlight")
+	glow.Name = "RC_HoverTarget"
+	glow.FillTransparency = 0.8
+	glow.OutlineTransparency = 0
+	glow.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	glow.Enabled = false
+	local acc = 0
+	RunService.RenderStepped:Connect(function(dt)
+		acc += dt
+		if acc < 1 / 15 then
+			return
+		end
+		acc = 0
+		local camera = Workspace.CurrentCamera
+		if camera and glow.Parent ~= camera then
+			glow.Parent = camera
+		end
+		local over: Model? = nil
+		if UserInputService:GetFocusedTextBox() == nil then
+			local screen = TargetController.mouseScreen()
+			if not guiUnder(screen) then
+				over = TargetController.pickAt(screen)
+			end
+		end
+		if over then
+			glow.Adornee = over
+			local color = if TargetController.isHostile(over) then ENEMY_COLOR else ALLY_COLOR
+			glow.OutlineColor = color
+			glow.FillColor = color
+			glow.Enabled = true
+		else
+			glow.Enabled = false
+			glow.Adornee = nil
+		end
+	end)
+end
+
 function TargetController:Start()
 	buildFrame()
+	startHover()
 
 	-- Touch: tap a fighter to select it.
 	UserInputService.TouchTapInWorld:Connect(function(position, processedByUI)

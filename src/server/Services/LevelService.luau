@@ -103,6 +103,33 @@ function LevelService:GrantXP(player: Player, amount: number, source: string): (
 	return true, result.levelsGained
 end
 
+--[[
+	Sets a loaded player's level (admin action, Phase 17; audited by the
+	caller). EXP into the level resets to 0. Returns false for a bad level.
+]]
+function LevelService:SetLevel(player: Player, level: number): boolean
+	if type(level) ~= "number" or level % 1 ~= 0 or level < 0 or level > Constants.Level.Max then
+		return false
+	end
+	local data = PlayerDataService:GetData(player)
+	if data == nil then
+		return false
+	end
+	local oldLevel = data.Level
+	data.Level = level
+	data.Experience = 0
+	publishLevel(player, level)
+	NetService:FireClient(
+		"ProgressionUpdate",
+		player,
+		ProfileView.progression(data, math.max(level - oldLevel, 0))
+	)
+	if level ~= oldLevel then
+		LevelService.LevelChanged:Fire(player, level, oldLevel)
+	end
+	return true
+end
+
 function LevelService:GetLevel(player: Player): number?
 	local data = PlayerDataService:GetData(player)
 	return if data then data.Level else nil

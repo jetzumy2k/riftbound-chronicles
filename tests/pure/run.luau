@@ -14,6 +14,7 @@ local harness = require("./harness")
 local specs = {
 	{ "enums_constants", require("./specs/enums_constants.spec") },
 	{ "glyphs", require("./specs/glyphs.spec") },
+	{ "admin_rules", require("./specs/admin_rules.spec") },
 	{ "schema", require("./specs/schema.spec") },
 	{ "rate_bucket", require("./specs/rate_bucket.spec") },
 	{ "signal", require("./specs/signal.spec") },

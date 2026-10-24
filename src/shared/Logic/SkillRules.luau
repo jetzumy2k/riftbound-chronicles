@@ -561,11 +561,11 @@ function SkillRules.describe(skill: Skill, rank: number): Description
 		return {
 			header = "BASIC · Free · every class",
 			stats = "No Focus  ·  No cooldown  ·  No skill point",
-			target = "Nearest creature",
+			target = "Your target or the nearest creature",
 			effects = {
-				"Targets the nearest creature around you (any direction)",
+				"Attacks your target; with none, the nearest creature around you",
 				"Walks into reach, then attacks with your normal attack combo",
-				"Keeps attacking until it falls; moving or pressing again stops",
+				"Keeps attacking until it falls; moving stops it",
 			},
 			combo = nil,
 			nextRank = nil,

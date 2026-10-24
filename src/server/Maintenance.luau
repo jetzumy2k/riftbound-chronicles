@@ -25,9 +25,19 @@ local Maintenance = {}
 local active = false
 local permanent = false
 local joinConnection: RBXScriptConnection? = nil
+-- Staff stay in flag maintenance (Phase 17) so they can lift it from the
+-- panel; boot-failure maintenance has no exemption.
+local exempt: ((player: Player) -> boolean)? = nil
 
 local function kick(player: Player)
+	if not permanent and exempt and exempt(player) then
+		return
+	end
 	player:Kick(KICK_MESSAGE)
+end
+
+function Maintenance.setExempt(predicate: (player: Player) -> boolean)
+	exempt = predicate
 end
 
 --[[

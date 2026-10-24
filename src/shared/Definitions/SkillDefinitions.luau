@@ -2526,18 +2526,21 @@ for _, skill in skills :: { any } do
 end
 
 -- Basic skills (not in any tree column, not in All): every class has them.
+-- The id stays "AutoAttack" (saved skill bars hold it); the skill is shown
+-- as "Attack" since the hands-free Auto-attack toggle arrived (creator
+-- review 2026-10-24, CombatController).
 SkillDefinitions.AUTO_ATTACK = "AutoAttack"
 local basics: { any } = {
 	{
 		id = SkillDefinitions.AUTO_ATTACK,
-		name = "Auto Attack",
+		name = "Attack",
 		job = "Any",
 		branch = "Basic",
 		tier = 0,
 		type = "Regular",
 		category = "Basic",
-		description = "Finds the nearest creature, targets it and attacks it with your normal attack, walking into reach first. Keeps attacking until it falls; moving or pressing again stops.",
-		icon = "target",
+		description = "Attacks your target (or the nearest creature) with your normal attack combo, walking into reach first, and keeps attacking until it falls. Moving stops it.",
+		icon = "strike",
 		target = "Enemy",
 		range = 0,
 		cooldown = 0,

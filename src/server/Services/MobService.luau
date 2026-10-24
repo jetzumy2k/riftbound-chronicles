@@ -1083,6 +1083,15 @@ local function spawnTrainingSprite(realm: WorldLayout.Realm, index: number)
 	mob.model:SetAttribute("RC_Index", index)
 end
 
+-- Respawns a camp slot now if its creature is down (admin "respawn now").
+function MobService:RespawnSlotNow(slot: CampSlot): boolean
+	if slot.mob ~= nil then
+		return false
+	end
+	spawnCampSlot(slot)
+	return slot.mob ~= nil
+end
+
 function MobService:Init()
 	CombatService.Defeated:Connect(onDefeated)
 	CombatService.NpcHurt:Connect(onNpcHurt)

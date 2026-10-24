@@ -238,12 +238,37 @@ return function(t)
 				-- the +10 cap and stones, consumes one stone, rolls and applies
 				-- synchronously (no yield, so requests can't overlap).
 				EnhanceItem = true,
+				-- Phase 17 review (D-77, SECURITY_MODEL §6, T-19 / T-20): staff
+				-- only. Each declares a permission that NetService checks from
+				-- the server's Roles on every call (asserted below); handlers
+				-- re-check per action / config path, refuse acting on staff of
+				-- equal or higher rank, validate every value and audit it.
+				AdminPlayers = true,
+				AdminInspect = true,
+				AdminPlayerAction = true,
+				AdminConfigGet = true,
+				AdminConfigSet = true,
+				AdminBoss = true,
+				AdminAudit = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then
 					t.ok(allowed[name], `unreviewed client->server remote '{name}'`)
 				end
 			end
+		end)
+
+		t.it("every admin remote is permission-gated", function()
+			local count = 0
+			for name, spec in Registry do
+				if string.sub(name, 1, 5) == "Admin" and spec.direction == "ClientToServer" then
+					count += 1
+					t.ok(type(spec.permission) == "string", `{name} has no permission`)
+				elseif spec.direction == "ClientToServer" then
+					t.ok(spec.permission == nil, `{name}: a permission on a player remote`)
+				end
+			end
+			t.eq(count, 7)
 		end)
 
 		t.it("progression services register no remote handlers", function()

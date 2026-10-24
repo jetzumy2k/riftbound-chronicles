@@ -20,6 +20,9 @@ return {
 		ConfigOverrides = true,
 		-- When true, players are kicked with a maintenance message.
 		Maintenance = false,
+		-- Players may switch on hands-free Auto-attack (creator review
+		-- 2026-10-24). Off hides the switch and stops it for everyone.
+		AutoAttack = true,
 	},
 
 	Net = {
@@ -34,6 +37,15 @@ return {
 	Config = {
 		-- Fallback poll interval if a MessagingService invalidation is missed.
 		PollSeconds = 300,
+	},
+
+	-- Phase 17 admin panel (D-77). Not editable from the panel.
+	Admin = {
+		-- Studio play-tests only: the local-server test player "Player1"
+		-- (UserId -1) is Owner and Player2 stays a normal player, so both
+		-- the panel and the refusals can be tried. Play Solo uses Roles
+		-- (the creator is Owner). Live servers always use Roles.
+		StudioPlayer1Owner = true,
 	},
 
 	-- Phase 6 combat (PLAN.md D-01..D-05, D-23, D-24; SECURITY_MODEL.md §5A).

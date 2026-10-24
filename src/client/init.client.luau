@@ -33,6 +33,7 @@ local CONTROLLER_ORDER = {
 	"SkillTreeController",
 	"InventoryController",
 	"QuestController",
+	"AdminController",
 	"MobVisualController",
 	"CombatFeedbackController",
 	"StatusVfxController",

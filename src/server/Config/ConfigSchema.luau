@@ -16,6 +16,7 @@ return function(S: any)
 		Flags = S.struct({
 			ConfigOverrides = S.boolean(),
 			Maintenance = S.boolean(),
+			AutoAttack = S.boolean(),
 		}),
 
 		Net = S.struct({
@@ -26,6 +27,10 @@ return function(S: any)
 
 		Config = S.struct({
 			PollSeconds = S.int(30, 3600),
+		}),
+
+		Admin = S.struct({
+			StudioPlayer1Owner = S.boolean(),
 		}),
 
 		Combat = S.struct({

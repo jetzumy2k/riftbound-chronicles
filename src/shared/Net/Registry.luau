@@ -30,6 +30,7 @@ local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions
 local ItemRules = require(script.Parent.Parent.Logic.ItemRules)
 local QuestDefinitions = require(script.Parent.Parent.Definitions.QuestDefinitions)
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
+local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
 local MAX_LEVEL = Constants.Level.Max
@@ -302,6 +303,106 @@ return function(S: any)
 			args = { guid, S.boolean() },
 			rate = { capacity = 3, refillPerSecond = 2 },
 			states = { "ProfileLoaded", "HasJob" },
+		},
+
+		-- Admin / moderator panel (Phase 17, D-77, SECURITY_MODEL §6, T-19 /
+		-- T-20). Each remote names a permission that NetService checks
+		-- server-side (from Roles) before the handler runs; handlers check
+		-- the finer permission per action / config path again and audit
+		-- every change. These carry staff edits (level, items, rarity,
+		-- config), never anything a player decides for themselves.
+		AdminPlayers = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = { S.string(20) },
+			rate = { capacity = 6, refillPerSecond = 1 },
+			states = { "ProfileLoaded" },
+			permission = "player.inspect",
+		},
+		AdminInspect = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = { S.int(1, 9007199254740991) },
+			rate = { capacity = 6, refillPerSecond = 1 },
+			states = { "ProfileLoaded" },
+			permission = "player.inspect",
+		},
+		AdminPlayerAction = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.int(1, 9007199254740991),
+				S.enum(AdminRules.ACTIONS),
+				S.struct({
+					Number = S.optional(S.int(-AdminRules.MAX_CURRENCY_STEP, AdminRules.MAX_CURRENCY_STEP)),
+					Currency = S.optional(S.enum({ "Gold", "PvPMarks" })),
+					DefId = S.optional(S.enum(ITEM_IDS)),
+					Rarity = S.optional(S.enum(Enums.Rarity)),
+					Stackable = S.optional(S.enum(STACKABLE_IDS)),
+					Guid = S.optional(guid),
+					Quest = S.optional(S.enum(QUEST_IDS)),
+					Reason = S.optional(S.enum(AdminRules.REASONS)),
+				}),
+			},
+			rate = { capacity = 6, refillPerSecond = 1 },
+			states = { "ProfileLoaded" },
+			permission = "panel.open",
+		},
+		AdminConfigGet = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {},
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+			permission = "config.view",
+		},
+		AdminConfigSet = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.int(0),
+				S.array(
+					S.struct({
+						Path = S.string(96, 1, "^[%w%.]+$"),
+						Number = S.optional(S.number(-1e9, 1e9)),
+						Bool = S.optional(S.boolean()),
+						Text = S.optional(S.string(40)),
+						Reset = S.optional(S.boolean()),
+					}),
+					AdminRules.MAX_CHANGES
+				),
+			},
+			rate = { capacity = 3, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded" },
+			permission = "config.view",
+		},
+		AdminBoss = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = { S.enum({ "RespawnAll" }) },
+			rate = { capacity = 2, refillPerSecond = 0.1 },
+			states = { "ProfileLoaded" },
+			permission = "bosses.manage",
+		},
+		AdminAudit = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {},
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+			permission = "audit.view",
+		},
+		-- Server -> a staff member only: their role and permissions (never
+		-- sent to anyone else, so the staff list isn't public).
+		AdminHello = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					Role = S.enum(AdminRules.ROLES),
+					Permissions = S.array(S.enum(AdminRules.PERMISSIONS), 32),
+				}),
+			},
 		},
 
 		-- Server -> owner: how an enhancement attempt went (display only).

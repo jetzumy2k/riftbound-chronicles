@@ -230,6 +230,8 @@ All checks use **server-observed** positions computed *at the time of the reques
 | `player.inspect` (read-only) | ✅ | ✅ | ✅ (limited view) |
 | `audit.view` | ✅ | ✅ | own actions only |
 
+**Phase 17 (D-77) implementation:** `Logic/AdminRules` holds this matrix (plus `panel.open`, `player.inspectFull`, `config.view`, `audit.viewAll`); `AdminService` is NetService's permission checker; every admin remote declares a permission (asserted in `structure.spec`); handlers re-check per action and config path, refuse targeting staff of equal or higher rank, and audit before / after. Group ranks are not used yet: list a group place's owners in Roles.
+
 Roles come from `server/Config/Roles.luau` (UserIds) and optionally group ranks. The Owner is `game.CreatorId` or the group owner. Roles are resolved on join and re-checked on **every** admin call. Any client-supplied role value is ignored.
 
 ---

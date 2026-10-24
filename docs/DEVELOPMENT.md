@@ -199,6 +199,22 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 17: admin / moderator panel (D-77)
+Use a **local server test with 2 players** (Test → Clients and Servers): Player1 is Owner, Player2 a normal player. In Play Solo you are Owner because you created the place. Settings changes in Studio apply to that test server only (never saved).
+
+**Checks:**
+1. Player1 sees a 🛠 button under 📐 (and F2 opens the panel); Player2 has no button and F2 does nothing.
+2. Players tab: the left list shows both players at once (Search / Enter filters); tap Player2: the right side shows their name and pages Profile (overview, kick / ban), Progress, Items (give gear / stones, bag) and Quests.
+3. Set Player2's level to 15, add 500 Gold, add 50 PvP Marks, set victories to 10: Player2's HUD / bag / quest log update at once; at 10 victories Player2 gets the "Skirmisher" title. Taking more Gold than they have stops at 0.
+4. Give gear: search "sword", pick one, choose Legendary and item level 20, Give: it appears in Player2's bag with rolled stats. Give 5 Perfect Stones. Remove an unequipped item; an equipped one has no Remove button.
+5. Reset a quest Player2 started: the log shows it can be taken again; finishing it again pays no second reward.
+6. Kick Player2 with a reason: they leave with "Removed by a moderator: ...". (Ban uses Roblox's Ban API; in Studio it may refuse: the panel says "banFailed".) You can't kick yourself or another Owner.
+7. Settings → 🎁 Drop rates, card "War-zone boss (PvP): gear": type Rare 70, then tap straight into Mythical and type 30 (the panel must stay open; each edited row turns gold "(unsaved)", the card shows "Weights total 100", the section button shows "(2)"), Save: "Saved 2 change(s)" and the version goes up. Set only Mythical to 30: the card shows "Weights total 110" in red and Save is refused with "Loot.Tables.WarZoneBoss: sum". "Reset" puts a value back to its default; "Discard" drops unsaved edits. Typing 150 in a 0-100 box shows a red outline and a hint, nothing is recorded. Tapping the dim area outside the panel does not close it.
+8. Settings → Flags → Maintenance ON, Save: Player2 is kicked with the maintenance message, Player1 stays; turn it OFF again.
+9. World → "Respawn every fallen boss now" after defeating a war-zone boss: it comes back at once.
+10. Log tab: every action above is listed with your id; (with the command bar) Player2 calling an admin remote is refused and shows as "AdminDenied".
+11. Mobile emulation: the panel fits and scrolls; buttons and boxes are touch size.
+
 ## Phase 14: PvP loot, victory titles, PvP Marks (D-76)
 Studio: bosses return after 120 s; use two players (different realms) for the victory checks.
 

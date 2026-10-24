@@ -799,6 +799,21 @@ end
 
 -- Where a quest object is for `race` (client markers use the parts; this is
 -- for tests and tools).
+--[[
+	Admin (quests.manage, Phase 17): clears a quest's progress so a stuck
+	player can start it again. Its reward claim stays, so a repeat hand-in
+	never pays twice. Returns false when there was nothing to clear.
+]]
+function QuestService:AdminReset(player: Player, questId: string): boolean
+	local data = PlayerDataService:GetData(player)
+	if data == nil or data.QuestState[questId] == nil then
+		return false
+	end
+	data.QuestState[questId] = nil
+	push(player)
+	return true
+end
+
 function QuestService:ObjectPosition(id: string, race: string): Vector3?
 	local positions = objectAt[id]
 	return positions and (positions[race] or positions["*"])

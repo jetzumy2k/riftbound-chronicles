@@ -75,6 +75,9 @@ local STRINGS: { [string]: string } = {
 	["skill.notAlly"] = "That skill only works on players of your realm.",
 	["skill.loadoutInvalid"] = "That skill can't go in that slot.",
 	["skill.auto.none"] = "No creature nearby to attack.",
+	["combat.autoHunt.on"] = "Auto-attack ON: you'll fight creatures nearby. Move to take over; tap AUTO again to stop.",
+	["combat.autoHunt.off"] = "Auto-attack OFF.",
+	["combat.autoHunt.disabled"] = "Auto-attack is switched off in this game right now.",
 	-- Phase 7 inventory (D-64).
 	["inventory.full"] = "Your bag is full ({cap} items). Salvage something to make room.",
 	["inventory.notOwned"] = "That item isn't in your bag.",

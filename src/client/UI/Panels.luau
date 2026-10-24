@@ -7,7 +7,9 @@
 	Every big screen (bag, skills, quests, party invites) puts its panel in
 	the shared "RC_Panels" layer:
 	  - drawn above every HUD piece (DisplayOrder 15; toasts stay above);
-	  - a dim backdrop behind the panel: tapping it closes the panel;
+	  - a dim backdrop behind the panel: tapping it closes the panel
+	    (unless the panel registered `keepOnBackdrop`, e.g. the admin
+	    panel, where a stray tap would throw away typed values);
 	  - opening one panel closes the one that was open;
 	  - world prompts ("Talk", "Collect") are hidden while a panel is open,
 	    so they never sit on top of it.
@@ -27,6 +29,7 @@ local gui: ScreenGui? = nil
 local backdrop: TextButton? = nil
 local current: string? = nil
 local closers: { [string]: () -> () } = {}
+local keepOnBackdrop: { [string]: boolean } = {}
 
 local function setPrompts(enabled: boolean)
 	pcall(function()
@@ -58,6 +61,9 @@ function Panels.layer(): ScreenGui
 	dim.Parent = layer
 	dim.Activated:Connect(function()
 		local name = current
+		if name and keepOnBackdrop[name] then
+			return
+		end
 		local close = name and closers[name]
 		if close then
 			close()
@@ -69,9 +75,11 @@ function Panels.layer(): ScreenGui
 end
 
 -- `close` shuts the named panel (called when another one opens or the
--- backdrop is tapped). It must call Panels.closed.
-function Panels.register(name: string, close: () -> ())
+-- backdrop is tapped). It must call Panels.closed. With `keep` true a
+-- backdrop tap leaves the panel open.
+function Panels.register(name: string, close: () -> (), keep: boolean?)
 	closers[name] = close
+	keepOnBackdrop[name] = keep == true
 end
 
 function Panels.opened(name: string)

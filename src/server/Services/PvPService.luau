@@ -191,6 +191,8 @@ end
 
 -- Boss spawns defeated on this server (claim ids "B:<server>:<n>:<boss>:L").
 local bossCounter = 0
+-- Every war-zone boss post (admin "respawn now").
+local bossSlots: { MobService.CampSlot } = {}
 
 local function addMarks(player: Player, amount: number, source: string)
 	local data = PlayerDataService:GetData(player)
@@ -438,6 +440,7 @@ local function spawnBoss(
 		end,
 	})
 	local slot = slots[1]
+	table.insert(bossSlots, slot)
 	-- Status billboard over the boss's post.
 	local holder = Instance.new("Part")
 	holder.Name = `BossPost_{spec.enemy}`
@@ -507,6 +510,25 @@ local function spawnBoss(
 			task.wait(1)
 		end
 	end)
+end
+
+-- Admin (bosses.manage): brings every fallen war-zone boss back now.
+function PvPService:RespawnBosses(): number
+	local count = 0
+	for _, slot in bossSlots do
+		if MobService:RespawnSlotNow(slot) then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Admin (player.edit): grants victory titles after Victories was changed.
+function PvPService:RefreshTitles(player: Player)
+	local data = PlayerDataService:GetData(player)
+	if data then
+		grantVictoryTitles(player, data)
+	end
 end
 
 function PvPService:Start()

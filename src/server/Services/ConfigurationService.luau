@@ -10,7 +10,11 @@
 	  - Invalidation over MessagingService topic `RC_ConfigChanged` (payload =
 	    new version number) plus a slow poll as fallback.
 
-	Writing overrides is an admin action and arrives in Phase 17.
+	Writing overrides is an admin action (Phase 17, AdminService): `Write`
+	saves a new version with UpdateAsync (refused if someone saved another
+	version meanwhile), applies it here and tells the other servers. In
+	Studio the change applies to the test server only and is never saved,
+	so a play-test can't change the live game's config.
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -43,6 +47,8 @@ local ConfigurationService = {
 local configSpec: any = nil
 local effective: any = nil
 local currentVersion = 0
+-- The override record in use (nil = defaults only).
+local currentOverride: any = nil
 local refreshing = false
 local refreshQueued = false
 
@@ -56,6 +62,8 @@ end
 
 local function publishVersion()
 	ReplicatedStorage:SetAttribute(Constants.Attributes.ConfigVersion, currentVersion)
+	-- Client-visible switches (read-only for clients).
+	ReplicatedStorage:SetAttribute(Constants.Attributes.AutoAttack, effective.Flags.AutoAttack == true)
 end
 
 local function fetchOverride(): (boolean, any)
@@ -90,6 +98,7 @@ local function refreshOnce()
 
 	effective = result
 	currentVersion = override.version
+	currentOverride = override
 	applyLogLevel()
 	publishVersion()
 	log:Info("applied config override v%d", currentVersion)
@@ -174,6 +183,89 @@ end
 
 function ConfigurationService:GetVersion(): number
 	return currentVersion
+end
+
+-- The config schema, the code defaults and the live config (Phase 17 panel).
+function ConfigurationService:GetSpec(): any
+	return configSpec
+end
+
+function ConfigurationService:GetDefaults(): any
+	return Defaults
+end
+
+function ConfigurationService:GetEffective(): any
+	return effective
+end
+
+-- The nested override values in use ({} when none).
+function ConfigurationService:GetOverrideValues(): any
+	return if currentOverride then currentOverride.values else {}
+end
+
+-- Checks `values` as an override; returns (true, config) or (false, reason).
+function ConfigurationService:Check(values: any): (boolean, any)
+	return ConfigCore.resolve(Defaults, { version = currentVersion + 1, values = values }, configSpec, Schema)
+end
+
+--[[
+	Saves `values` as the next override version and applies it (Phase 17).
+	`baseVersion` is the version the admin edited; if the stored version
+	moved on, nothing is saved ("stale"). Returns (ok, reason, savedRemotely).
+]]
+function ConfigurationService:Write(
+	values: any,
+	baseVersion: number,
+	changedBy: number
+): (boolean, string?, boolean)
+	local resolved, result = self:Check(values)
+	if not resolved then
+		return false, tostring(result), false
+	end
+	local record =
+		{ version = baseVersion + 1, values = values, changedBy = changedBy, changedAt = os.time() }
+	local stale = false
+	local studio = RunService:IsStudio()
+	local saved, err = false, "Studio: not saved"
+	if not studio then
+		saved, err = pcall(function()
+			local store = DataStoreService:GetDataStore(STORE_NAME)
+			store:UpdateAsync(OVERRIDE_KEY, function(old: any): any
+				local oldVersion = if type(old) == "table" and type(old.version) == "number"
+					then old.version
+					else 0
+				if oldVersion ~= baseVersion then
+					stale = true
+					return nil
+				end
+				return record
+			end)
+		end)
+	end
+	if stale then
+		return false, "stale", false
+	end
+	if not saved and not studio then
+		return false, `save failed: {tostring(err)}`, false
+	end
+	effective = result
+	currentVersion = record.version
+	currentOverride = record
+	applyLogLevel()
+	publishVersion()
+	log:Info(
+		"config override v%d written by %d%s",
+		currentVersion,
+		changedBy,
+		if saved then "" else " (this server only)"
+	)
+	ConfigurationService.Changed:Fire(currentVersion)
+	if saved then
+		pcall(function()
+			MessagingService:PublishAsync(TOPIC, currentVersion)
+		end)
+	end
+	return true, nil, saved
 end
 
 return ConfigurationService

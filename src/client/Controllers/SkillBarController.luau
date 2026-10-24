@@ -17,10 +17,11 @@
 	  dashes         where you are moving (backwards when still), after the
 	                 server confirms the cast
 
-	Auto Attack (basic skill, free, any regular slot): pressing it targets
-	the nearest creature and keeps attacking it with the normal attack
-	(CombatController.toggleAutoAttack); pressing again stops. Its button
-	reads AUTO / ON instead of Focus and rank.
+	Attack (basic skill "AutoAttack", free, any regular slot): pressing it
+	attacks the target (or the nearest creature) and keeps attacking it with
+	the normal attack (CombatController.startAutoAttack). Its button reads
+	ATTACK / FIGHTING instead of Focus and rank. The hands-free Auto-attack
+	switch is separate (CombatController, its own button).
 
 	Input: desktop 1-6, Q (click works too) · gamepad X, Y, L1, DPad left /
 	up / down, R1 · touch: buttons around the attack button
@@ -134,6 +135,8 @@ local pageButton: TextButton
 local pageDot: Frame
 local screen: ScreenGui
 local tooltip: Frame
+-- The tooltip's ZIndex; its contents are raised above it.
+local TOOLTIP_Z = 10
 local tooltipBody: Frame
 
 local function localCharacter(): Model?
@@ -263,8 +266,8 @@ function cast(slot: string)
 		return
 	end
 	if SkillDefinitions.isBasic(skill) then
-		-- Auto Attack: no Focus, no cooldown; the normal attack does the work.
-		local _, reason = CombatController.toggleAutoAttack()
+		-- Attack: no Focus, no cooldown; the normal attack does the work.
+		local _, reason = CombatController.startAutoAttack()
 		if reason == "none" then
 			NotificationController:ShowKey("Warning", "skill.auto.none")
 		end
@@ -328,10 +331,19 @@ local function showTooltip(slot: string?)
 		return
 	end
 	SkillInfo.fill(tooltipBody, skill, rankOf(skill), { compact = true })
+	-- This screen layers by ZIndex across the whole gui (the slot buttons
+	-- use 2-5), so the card's text must sit above the tooltip's own
+	-- background (ZIndex 10). Before, it was drawn under the glass and
+	-- looked faded (creator review 2026-10-24).
+	for _, child in tooltipBody:GetDescendants() do
+		if child:IsA("GuiObject") then
+			child.ZIndex += TOOLTIP_Z
+		end
+	end
 	local button = buttons[slot].frame
 	local area = screen.AbsoluteSize
 	local at = button.AbsolutePosition - screen.AbsolutePosition
-	local width = math.min(320, area.X - 24)
+	local width = math.min(340, area.X - 24)
 	tooltip.Size = UDim2.fromOffset(width, 0)
 	-- Above the button, kept on screen.
 	local x = math.clamp(at.X + button.AbsoluteSize.X / 2 - width / 2, 12, area.X - width - 12)
@@ -603,13 +615,13 @@ local function render()
 		end
 		button.glyph.Text = ""
 		if SkillDefinitions.isBasic(skill) then
-			-- Auto Attack: on / off in words and a bright outline.
+			-- Attack: "FIGHTING" and a bright outline while it keeps attacking.
 			local on = CombatController.autoAttacking()
 			button.cost.Text = ""
 			button.pips.Text = ""
 			button.shade.Size = UDim2.fromScale(1, 0)
 			button.timer.Text = ""
-			button.status.Text = if on then "AUTO · ON" else "AUTO"
+			button.status.Text = if on then "FIGHTING" else "ATTACK"
 			button.stroke.Thickness = if on then 4 else 2
 			button.stroke.Color = if on then COMBO_COLOR else Color3.new(1, 1, 1)
 			button.dim.Visible = false
@@ -683,9 +695,12 @@ local function build()
 		Name = "Tooltip",
 		AnchorPoint = Vector2.new(0, 1),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		Size = UDim2.fromOffset(320, 0),
+		Size = UDim2.fromOffset(340, 0),
 		Visible = false,
-		ZIndex = 10,
+		ZIndex = TOOLTIP_Z,
+		-- Nearly solid, so the world behind never shows through the text.
+		BackgroundColor3 = Theme.Colors.Ink,
+		BackgroundTransparency = 0.03,
 		Parent = gui,
 	})
 	Kit.padding(tooltip, 10, 12)
@@ -693,6 +708,7 @@ local function build()
 		BackgroundTransparency = 1,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.fromScale(1, 0),
+		ZIndex = TOOLTIP_Z + 1,
 		Parent = tooltip,
 	})
 	local layout = Kit.list(tooltipBody, Enum.FillDirection.Vertical, 3, Enum.HorizontalAlignment.Left)

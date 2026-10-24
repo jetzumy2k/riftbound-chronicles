@@ -76,6 +76,8 @@ Constants.Net = table.freeze({
 Constants.Attributes = table.freeze({
 	Maintenance = "RC_Maintenance",
 	ConfigVersion = "RC_ConfigVersion",
+	-- Flags.AutoAttack, mirrored for clients (the Auto-attack switch).
+	AutoAttack = "RC_AutoAttack",
 })
 
 return table.freeze(Constants)

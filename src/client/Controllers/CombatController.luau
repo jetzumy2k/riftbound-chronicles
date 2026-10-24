@@ -21,12 +21,23 @@
 	  - Auto Attack (a basic skill on the skill bar, SkillBarController):
 	    targets the selected enemy or, with none, the nearest creature
 	    around you (any direction), walks into reach and keeps chaining the
-	    normal attack until it falls. Steering, pressing it again, clearing
-	    the target or selecting a friend stops it; selecting another enemy
-	    switches to it.
+	    normal attack until it falls, facing it the whole time. Pressing it
+	    again keeps attacking (it is not an on / off switch, creator review
+	    2026-10-24). Steering, clearing the target or selecting a friend
+	    stops it; selecting another enemy switches to it.
+
+	  - Auto-attack switch (creator review 2026-10-24): an AUTO button (R on
+	    desktop) the player turns on / off. While on, whenever the character
+	    is idle it picks the nearest creature within HUNT_STUDS (never a
+	    player or a training dummy) and attacks it like the Attack skill,
+	    then looks for the next one. Steering takes over; it resumes a moment
+	    after you let go. A creature it can't reach in UNREACHABLE_SECONDS is
+	    skipped for a while. Admins can switch it off for the whole game
+	    (Flags.AutoAttack, mirrored to the RC_AutoAttack attribute); the
+	    server checks every attack as usual.
 
 	Input:
-	  Desktop  left mouse (click an enemy to target it) or F
+	  Desktop  left mouse (click an enemy to target it) or F; R toggles AUTO
 	  Gamepad  R2
 	  Touch    on-screen attack button (bottom-right, left of jump); shows
 	           the combo step as three pips (shape, not only colour)
@@ -49,8 +60,12 @@ local NetClient = require(Shared.Net.Client)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local SkillIcon = require(UI.SkillIcon)
+
+local Constants = require(Shared.Constants)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
+local NotificationController = require(script.Parent.NotificationController)
 local AnimationController = require(script.Parent.AnimationController)
 local CharacterMotionController = require(script.Parent.CharacterMotionController)
 local TargetController = require(script.Parent.TargetController)
@@ -73,6 +88,18 @@ local button: TextButton? = nil
 local glyph: TextLabel? = nil
 -- Auto Attack: the enemy being attacked automatically (nil = off).
 local autoTarget: Model? = nil
+-- Auto-attack switch: looks for creatures on its own while on.
+local HUNT_STUDS = 50
+local HUNT_RESUME_SECONDS = 0.8
+local UNREACHABLE_SECONDS = 7
+local SKIP_SECONDS = 15
+local hunting = false
+local lastSteerAt = 0
+local farSince: number? = nil
+local skipped: { [Model]: number } = {}
+local autoButton: TextButton? = nil
+local autoLabel: TextLabel? = nil
+local autoIcon: Frame? = nil
 
 local function currentAttack(): BasicAttacks.BasicAttack?
 	return BasicAttacks.forJob(PlayerDataController:Get().Job)
@@ -274,6 +301,184 @@ local function buildTouchButton()
 	glyph = icon
 end
 
+local function huntAllowed(): boolean
+	return ReplicatedStorage:GetAttribute(Constants.Attributes.AutoAttack) ~= false
+end
+
+local function refreshAutoButton()
+	local b = autoButton
+	if b == nil then
+		return
+	end
+	b.Visible = PlayerDataController:Get().Job ~= nil and huntAllowed()
+	local touch = UserInputService.TouchEnabled
+	b.BackgroundColor3 = if hunting then Theme.Colors.SafeDeep else Theme.Colors.Glass
+	local label = autoLabel
+	if label then
+		label.Text = `AUTO {if hunting then "ON" else "OFF"}{if touch then "" else " (R)"}`
+		label.TextColor3 = if hunting then Theme.Colors.Safe else Theme.Colors.TextDim
+	end
+	-- The drawn loop icon (emoji don't render reliably), green while on.
+	if autoIcon then
+		autoIcon:Destroy()
+	end
+	local size = math.floor(math.min(b.Size.X.Offset, b.Size.Y.Offset) * 0.55)
+	local icon = SkillIcon.new({
+		icon = "auto",
+		element = if hunting then "Nature" else "Steel",
+		size = math.max(size, 20),
+		plain = true,
+	})
+	icon.AnchorPoint = Vector2.new(0.5, 0)
+	icon.Position = UDim2.new(0.5, 0, 0, 4)
+	icon.Parent = b
+	autoIcon = icon
+	local stroke = b:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Thickness = if hunting then 3 else 1.5
+	end
+end
+
+local function setHunting(on: boolean, quiet: boolean?)
+	if on and not huntAllowed() then
+		NotificationController:ShowKey("Warning", "combat.autoHunt.disabled")
+		on = false
+	end
+	if hunting == on then
+		refreshAutoButton()
+		return
+	end
+	hunting = on
+	farSince = nil
+	if not on then
+		autoTarget = nil
+	end
+	if not quiet then
+		NotificationController:ShowKey("Info", if on then "combat.autoHunt.on" else "combat.autoHunt.off")
+	end
+	refreshAutoButton()
+end
+
+local function buildAutoButton()
+	local gui = Kit.new("ScreenGui", {
+		Name = "RC_AutoAttack",
+		ResetOnSpawn = false,
+		ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets,
+		DisplayOrder = 5,
+	})
+	local b = Kit.new("TextButton", {
+		Name = "Auto",
+		BackgroundColor3 = Theme.Colors.Glass,
+		BackgroundTransparency = 0.12,
+		Text = "",
+		AutoButtonColor = true,
+		Visible = false,
+		Parent = gui,
+	})
+	autoLabel = Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -3),
+		Size = UDim2.new(1, -4, 0, 12),
+		TextSize = 10,
+		TextScaled = true,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.TextDim,
+		Parent = b,
+	})
+	local corner = Kit.corner(b, 12)
+	Kit.goldStroke(b, 1.5, 0.2)
+	b.Activated:Connect(function()
+		setHunting(not hunting)
+	end)
+	local function place()
+		local camera = Workspace.CurrentCamera
+		local viewport = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+		if UserInputService.TouchEnabled then
+			local s = CombatButtonsLayout.compute(viewport.X, viewport.Y).auto
+			b.AnchorPoint = Vector2.new(1, 1)
+			b.Position = UDim2.new(1, -s.right, 1, -s.bottom)
+			b.Size = UDim2.fromOffset(s.size, s.size)
+			corner.CornerRadius = UDim.new(0, s.size // 2)
+		else
+			-- Left of the desktop skill bar (7 x 60 px buttons, 10 px gaps,
+			-- 18 px from the bottom: SkillBarController).
+			b.AnchorPoint = Vector2.new(1, 1)
+			b.Position = UDim2.new(0.5, -240 - 14, 1, -18)
+			b.Size = UDim2.fromOffset(64, 60)
+		end
+		refreshAutoButton()
+	end
+	place()
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(place)
+	end
+	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
+	autoButton = b
+	refreshAutoButton()
+end
+
+-- Auto-attack: while idle, start on the nearest creature in reach.
+local function stepHunt(now: number)
+	if not hunting then
+		return
+	end
+	if not huntAllowed() then
+		setHunting(false, true)
+		NotificationController:ShowKey("Warning", "combat.autoHunt.disabled")
+		return
+	end
+	if TargetController.steering() then
+		lastSteerAt = now
+		return
+	end
+	local character = localCharacter()
+	local definition = currentAttack()
+	if
+		character == nil
+		or definition == nil
+		or character:GetAttribute("Defeated") == true
+		or now - lastSteerAt < HUNT_RESUME_SECONDS
+	then
+		return
+	end
+	local current = autoTarget
+	if current then
+		-- Give up on a creature it can't get to (walls, cliffs, water).
+		if TargetController.distanceTo(current) > definition.range + 2 then
+			farSince = farSince or now
+			if now - (farSince :: number) > UNREACHABLE_SECONDS then
+				skipped[current] = now + SKIP_SECONDS
+				autoTarget = nil
+				farSince = nil
+				TargetController.set(nil)
+			end
+		else
+			farSince = nil
+		end
+		return
+	end
+	if TargetController.approaching() then
+		return
+	end
+	local skip: { [Model]: boolean } = {}
+	for model, untilTime in skipped do
+		if now >= untilTime or model.Parent == nil then
+			skipped[model] = nil
+		else
+			skip[model] = true
+		end
+	end
+	local target = TargetController.nearestMob(HUNT_STUDS, skip)
+	if target then
+		farSince = nil
+		TargetController.set(target)
+		autoTarget = target
+		attack(target)
+	end
+end
+
 local function refreshButton()
 	local job = PlayerDataController:Get().Job
 	local def = JobDefinitions.get(job)
@@ -283,6 +488,7 @@ local function refreshButton()
 	if button then
 		button.Visible = job ~= nil
 	end
+	refreshAutoButton()
 end
 
 local function disableCoreUi()
@@ -309,8 +515,16 @@ function CombatController:Start()
 	if UserInputService.TouchEnabled then
 		buildTouchButton()
 	end
+	buildAutoButton()
 	refreshButton()
 	PlayerDataController.Changed:Connect(refreshButton)
+	ReplicatedStorage:GetAttributeChangedSignal(Constants.Attributes.AutoAttack):Connect(function()
+		if not huntAllowed() and hunting then
+			setHunting(false, true)
+			NotificationController:ShowKey("Warning", "combat.autoHunt.disabled")
+		end
+		refreshAutoButton()
+	end)
 
 	local player = Players.LocalPlayer :: Player
 	player.CharacterAdded:Connect(function()
@@ -337,6 +551,8 @@ function CombatController:Start()
 		elseif input.KeyCode == Enum.KeyCode.F or input.KeyCode == Enum.KeyCode.ButtonR2 then
 			holding[input.KeyCode.Name] = true
 			attack(nil)
+		elseif input.KeyCode.Name == "R" then
+			setHunting(not hunting)
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)
@@ -349,6 +565,7 @@ function CombatController:Start()
 
 	-- Buffered presses and hold-to-attack fire the moment the next step is allowed.
 	RunService.Heartbeat:Connect(function()
+		stepHunt(os.clock())
 		local auto = autoTarget
 		if auto then
 			local selected = TargetController.current()
@@ -365,8 +582,15 @@ function CombatController:Start()
 				-- It fell, the selection was cleared or moved to a friend, or
 				-- the player took over.
 				autoTarget = nil
-			elseif ComboMath.waitTime(combo, os.clock()) == 0 and not TargetController.approaching() then
-				attack(auto)
+			elseif not TargetController.approaching() then
+				-- Keep facing it (creatures move) and chain the next swing.
+				local targetRoot = rootOf(auto)
+				if targetRoot then
+					CharacterMotionController.faceToward(targetRoot.Position, 0.2)
+				end
+				if ComboMath.waitTime(combo, os.clock()) == 0 then
+					attack(auto)
+				end
 			end
 		end
 		if (queued or anyHeld()) and ComboMath.waitTime(combo, os.clock()) == 0 then
@@ -383,15 +607,12 @@ end
 --------------------------------------------------------------------------------
 
 --[[
-	Auto Attack (the basic skill): starts attacking the selected enemy or
-	the nearest creature around you, or stops if it is already on. Returns
-	whether it is on now, and "none" when there was nothing to attack.
+	Auto Attack (the basic skill): attacks the selected enemy or the nearest
+	creature around you at once and keeps going until it falls. Pressing it
+	while already on just keeps attacking (no off switch). Returns whether
+	it is on, and "none" when there was nothing to attack.
 ]]
-function CombatController.toggleAutoAttack(): (boolean, string?)
-	if autoTarget then
-		autoTarget = nil
-		return false, nil
-	end
+function CombatController.startAutoAttack(): (boolean, string?)
 	local selected = TargetController.current()
 	local target = if selected and TargetController.isHostile(selected)
 		then selected

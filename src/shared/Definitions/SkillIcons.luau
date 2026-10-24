@@ -182,6 +182,22 @@ end
 
 local MOTIFS: { [string]: { Shape } } = {
 	sword = place(SWORD, 45, 1.12),
+	-- Attack (the basic skill): a sword mid-swing with three slash streaks,
+	-- so it never looks like a plain sword skill (creator review 2026-10-24).
+	strike = join(place(SWORD, 45, 0.9, -12, -4), {
+		seg(52, 70, 80, 42, 6, "m", 50),
+		seg(62, 80, 88, 54, 6, "m", 50),
+		seg(74, 88, 94, 68, 5, "m", 50),
+	}),
+	-- The Auto-attack switch: a looping ring with two arrowheads around a
+	-- small sword ("keeps attacking").
+	auto = join({
+		ring(50, 50, 88, 8),
+		seg(94, 42, 84, 54, 7, "a"),
+		seg(94, 42, 100, 56, 7, "a"),
+		seg(6, 58, 16, 46, 7, "a"),
+		seg(6, 58, 0, 44, 7, "a"),
+	}, place(SWORD, 45, 0.6)),
 	swords = join(place(SWORD, 45, 1.05), place(SWORD, -45, 1.05)),
 	axe = place({
 		bar(50, 54, 8, 84, 0, "d"),

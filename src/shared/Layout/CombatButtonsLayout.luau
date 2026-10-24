@@ -36,6 +36,8 @@ export type Layout = {
 	skill6: Slot,
 	special: Slot,
 	potion: Slot,
+	-- The Auto-attack on / off switch.
+	auto: Slot,
 	-- Column mode only: skills 4-6 share the places of 1-3 (one page shows).
 	paged: boolean,
 	page: Slot?,
@@ -77,6 +79,8 @@ function CombatButtonsLayout.compute(width: number, height: number): Layout
 			special = slot(386, 86, 56),
 			-- Above the run toggle, next to the SKILLS / BAG column.
 			potion = slot(120, 208, 52),
+			-- Left of the potion, above crouch.
+			auto = slot(196, 208, 52),
 			paged = false,
 			page = nil,
 		}
@@ -96,6 +100,8 @@ function CombatButtonsLayout.compute(width: number, height: number): Layout
 		paged = true,
 		-- Flips the three regular buttons between slots 1-3 and 4-6.
 		page = slot(264, 220, 44),
+		-- Above the page button, right of the special.
+		auto = slot(264, 282, 44),
 		-- The right-edge column, just under the BAG toggle (centre at
 		-- height / 2 - 4, 44 tall): the skills fill the space above run.
 		potion = slot(8, math.max(CombatButtonsLayout.JUMP_ZONE, math.floor(height / 2) - 78), 52),
@@ -104,7 +110,7 @@ end
 
 -- The buttons on screen at once (a paged layout shows one page of skills).
 function CombatButtonsLayout.shownKeys(layout: Layout): { string }
-	local keys = { "attack", "sprint", "crouch", "potion", "special" }
+	local keys = { "attack", "sprint", "crouch", "potion", "special", "auto" }
 	for index = 1, if layout.paged then 3 else 6 do
 		table.insert(keys, `skill{index}`)
 	end

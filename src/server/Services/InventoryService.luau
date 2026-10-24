@@ -222,6 +222,28 @@ function InventoryService:GrantStackable(player: Player, id: string, count: numb
 	return added
 end
 
+--[[
+	Removes an item from a player's bag (admin action, Phase 17). Equipped
+	items are refused ("equipped"). Returns (ok, reason).
+]]
+function InventoryService:RemoveItem(player: Player, guid: string): (boolean, string?)
+	local data = PlayerDataService:GetData(player)
+	if data == nil then
+		return false, "noProfile"
+	end
+	local item = data.Inventory[guid]
+	if item == nil then
+		return false, "unknown"
+	end
+	if equippedSlotOf(data, guid) then
+		return false, "equipped"
+	end
+	data.Inventory[guid] = nil
+	push(player, data, nil, { guid })
+	log:Info("user=%d -item %s %s (admin)", player.UserId, guid, item.DefId)
+	return true, nil
+end
+
 -- Tells the owner about changed items (other item services, e.g. enhancement).
 function InventoryService:Push(player: Player, changed: { string }?)
 	local data = PlayerDataService:GetData(player)
