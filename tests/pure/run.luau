@@ -15,6 +15,7 @@ local specs = {
 	{ "enums_constants", require("./specs/enums_constants.spec") },
 	{ "glyphs", require("./specs/glyphs.spec") },
 	{ "admin_rules", require("./specs/admin_rules.spec") },
+	{ "face_expressions", require("./specs/face_expressions.spec") },
 	{ "schema", require("./specs/schema.spec") },
 	{ "rate_bucket", require("./specs/rate_bucket.spec") },
 	{ "signal", require("./specs/signal.spec") },

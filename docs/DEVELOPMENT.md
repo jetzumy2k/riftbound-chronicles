@@ -199,6 +199,18 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 15: facial expressions (D-79)
+Use a local server with 2 players so you can watch the other character's face up close (zoom in; the face only moves within 70 studs).
+
+**Checks:**
+1. Standing still: the face is relaxed and blinks every few seconds (both eyes, quick).
+2. Attack a creature: brows lower and the jaw sets during each swing (Effort); between swings the brows stay a little down (Focused) and relax about 8 s after the fight.
+3. Take a hit: a short squint and wince, then back.
+4. Get defeated: the eyes close softly (no blinking) until the respawn; after it the face is normal.
+5. Level up (admin panel Set level, or kill creatures): a smile for about 3 s.
+6. The other player's face does the same on your screen.
+7. Mobile emulation: no slowdown with several players nearby.
+
 ## Phase 17: admin / moderator panel (D-77)
 Use a **local server test with 2 players** (Test → Clients and Servers): Player1 is Owner, Player2 a normal player. In Play Solo you are Owner because you created the place. Settings changes in Studio apply to that test server only (never saved).
 

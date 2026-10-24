@@ -25,6 +25,7 @@ local CONTROLLER_ORDER = {
 	"JobSelectController",
 	"PoseController",
 	"AnimationController",
+	"ExpressionController",
 	"CharacterMotionController",
 	"MovementModeController",
 	"TargetController",
