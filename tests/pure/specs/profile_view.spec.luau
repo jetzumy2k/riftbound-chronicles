@@ -20,6 +20,24 @@ return function(t)
 		t.eq(view.XPToNext, 0)
 	end)
 
+	t.it("a full 6 + 1 skill bar and the PvP record fit the snapshot schema (D-75, D-76)", function()
+		local data = ProfileTemplate.new()
+		data.Race = "Devil"
+		data.Job = "Warrior"
+		data.Level = 30
+		local six = { "CleavingStrike", "Whirlwind", "Execution", "IronSkin", "Hamstring", "ShieldBash" }
+		for _, id in six do
+			data.OwnedSkills[id] = 1
+		end
+		data.OwnedSkills.BladeStorm = 1
+		data.EquippedSkills = { Regular = six, Special = "BladeStorm" }
+		data.PvPStats.Victories = 12
+		local view = ProfileView.snapshot(data)
+		t.eq(#view.EquippedSkills.Regular, 6)
+		t.eq(view.PvP.Victories, 12)
+		t.ok(Schema.validateArgs(Registry.ProfileSnapshot.args, 1, { view }))
+	end)
+
 	t.it("items, equipment, stackables and wallet match the schemas (D-64)", function()
 		local ItemDefinitions = load("src/shared/Definitions/ItemDefinitions")
 		local ItemRules = load("src/shared/Logic/ItemRules")

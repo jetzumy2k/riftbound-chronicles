@@ -142,6 +142,13 @@ return {
 		-- T-18 victory credit rules.
 		RepeatVictimMinutes = 30,
 		DailyCreditCap = 50,
+		-- GD-10 / D-76: no credit for a victim whose spawn protection ended
+		-- less than this long ago (anti-spawn-camping).
+		FreshSpawnGraceSeconds = 15,
+		-- D-76 PvP Marks: per credited victory, and per war-zone boss earned
+		-- (once per boss spawn).
+		MarksPerVictory = 5,
+		MarksPerBoss = 10,
 		-- Field creature camps.
 		CampRespawnSeconds = 30,
 		-- D-49: the five war-zone bosses per zone return this long after falling.
@@ -168,6 +175,14 @@ return {
 			DungeonMiniBoss = { DropChancePct = 100, Rarity = { Rare = 80, Legendary = 20 } },
 			DungeonFloorBoss = { DropChancePct = 100, Rarity = { Rare = 80, Legendary = 20 } },
 			DungeonBoss = { DropChancePct = 100, Rarity = { Rare = 80, Legendary = 20 } },
+			-- CLAUDE.md §15 PvP boss (the ten war-zone bosses, D-49 / D-76).
+			WarZoneBoss = { DropChancePct = 100, Rarity = { Rare = 80, Mythical = 20 } },
+		},
+		-- CLAUDE.md §15 PvP regular creatures: given a drop, 30% Perfect
+		-- Enhancement Stone / 70% Enhancement Stone. The 25% drop chance is
+		-- ours (D-76, like D-06 for dungeons); every helper rolls personally.
+		StoneTables = {
+			WarZoneMob = { DropChancePct = 25, Stones = { PerfectStone = 30, EnhancementStone = 70 } },
 		},
 	},
 

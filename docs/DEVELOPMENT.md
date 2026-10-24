@@ -199,6 +199,20 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 14: PvP loot, victory titles, PvP Marks (D-76)
+Studio: bosses return after 120 s; use two players (different realms) for the victory checks.
+
+**Checks:**
+1. Equip 4 to 6 regular skills, rejoin: the bar keeps all of them and the HUD / skill tree update normally (the D-75 snapshot fix).
+2. Defeat war-zone field creatures: about 1 in 4 gives "💎 Loot: an Enhancement Stone" (now and then "a Perfect Enhancement Stone!"); the bag's stone counts go up. A party member who helped rolls separately.
+3. Defeat a war-zone boss with a friend: each of you gets a Rare or (1 in 5) Mythical piece of your own class at item level 30 or below, plus "+10 PvP Marks". When it returns and falls again, you're paid again; one defeat never pays twice.
+4. A level 10 alt in the party, standing by at a level 50 boss: no loot for it (level gap); level 20+ helpers get loot.
+5. Defeat a player of the other realm: "Victory over <name>!", "+5 PvP Marks"; the quest log (J) shows "🗡 PvP: 1 victories · … next title « Skirmisher » at 10". Defeat the same player again within 30 min: no victory, no Marks.
+6. Defeat them within 15 s of their respawn protection ending (without them attacking): no credit. If they attack you first, it counts.
+7. With 10 credited victories (or set PvPStats.Victories to 10 in a test profile and rejoin): "New title: « Skirmisher »"; wear it from the log; it floats over your head.
+9. Every notification shows exactly one icon at the front that fits it (❗ for warnings, 📜 quests, 🎁 loot, 💎 stones, 🏆 PvP, 👥 party ...), never two.
+8. Config: set `Loot.StoneTables.WarZoneMob` weights to 30 / 60: the server logs "stone table WarZoneMob rejected (sum)" and uses 30 / 70.
+
 ## Icons and six skill slots (D-75)
 1. No empty boxes anywhere: 🌟 SKILLS, the notification icons (🔔 / ❗), 📐 (HUD layout), ⭐ over a commander with a quest to hand in, ✅ on equipped items and chosen slots, status chips over heads (💫 STUNNED, 🧊 FROZEN, 🔇 SILENCED, 💚 REGEN ...), the race / job emblems on the start screens, and every bag tile (helm 👑, shoulders 🧥, axes 🔨, staff 🌟, wand 🎇).
 2. Learn five or more regular skills: they fill the new slots by themselves (Auto Attack stays in slot 1). Desktop: a bar of seven at the bottom; keys 1-6 cast, Q casts the special.

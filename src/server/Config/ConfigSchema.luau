@@ -66,7 +66,14 @@ return function(S: any)
 		Loot = S.struct({
 			-- LootRules.validate also checks the weights sum to 100.
 			Tables = S.map(
-				S.enum({ "DungeonMob", "DungeonElite", "DungeonMiniBoss", "DungeonFloorBoss", "DungeonBoss" }),
+				S.enum({
+					"DungeonMob",
+					"DungeonElite",
+					"DungeonMiniBoss",
+					"DungeonFloorBoss",
+					"DungeonBoss",
+					"WarZoneBoss",
+				}),
 				S.struct({
 					DropChancePct = S.number(0, 100),
 					Rarity = S.map(
@@ -75,7 +82,16 @@ return function(S: any)
 						6
 					),
 				}),
-				5
+				6
+			),
+			-- LootRules.validateStones also checks the weights sum to 100.
+			StoneTables = S.map(
+				S.enum({ "WarZoneMob" }),
+				S.struct({
+					DropChancePct = S.number(0, 100),
+					Stones = S.map(S.enum({ "EnhancementStone", "PerfectStone" }), S.number(0, 100), 2),
+				}),
+				1
 			),
 		}),
 
@@ -119,6 +135,9 @@ return function(S: any)
 			PortalReach = S.number(4, 60),
 			RepeatVictimMinutes = S.number(0, 1440),
 			DailyCreditCap = S.int(0, 1000),
+			FreshSpawnGraceSeconds = S.number(0, 300),
+			MarksPerVictory = S.int(0, 1000),
+			MarksPerBoss = S.int(0, 1000),
 			CampRespawnSeconds = S.number(5, 600),
 			BossRespawnMinutes = S.number(1, 1440),
 			StudioBossRespawnSeconds = S.number(5, 7200),

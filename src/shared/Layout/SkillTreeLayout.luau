@@ -5,7 +5,7 @@
 	in tests/pure/specs/skills.spec.luau.
 
 	  header   title, skill points, Reset, Close
-	  bar      the 3 + 1 skill bar (tap a slot to inspect it)
+	  bar      the 6 + 1 skill bar (tap a slot to inspect it)
 	  tree     4 branch columns x 6 tier rows of skill nodes (scrolls)
 	  detail   the selected skill's information and buttons
 

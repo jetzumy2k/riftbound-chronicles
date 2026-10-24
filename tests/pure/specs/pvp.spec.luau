@@ -8,6 +8,7 @@ local ZoneGeometry = load("src/shared/Logic/ZoneGeometry")
 local EnemyDefinitions = load("src/shared/Definitions/EnemyDefinitions")
 local ZoneAtmosphere = load("src/shared/Definitions/ZoneAtmosphere")
 local Defaults = load("src/server/Config/Defaults")
+local QuestDefinitions = load("src/shared/Definitions/QuestDefinitions")
 
 local function credit(over)
 	local f = {
@@ -15,6 +16,8 @@ local function credit(over)
 		victimLevel = 12,
 		levelGap = 5,
 		sinceLastCredit = nil,
+		protectionEndedAgo = nil,
+		freshSpawnSeconds = 15,
 		repeatWindowSeconds = 1800,
 		creditsToday = 0,
 		dailyCap = 50,
@@ -48,6 +51,33 @@ return function(t)
 			t.eq(select(2, credit({ sinceLastCredit = 600 })), "repeatVictim")
 			t.ok((credit({ sinceLastCredit = 1800 })), "after the window it counts again")
 			t.eq(select(2, credit({ creditsToday = 50 })), "dailyCap")
+			-- GD-10: a victim still protected, or just out of protection,
+			-- gives no credit (spawn camping); long after, it counts.
+			t.eq(select(2, credit({ protectionEndedAgo = -3 })), "protectedVictim")
+			t.eq(select(2, credit({ protectionEndedAgo = 5 })), "protectedVictim")
+			t.ok((credit({ protectionEndedAgo = 15 })), "after the grace it counts")
+			t.ok((credit({ protectionEndedAgo = 1e9 })), "a victim who attacked counts")
+		end)
+
+		t.it("D-76: victory titles at 10 / 50 / 150 / 500 credited victories", function()
+			t.eq(#PvPRules.titlesFor(9), 0)
+			t.eq(table.concat(PvPRules.titlesFor(10), ","), "Skirmisher")
+			t.eq(table.concat(PvPRules.titlesFor(150), ","), "Skirmisher,RiftVanguard,RiftChampion")
+			t.eq(#PvPRules.titlesFor(100000), #PvPRules.VICTORY_TITLES)
+			local title, needed = PvPRules.nextTitle(0)
+			t.eq(title, "Skirmisher")
+			t.eq(needed, 10)
+			t.eq(select(2, PvPRules.nextTitle(50)), 150)
+			t.eq(PvPRules.nextTitle(500), nil)
+			local last = 0
+			for _, entry in PvPRules.VICTORY_TITLES do
+				t.ok(QuestDefinitions.Titles[entry.title] ~= nil, `{entry.title} has a name`)
+				t.ok(entry.victories > last, "thresholds rise")
+				last = entry.victories
+			end
+			-- Marks and the grace are configured.
+			t.ok(Defaults.PvP.MarksPerVictory > 0 and Defaults.PvP.MarksPerBoss > 0)
+			t.ok(Defaults.PvP.FreshSpawnGraceSeconds > 0)
 		end)
 
 		t.it("T-15: portals need reach, level and no combat tag", function()

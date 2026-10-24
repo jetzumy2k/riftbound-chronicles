@@ -10,7 +10,7 @@
 	    `ResetSkills()` refunds every point, only in a safe zone and out of
 	    combat. Studio play-tests may learn at any level and get bonus
 	    points (`Skills.StudioUnlockAll` / `StudioBonusPoints`, never live).
-	  - Skill bar: `SetLoadout(regular[≤3], special?)` replaces the 3 + 1 bar
+	  - Skill bar: `SetLoadout(regular[≤6], special?)` replaces the 6 + 1 bar (D-75)
 	    after SkillRules.validateLoadout (learned, own job, slot type, no
 	    duplicates). Newly learned skills fill empty slots; the player's own
 	    choices never move.

@@ -659,10 +659,10 @@ return function(S: any)
 					Level = S.int(0, MAX_LEVEL),
 					Experience = S.int(0),
 					XPToNext = S.int(0),
-					-- Phase 5 (D-45): learned skill id -> rank, and the 3 + 1 bar.
+					-- Phase 5 (D-45): learned skill id -> rank, and the 6 + 1 bar (D-75).
 					OwnedSkills = S.map(S.enum(SKILL_IDS), S.int(1, 5), 64),
 					EquippedSkills = S.struct({
-						Regular = S.array(S.enum(SKILL_IDS), 3),
+						Regular = S.array(S.enum(SKILL_IDS), Constants.Loadout.RegularSlots),
 						Special = S.optional(S.enum(SKILL_IDS)),
 					}),
 					-- Phase 7 (D-64): the owner's items.
@@ -670,6 +670,8 @@ return function(S: any)
 					Equipment = equipment,
 					Stackables = stackables,
 					Wallet = wallet,
+					-- Phase 14 (D-76): PvP record.
+					PvP = S.struct({ Victories = S.int(0), Defeats = S.int(0) }),
 					-- Phase 11 (D-73).
 					Quests = questsView,
 					-- D-74.

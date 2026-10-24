@@ -12,6 +12,7 @@
 ]]
 
 local Shared = game:GetService("ReplicatedStorage").Shared
+local Constants = require(Shared.Constants)
 local XPTable = require(Shared.Logic.XPTable)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
@@ -36,7 +37,7 @@ local function equippedSkills(data: { [string]: any }): { [string]: any }
 	local equipped = if type(data.EquippedSkills) == "table" then data.EquippedSkills else {}
 	local regular = {}
 	for _, id in if type(equipped.Regular) == "table" then equipped.Regular else {} do
-		if SkillDefinitions.get(id) and #regular < 3 then
+		if SkillDefinitions.get(id) and #regular < Constants.Loadout.RegularSlots then
 			table.insert(regular, id)
 		end
 	end
@@ -171,6 +172,11 @@ function ProfileView.snapshot(data: { [string]: any }): { [string]: any }
 		Equipment = ProfileView.equipment(data),
 		Stackables = ProfileView.stackables(data),
 		Wallet = ProfileView.wallet(data),
+		-- D-76: PvP record (victory titles progress in the quest log).
+		PvP = {
+			Victories = if type(data.PvPStats) == "table" then data.PvPStats.Victories or 0 else 0,
+			Defeats = if type(data.PvPStats) == "table" then data.PvPStats.Defeats or 0 else 0,
+		},
 		Quests = ProfileView.quests(data),
 		-- D-74: where the player moved their HUD pieces.
 		HudLayout = if type(data.Settings) == "table" and type(data.Settings.HudLayout) == "table"

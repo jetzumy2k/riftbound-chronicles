@@ -13,6 +13,12 @@
 	               rolls in [0, 1)
 	  pickPiece    which piece of the player's own class drops (slot and,
 	               for weapons, a family their realm uses)
+	  validateStones / rollStone   stone tables (Phase 14, war-zone
+	               creatures): a drop chance and stone weights summing to 100
+
+	CLAUDE.md §15 (Phase 14, D-76): the PvP boss table is 20% Mythical /
+	80% Rare; PvP regular creatures drop 30% Perfect Enhancement Stone / 70%
+	Enhancement Stone, given a drop (the drop chance is separate, as D-06).
 
 	CLAUDE.md §12 interpretation (documented in config too): a regular mob's
 	"30% rare / 70% rare" means 30% Rare / 70% Standard-or-Uncommon, split
@@ -31,10 +37,24 @@ export type Table = {
 	Rarity: { [string]: number },
 }
 
+export type StoneTable = {
+	DropChancePct: number,
+	Stones: { [string]: number },
+}
+
 local LootRules = {}
 
-LootRules.TABLE_IDS =
-	table.freeze({ "DungeonMob", "DungeonElite", "DungeonMiniBoss", "DungeonFloorBoss", "DungeonBoss" })
+LootRules.TABLE_IDS = table.freeze({
+	"DungeonMob",
+	"DungeonElite",
+	"DungeonMiniBoss",
+	"DungeonFloorBoss",
+	"DungeonBoss",
+	"WarZoneBoss",
+})
+LootRules.STONE_TABLE_IDS = table.freeze({ "WarZoneMob" })
+-- Stones a stone table may drop, in a stable roll order.
+LootRules.STONES = table.freeze({ "EnhancementStone", "PerfectStone" })
 
 -- Which kind of piece drops, by weight (D-68): weapons most, armor
 -- pieces next, shields (Warrior only) and jewellery least.
@@ -152,6 +172,47 @@ function LootRules.pickPiece(
 		family = usable[math.clamp(math.floor(familyRoll * #usable) + 1, 1, #usable)]
 	end
 	return ItemDefinitions.defFor(job, slot, family, itemLevel)
+end
+
+-- Whether `t` is a usable stone table ("shape", "chance", "stone", "sum").
+function LootRules.validateStones(t: any): (boolean, string?)
+	if type(t) ~= "table" or type(t.Stones) ~= "table" then
+		return false, "shape"
+	end
+	if not isNumber(t.DropChancePct) or t.DropChancePct < 0 or t.DropChancePct > 100 then
+		return false, "chance"
+	end
+	local sum = 0
+	for stone, weight in t.Stones do
+		if not table.find(LootRules.STONES, stone) or not isNumber(weight) or weight < 0 or weight > 100 then
+			return false, "stone"
+		end
+		sum += weight
+	end
+	if math.abs(sum - 100) > EPSILON then
+		return false, "sum"
+	end
+	return true, nil
+end
+
+-- The stone that drops, or nil (two server rolls in [0, 1), as `roll`).
+function LootRules.rollStone(t: StoneTable, dropRoll: number, stoneRoll: number): string?
+	if dropRoll * 100 >= t.DropChancePct then
+		return nil
+	end
+	local pick = stoneRoll * 100
+	local last: string? = nil
+	for _, stone in LootRules.STONES do
+		local weight = t.Stones[stone]
+		if weight and weight > 0 then
+			last = stone
+			pick -= weight
+			if pick < 0 then
+				return stone
+			end
+		end
+	end
+	return last
 end
 
 -- The item level a creature's drop gets (players cap at 30).

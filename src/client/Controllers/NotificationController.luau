@@ -8,6 +8,11 @@
 
 	Toasts stack at the top centre inside the safe area, never take input,
 	show an icon plus text (not colour alone) and fade after a few seconds.
+
+	One icon per toast (D-76 review): warnings always ❗; otherwise the
+	key's own icon (KEY_ICONS) or its topic's (TOPIC_ICONS, by the key's
+	first part: "quest.accepted" -> quest -> 📜). Message strings carry no
+	icon of their own.
 ]]
 
 local Players = game:GetService("Players")
@@ -30,10 +35,10 @@ local MAX_WIDTH = 420
 local STRINGS: { [string]: string } = {
 	["system.welcome"] = "Welcome to Riftbound Chronicles",
 	-- Phase 11 quests (D-73).
-	["quest.accepted"] = "📜 New quest: {name}",
-	["quest.ready"] = "⭐ {name}: done! Return to your commander.",
-	["quest.complete"] = "✅ Quest complete: {name}",
-	["quest.found"] = "◆ Found: {name}",
+	["quest.accepted"] = "New quest: {name}",
+	["quest.ready"] = "{name}: done! Return to your commander.",
+	["quest.complete"] = "Quest complete: {name}",
+	["quest.found"] = "Found: {name}",
 	["quest.title"] = "New title: « {title} ». Wear it from the quest log (J).",
 	["quest.token"] = "Rift token: +1 skill point. Open your skills (K).",
 	["quest.level"] = "You need level {level} for that quest.",
@@ -94,6 +99,9 @@ local STRINGS: { [string]: string } = {
 	["inventory.equip.swapped"] = "Moved back to your bag to make room: {slots}.",
 	-- Phase 10 loot (D-67).
 	["loot.drop"] = "Loot: {name} ({rarity}, item level {level}). Open your bag (B).",
+	["loot.stone"] = "Loot: an Enhancement Stone.",
+	["loot.perfectStone"] = "Loot: a Perfect Enhancement Stone!",
+	["loot.stoneFull"] = "Your {stone} stack is full: the stone was lost. Use some first.",
 	["loot.bagFull"] = "Your bag is full: the {rarity} {name} was lost. Salvage something to make room.",
 	-- Phase 8 enhancement (D-66).
 	["enhance.success"] = "Enhancement succeeded: +{level}!",
@@ -121,6 +129,7 @@ local STRINGS: { [string]: string } = {
 	["pvp.portal.inCombat"] = "You can't use a portal while in combat.",
 	["pvp.portal.level"] = "War zones open at level {level}.",
 	["pvp.victory"] = "Victory over {name}!",
+	["pvp.marks"] = "+{amount} PvP Marks.",
 	["pvp.enemyCamp"] = "That is the other realm's camp. You can't enter it.",
 	["party.invite.sent"] = "Invite sent to {name}.",
 	["party.invite.self"] = "You can't invite yourself.",
@@ -155,11 +164,44 @@ local STRINGS: { [string]: string } = {
 	["party.removed"] = "You were removed from the party.",
 }
 
-local ICONS: { [string]: string } = {
-	Info = "🔔",
-	Welcome = "🌟",
-	Warning = "❗",
+-- Warnings always show the warning icon.
+local WARNING_ICON = "❗"
+-- Icon by topic (the text key's first part); unknown topics get the bell.
+local TOPIC_ICONS: { [string]: string } = {
+	quest = "📜",
+	loot = "🎁",
+	enhance = "💎",
+	inventory = "🎒",
+	skill = "🌟",
+	combat = "💥",
+	dungeon = "🏰",
+	boss = "🐉",
+	party = "👥",
+	union = "🤝",
+	pvp = "🏆",
+	race = "👤",
+	movement = "🏃",
+	system = "🔧",
 }
+-- Keys whose meaning has a better icon than their topic's.
+local KEY_ICONS: { [string]: string } = {
+	["quest.ready"] = "⭐",
+	["quest.complete"] = "✅",
+	["quest.found"] = "🔎",
+	["quest.title"] = "🏅",
+	["loot.stone"] = "💎",
+	["loot.perfectStone"] = "💎",
+	["pvp.marks"] = "🏅",
+	["pvp.entered"] = "🗡",
+}
+local DEFAULT_ICON = "🔔"
+
+local function iconFor(kind: string, key: string): string
+	if kind == "Warning" then
+		return WARNING_ICON
+	end
+	return KEY_ICONS[key] or TOPIC_ICONS[string.match(key, "^(%w+)") or ""] or DEFAULT_ICON
+end
 
 local log = Log.new("Notification")
 
@@ -238,15 +280,16 @@ function withParams(message: string, params: any): string
 	)
 end
 
-local function show(kind: string, message: string)
+local function show(kind: string, key: string, message: string)
 	local holder = container
+	local line = `{iconFor(kind, key)}  {message}`
 	if holder == nil then
 		return
 	end
 	-- Same message already visible: just keep it alive instead of stacking.
 	for _, existing in toasts do
 		local text = existing:FindFirstChild("Text")
-		if text and text:IsA("TextLabel") and text.Text == `{ICONS[kind] or "🔔"}  {message}` then
+		if text and text:IsA("TextLabel") and text.Text == line then
 			return
 		end
 	end
@@ -278,7 +321,7 @@ local function show(kind: string, message: string)
 		BackgroundTransparency = 1,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.fromScale(1, 0),
-		Text = `{ICONS[kind] or "🔔"}  {message}`,
+		Text = line,
 		TextWrapped = true,
 		TextSize = textSize,
 		FontFace = Theme.Fonts.BodyBold,
@@ -297,7 +340,7 @@ end
 function NotificationController:ShowKey(kind: string, textKey: string, params: { [string]: string }?)
 	local message = STRINGS[textKey]
 	if message then
-		show(kind, withParams(message, params))
+		show(kind, textKey, withParams(message, params))
 	end
 end
 
@@ -312,7 +355,7 @@ function NotificationController:Init()
 			log:Debug("no text for key %s", payload.textKey)
 			return
 		end
-		show(tostring(payload.kind), withParams(message, payload.params))
+		show(tostring(payload.kind), payload.textKey, withParams(message, payload.params))
 	end)
 end
 

@@ -31,6 +31,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local QuestRules = require(Shared.Logic.QuestRules)
+local PvPRules = require(Shared.Logic.PvPRules)
 local QuestLayout = require(Shared.Layout.QuestLayout)
 local NetClient = require(Shared.Net.Client)
 
@@ -343,6 +344,22 @@ local function drawLog(body: ScrollingFrame)
 			end)
 		end
 	end
+	-- PvP record and the next victory title (D-76).
+	local victories = data.PvP.Victories
+	local nextTitle, needed = PvPRules.nextTitle(victories)
+	text(
+		body,
+		`🗡 PvP: {victories} victories · {data.Wallet.PvPMarks} PvP Marks`
+			.. (
+				if nextTitle
+					then `  ·  next title « {QuestDefinitions.Titles[nextTitle]} » at {needed}`
+					else ""
+			),
+		12,
+		Theme.Colors.TextDim,
+		Theme.Fonts.BodyBold,
+		0
+	)
 	text(body, "Story", 13, Theme.Colors.GoldBright, Theme.Fonts.BodyBold, 3)
 	local order = 4
 	for _, quest in QuestDefinitions.List do

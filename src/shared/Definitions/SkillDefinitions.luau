@@ -22,7 +22,7 @@
 	  icon            SkillIcons motif drawn on the skill button
 
 	Skill fields
-	  type         "Regular" (3 slots) or "Special" (1 slot)
+	  type         "Regular" (6 slots, D-75) or "Special" (1 slot)
 	  category     must be one the job allows (JobDefinitions)
 	  target       Enemy | Ally | Self | SelfArea | EnemyArea | Dash
 	  range / radius / cooldown / focusCost

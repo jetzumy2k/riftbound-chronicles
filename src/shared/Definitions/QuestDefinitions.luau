@@ -589,6 +589,11 @@ QuestDefinitions.Titles = table.freeze({
 	Riftwalker = "Riftwalker",
 	Truthseeker = "Truthseeker",
 	Nullbane = "Nullbane",
+	-- PvP victory titles (Phase 14, D-76; thresholds in PvPRules.VICTORY_TITLES).
+	Skirmisher = "Skirmisher",
+	RiftVanguard = "Rift Vanguard",
+	RiftChampion = "Rift Champion",
+	TwinRealmLegend = "Twin Realm Legend",
 } :: { [string]: string })
 
 -- Cosmetics granted now; shown on the character in the art pass (Phase 16).

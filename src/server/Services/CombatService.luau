@@ -1217,6 +1217,12 @@ function CombatService:IsDefeated(player: Player): boolean
 	return entity == nil or entity.defeated
 end
 
+-- Seconds since `entity`'s spawn protection ended (negative while still
+-- protected). Attacking ends protection at once, so it reads long ago then.
+function CombatService:ProtectionEndedAgo(entity: Entity): number
+	return now() - entity.protectedUntil
+end
+
 function CombatService:GetEntity(model: Model): Entity?
 	return entitiesByModel[model]
 end

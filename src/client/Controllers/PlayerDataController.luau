@@ -26,7 +26,7 @@ export type State = {
 	Level: number,
 	Experience: number,
 	XPToNext: number,
-	-- Phase 5 skill tree (D-45): learned skill id -> rank, and the 3 + 1 bar.
+	-- Phase 5 skill tree (D-45): learned skill id -> rank, and the 6 + 1 bar (D-75).
 	OwnedSkills: { [string]: number },
 	EquippedSkills: { Regular: { string }, Special: string? },
 	-- Phase 7 (D-64): items (guid -> item), slot -> guid, stackables, wallet,
@@ -35,6 +35,7 @@ export type State = {
 	Equipment: { [string]: string },
 	Stackables: { [string]: number },
 	Wallet: { Gold: number, PvPMarks: number },
+	PvP: { Victories: number, Defeats: number },
 	ReadyAt: { [string]: number },
 	-- Phase 11 (D-73): quests, story flags, titles, cosmetics.
 	Quests: QuestsView,
@@ -89,6 +90,7 @@ local state: State = {
 	Equipment = {},
 	Stackables = {},
 	Wallet = { Gold = 0, PvPMarks = 0 },
+	PvP = { Victories = 0, Defeats = 0 },
 	ReadyAt = {},
 	Quests = emptyQuests(),
 	HudLayout = {},
@@ -114,6 +116,7 @@ function PlayerDataController:Init()
 			Equipment = snapshot.Equipment or {},
 			Stackables = snapshot.Stackables or {},
 			Wallet = snapshot.Wallet or { Gold = 0, PvPMarks = 0 },
+			PvP = snapshot.PvP or { Victories = 0, Defeats = 0 },
 			ReadyAt = state.ReadyAt,
 			Quests = snapshot.Quests or emptyQuests(),
 			HudLayout = snapshot.HudLayout or {},

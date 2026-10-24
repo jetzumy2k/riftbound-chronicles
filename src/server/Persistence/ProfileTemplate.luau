@@ -42,7 +42,7 @@ function ProfileTemplate.new(): { [string]: any }
 		Experience = 0,
 		TotalExperience = 0,
 
-		-- Skills (Phase 5, D-45): learned skill id -> rank, and the 3 + 1 bar.
+		-- Skills (Phase 5, D-45): learned skill id -> rank, and the 6 + 1 bar (D-75).
 		OwnedSkills = {},
 		EquippedSkills = { Regular = {} },
 

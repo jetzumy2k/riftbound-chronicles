@@ -20,8 +20,12 @@
 	PvP records (profile PvPStats):
 	  - A player defeated by a player of the other realm: +1 Defeats for
 	    the victim; +1 Victories for the attacker if the credit rules allow
-	    it (Logic/PvPRules.creditVictory: repeat victims, low-level victims,
-	    daily cap); both +1 Participations.
+	    it (Logic/PvPRules.creditVictory: victims just out of spawn
+	    protection, repeat victims, low-level victims, daily cap); both +1
+	    Participations.
+	  - A credited victory pays PvP.MarksPerVictory PvP Marks and grants the
+	    victory titles its count has reached (PvPRules.VICTORY_TITLES, D-76;
+	    titles earned before are granted again on load if missing).
 	  - Leaving the game while combat-tagged by a player counts as a defeat.
 	Field creatures: camps from WorldLayout.WarZones (levels 25-30, D-49)
 	respawn after PvP.CampRespawnSeconds; kill EXP is shared with the
@@ -30,7 +34,11 @@
 	and enrage (Logic/BossBalance tiers); each returns PvP.BossRespawnMinutes
 	after it falls (Studio: StudioBossRespawnSeconds). A billboard over each
 	boss's post shows "awake" or its countdown; phase / enrage warnings go
-	to the players near it. Boss loot is Phase 14.
+	to the players near it.
+	Loot (Phase 14, D-76, LootService): a boss pays everyone who earned it
+	once per spawn (WarZoneBoss: 80% Rare / 20% Mythical, plus
+	PvP.MarksPerBoss PvP Marks); a field creature rolls the WarZoneMob stone
+	table (30% Perfect / 70% Enhancement Stone, given a drop) per helper.
 	Defeat itself (no loss, back to your own capital) is CombatService +
 	TravelService: nothing here changes items or EXP.
 ]]
@@ -43,6 +51,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage.Shared
 local WarZoneTerrain = require(Shared.Logic.WarZoneTerrain)
 local QuestRules = require(Shared.Logic.QuestRules)
+local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
 local Signal = require(Shared.Util.Signal)
 local PvPRules = require(Shared.Logic.PvPRules)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
@@ -60,6 +69,8 @@ local MobService = require(script.Parent.MobService)
 local DungeonService = require(script.Parent.DungeonService)
 local BossService = require(script.Parent.BossService)
 local PartyService = require(script.Parent.PartyService)
+local LootService = require(script.Parent.LootService)
+local DungeonRules = require(Shared.Logic.DungeonRules)
 local AntiExploitService = require(script.Parent.AntiExploitService)
 
 local SWEEP_SECONDS = 0.25
@@ -178,7 +189,36 @@ end
 -- PvP records
 --------------------------------------------------------------------------------
 
-local function recordDefeat(victim: Player, attacker: Player?)
+-- Boss spawns defeated on this server (claim ids "B:<server>:<n>:<boss>:L").
+local bossCounter = 0
+
+local function addMarks(player: Player, amount: number, source: string)
+	local data = PlayerDataService:GetData(player)
+	if data == nil or amount <= 0 then
+		return
+	end
+	data.Wallet.PvPMarks += amount
+	AuditLogService:Audit({
+		actorUserId = player.UserId,
+		action = "PvPMarks",
+		target = source,
+		details = { amount = amount, total = data.Wallet.PvPMarks },
+	})
+	notify(player, "Info", "pvp.marks", { amount = tostring(amount) })
+end
+
+-- Grants the victory titles `data` has earned but doesn't own yet.
+local function grantVictoryTitles(player: Player, data: any)
+	for _, title in PvPRules.titlesFor(data.PvPStats.Victories) do
+		if data.Titles[title] ~= true then
+			data.Titles[title] = true
+			AuditLogService:Audit({ actorUserId = player.UserId, action = "TitleGranted", target = title })
+			notify(player, "Info", "quest.title", { title = QuestDefinitions.Titles[title] })
+		end
+	end
+end
+
+local function recordDefeat(victim: Player, attacker: Player?, protectionEndedAgo: number?)
 	local victimData = PlayerDataService:GetData(victim)
 	if victimData then
 		victimData.PvPStats.Defeats += 1
@@ -212,6 +252,8 @@ local function recordDefeat(victim: Player, attacker: Player?)
 		victimLevel = LevelService:GetLevel(victim) or 0,
 		levelGap = config().LevelGap,
 		sinceLastCredit = if last then now - last else nil,
+		protectionEndedAgo = protectionEndedAgo,
+		freshSpawnSeconds = config().FreshSpawnGraceSeconds,
 		repeatWindowSeconds = window,
 		creditsToday = stats.DailyCredit.Count,
 		dailyCap = config().DailyCreditCap,
@@ -220,7 +262,15 @@ local function recordDefeat(victim: Player, attacker: Player?)
 		stats.Victories += 1
 		stats.DailyCredit.Count += 1
 		stats.RecentVictims[key] = now
+		AuditLogService:Audit({
+			actorUserId = attacker.UserId,
+			action = "PvPVictory",
+			target = tostring(victim.UserId),
+			details = { victories = stats.Victories },
+		})
 		notify(attacker, "Info", "pvp.victory", { name = victim.DisplayName })
+		addMarks(attacker, config().MarksPerVictory, "victory")
+		grantVictoryTitles(attacker, data)
 	else
 		log:Debug("no victory credit %d -> %d: %s", attacker.UserId, victim.UserId, tostring(reason))
 	end
@@ -232,7 +282,7 @@ local function onDefeated(entity: CombatService.Entity, attacker: CombatService.
 	if victim == nil or attacker == nil or attacker.player == nil or attacker.race == entity.race then
 		return
 	end
-	recordDefeat(victim, attacker.player)
+	recordDefeat(victim, attacker.player, CombatService:ProtectionEndedAgo(entity))
 	PlayerDataService:PushSnapshot(victim)
 end
 
@@ -334,7 +384,7 @@ function PvPService:Init()
 	CombatService.CombatLogged:Connect(function(entity: CombatService.Entity, attacker: CombatService.Entity?)
 		local victim = entity.player
 		if victim and attacker and attacker.player and attacker.race ~= entity.race then
-			recordDefeat(victim, attacker.player)
+			recordDefeat(victim, attacker.player, CombatService:ProtectionEndedAgo(entity))
 		end
 	end)
 end
@@ -412,10 +462,26 @@ local function spawnBoss(
 	label.TextStrokeTransparency = 0.25
 	label.Parent = gui
 	gui.Parent = holder
-	MobService.MobDefeated:Connect(function(mob)
+	MobService.MobDefeated:Connect(function(mob, _contributors, recipients: { Player }?)
 		local boss = attached[mob]
 		if boss then
 			attached[mob] = nil
+			-- Boss loot + Marks: everyone who earned it, once per spawn.
+			bossCounter += 1
+			local spawnId = DungeonRules.runId(game.JobId, bossCounter)
+			LootService:DropFor(
+				recipients or {},
+				"WarZoneBoss",
+				mob.level,
+				`PvPBoss:{mob.enemy.id}`,
+				`B:{spawnId}:{mob.enemy.id}:L`,
+				{
+					capGap = true,
+					onClaim = function(player)
+						addMarks(player, config().MarksPerBoss, `boss:{mob.enemy.id}`)
+					end,
+				}
+			)
 			for _, add in boss.adds do
 				MobService:Despawn(add)
 			end
@@ -444,6 +510,19 @@ local function spawnBoss(
 end
 
 function PvPService:Start()
+	-- Field creature stones (bosses pay their own loot above).
+	local zoneIds: { [string]: boolean } = {}
+	for _, zone in WorldLayout.WarZones :: { [string]: WorldLayout.WarZone } do
+		zoneIds[zone.id] = true
+	end
+	MobService.MobDefeated:Connect(function(mob, _contributors, recipients: { Player }?)
+		if zoneIds[mob.owner] and mob.model:GetAttribute("RC_Boss") == nil then
+			LootService:DropStonesFor(recipients or {}, "WarZoneMob", mob.level, `WarZone:{mob.enemy.id}`)
+		end
+	end)
+	PlayerDataService.ProfileLoaded:Connect(function(player, data)
+		grantVictoryTitles(player, data)
+	end)
 	for _, zone in WorldLayout.WarZones :: { [string]: WorldLayout.WarZone } do
 		for race in WorldLayout.Realms :: { [string]: any } do
 			openGate(race, zone)
