@@ -135,7 +135,7 @@ local function buildCard(parent: Instance, job: string, race: string, accent: Co
 
 	local weaponList = def.weaponsByRace[race] or {}
 	local weapons =
-		Kit.label(`⚔  {table.concat(weaponList, "  ·  ")}`, 14, Theme.Fonts.BodyBold, Theme.Colors.Text)
+		Kit.label(`🗡  {table.concat(weaponList, "  ·  ")}`, 14, Theme.Fonts.BodyBold, Theme.Colors.Text)
 	weapons.LayoutOrder = 5
 	weapons.Parent = content
 
@@ -153,7 +153,7 @@ local function buildCard(parent: Instance, job: string, race: string, accent: Co
 	Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Text = "✓  SELECTED",
+		Text = "✅  SELECTED",
 		TextSize = 14,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Color3.fromRGB(40, 24, 8),
@@ -239,7 +239,7 @@ local function build(race: string): ScreenGui
 
 	local header = Kit.new("Frame", { Name = "Header", BackgroundTransparency = 1, Parent = canvas })
 	Kit.list(header, Enum.FillDirection.Vertical, 4, Enum.HorizontalAlignment.Center)
-	local title = Kit.goldTitle("✦  CHOOSE YOUR PATH  ✦", 40)
+	local title = Kit.goldTitle("◆  CHOOSE YOUR PATH  ◆", 40)
 	title.LayoutOrder = 1
 	title.Parent = header
 	local subtitle = Kit.label(

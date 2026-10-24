@@ -128,8 +128,8 @@ local FAMILY_NAME = {
 }
 
 local SLOT_GLYPH = {
-	Helm = "⛑",
-	Shoulders = "🦺",
+	Helm = "👑",
+	Shoulders = "🧥",
 	Chest = "🛡",
 	Hands = "🧤",
 	Legs = "👖",
@@ -142,18 +142,18 @@ local SLOT_GLYPH = {
 
 local FAMILY_GLYPH = {
 	Sword = "🗡",
-	Greatsword = "⚔",
+	Greatsword = "🗡",
 	Polearm = "🔱",
 	Mace = "🔨",
-	Axe = "🪓",
+	Axe = "🔨",
 	WarHammer = "🔨",
-	BattleAxe = "🪓",
+	BattleAxe = "🔨",
 	Dagger = "🔪",
-	Staff = "🪄",
+	Staff = "🌟",
 	Orb = "🔮",
 	Bow = "🏹",
 	Crossbow = "🏹",
-	Wand = "🪄",
+	Wand = "🎇",
 	Tome = "📖",
 }
 
@@ -204,7 +204,7 @@ for _, job in JobDefinitions.Order do
 				tier = tier,
 				minItemLevel = band[1],
 				maxItemLevel = band[2],
-				glyph = FAMILY_GLYPH[family] or "⚔",
+				glyph = FAMILY_GLYPH[family] or "🗡",
 			})
 		end
 		local kinds = table.clone(KINDS)

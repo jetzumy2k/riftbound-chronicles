@@ -20,7 +20,7 @@
 
 	Every action is an intent (`LearnSkill`, `ResetSkills`, `SetLoadout`);
 	the server validates it and answers with a fresh snapshot, which is what
-	this screen shows. Open with the "✦ SKILLS" button (right edge), K, or
+	this screen shows. Open with the "🌟 SKILLS" button (right edge), K, or
 	an empty skill-bar slot. Layout: Layout/SkillTreeLayout (device-tested).
 ]]
 
@@ -39,6 +39,8 @@ local NetClient = require(Shared.Net.Client)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local Panels = require(UI.Panels)
+local HudLayout = require(UI.HudLayout)
 local SkillInfo = require(UI.SkillInfo)
 local SkillIcon = require(UI.SkillIcon)
 
@@ -51,7 +53,8 @@ type Skill = SkillDefinitions.Skill
 local LEARNED_LINE = Theme.Colors.Gold
 local LOCKED_LINE = Color3.fromRGB(70, 66, 82)
 local LEARNABLE = Color3.fromRGB(140, 235, 160)
-local SLOT_NAMES = { "1", "2", "3", "SPECIAL" }
+local SLOT_NAMES = { "1", "2", "3", "4", "5", "6", "SPECIAL" }
+local SPECIAL_INDEX = #SLOT_NAMES
 
 local SkillTreeController = {}
 
@@ -131,9 +134,18 @@ local function sendLoadout(regular: { string? }, special: string?)
 	NetClient.fire("SetLoadout", compact, special)
 end
 
+-- The regular slots as a fixed-size list (nil = empty slot).
+local function regularSlots(): { string? }
+	local regular: { string? } = {}
+	for index = 1, SkillRules.REGULAR_SLOTS do
+		regular[index] = state().EquippedSkills.Regular[index]
+	end
+	return regular
+end
+
 local function equip(skill: Skill, slot: number)
 	local loadout = state().EquippedSkills
-	local regular: { string? } = { loadout.Regular[1], loadout.Regular[2], loadout.Regular[3] }
+	local regular = regularSlots()
 	local special = loadout.Special
 	if skill.type == "Special" then
 		special = skill.id
@@ -149,7 +161,7 @@ end
 
 local function unequip(skill: Skill)
 	local loadout = state().EquippedSkills
-	local regular: { string? } = { loadout.Regular[1], loadout.Regular[2], loadout.Regular[3] }
+	local regular = regularSlots()
 	local special = loadout.Special
 	if special == skill.id then
 		special = nil
@@ -236,9 +248,7 @@ local function drawDetail(parent: Instance, skill: Skill?)
 	SkillInfo.fill(info, skill, rank, {
 		note = if equippedAt
 			then `On your skill bar: {equippedAt}`
-			elseif
-				SkillDefinitions.isBasic(skill)
-			then "Free: put it in a slot, then press its key (1, 2 or 3)."
+			elseif SkillDefinitions.isBasic(skill) then "Free: put it in a slot, then press its key (1 to 6)."
 			elseif why and why ~= "Max rank" then why
 			else nil,
 		noteColor = if equippedAt then LEARNABLE else nil,
@@ -262,7 +272,7 @@ local function drawDetail(parent: Instance, skill: Skill?)
 	local basic = SkillDefinitions.isBasic(skill)
 	if basic then
 		-- Free for every class: no Learn button, just the slots.
-		local free = smallButton("✓ Free · known", 112)
+		local free = smallButton("✅ Free · known", 112)
 		free.LayoutOrder = 1
 		free.TextColor3 = LEARNABLE
 		free.Parent = actions
@@ -287,16 +297,16 @@ local function drawDetail(parent: Instance, skill: Skill?)
 	end
 	if rank >= 1 then
 		if skill.type == "Special" then
-			local put = smallButton(if equippedAt then "✓ Special" else "Put in Special", 112)
+			local put = smallButton(if equippedAt then "✅ Special" else "Put in Special", 112)
 			put.LayoutOrder = 2
 			put.Parent = actions
 			put.Activated:Connect(function()
-				equip(skill, 4)
+				equip(skill, SPECIAL_INDEX)
 			end)
 		else
-			for slot = 1, 3 do
+			for slot = 1, SkillRules.REGULAR_SLOTS do
 				local here = state().EquippedSkills.Regular[slot] == skill.id
-				local put = smallButton(if here then `✓ Slot {slot}` else `Put in slot {slot}`, 112)
+				local put = smallButton(if here then `✅ Slot {slot}` else `Put in slot {slot}`, 112)
 				put.LayoutOrder = 1 + slot
 				put.Parent = actions
 				put.Activated:Connect(function()
@@ -462,9 +472,17 @@ local function drawTree(parent: Instance, layout: SkillTreeLayout.Layout)
 end
 
 local function drawBar(parent: Instance, layout: SkillTreeLayout.Layout)
-	local row = Kit.new("Frame", {
+	-- Scrolls sideways when the 7 slots don't fit (phones, D-75).
+	local row = Kit.new("ScrollingFrame", {
 		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
 		Size = UDim2.fromScale(1, 1),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.X,
+		ScrollingDirection = Enum.ScrollingDirection.X,
+		ScrollBarThickness = 3,
+		ScrollBarImageColor3 = Theme.Colors.Gold,
+		VerticalScrollBarInset = Enum.ScrollBarInset.None,
 		Parent = parent,
 	})
 	Kit.list(row, Enum.FillDirection.Horizontal, 8, Enum.HorizontalAlignment.Center)
@@ -514,7 +532,8 @@ local function drawBar(parent: Instance, layout: SkillTreeLayout.Layout)
 	divider.Name = "Divider"
 	local loadout = state().EquippedSkills
 	for index, name in SLOT_NAMES do
-		local id = if index == 4 then loadout.Special else loadout.Regular[index]
+		local special = index == SPECIAL_INDEX
+		local id = if special then loadout.Special else loadout.Regular[index]
 		local skill = SkillDefinitions.get(id)
 		local holder = Kit.new("Frame", {
 			BackgroundTransparency = 1,
@@ -533,12 +552,12 @@ local function drawBar(parent: Instance, layout: SkillTreeLayout.Layout)
 			TextColor3 = Theme.Colors.TextMuted,
 			Parent = holder,
 		})
-		Kit.corner(tile, if index == 4 then layout.barSlot // 2 else 10)
+		Kit.corner(tile, if special then layout.barSlot // 2 else 10)
 		if skill then
-			local icon = SkillIcon.forSkill(skill, layout.barSlot, { round = index == 4 })
+			local icon = SkillIcon.forSkill(skill, layout.barSlot, { round = special })
 			icon.Parent = tile
 		end
-		Kit.goldStroke(tile, if index == 4 then 2.5 else 1.5, 0.2)
+		Kit.goldStroke(tile, if special then 2.5 else 1.5, 0.2)
 		Kit.new("TextLabel", {
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(0, layout.barSlot + 1),
@@ -562,7 +581,7 @@ end
 function render()
 	toggle.Visible = state().Job ~= nil
 	local points = pointsLeft()
-	toggle.Text = if points > 0 then `✦ SKILLS ({points})` else "✦ SKILLS"
+	toggle.Text = if points > 0 then `🌟 SKILLS ({points})` else "🌟 SKILLS"
 	if panel then
 		local oldBody = panel:FindFirstChild("Body")
 		if oldBody and oldBody:IsA("ScrollingFrame") then
@@ -580,11 +599,13 @@ function render()
 		area = camera.ViewportSize
 	end
 	local layout = SkillTreeLayout.compute(area.X, area.Y)
+	-- D-74: in the shared panel layer, above the HUD, one panel at a time.
 	local frame = Kit.glassPanel({
 		Name = "SkillTree",
 		Position = UDim2.fromOffset(layout.panel.x, layout.panel.y),
 		Size = UDim2.fromOffset(layout.panel.w, layout.panel.h),
-		Parent = gui,
+		BackgroundTransparency = 0.04,
+		Parent = Panels.layer(),
 	})
 	panel = frame
 
@@ -702,6 +723,11 @@ end
 
 function SkillTreeController.setOpen(value: boolean)
 	open = value
+	if value then
+		Panels.opened("skills")
+	else
+		Panels.closed("skills")
+	end
 	render()
 end
 
@@ -724,7 +750,7 @@ function SkillTreeController:Start()
 		Size = UDim2.fromOffset(110, 44),
 		BackgroundColor3 = Theme.Colors.Glass,
 		BackgroundTransparency = 0.15,
-		Text = "✦ SKILLS",
+		Text = "🌟 SKILLS",
 		TextSize = 13,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Theme.Colors.GoldBright,
@@ -734,8 +760,12 @@ function SkillTreeController:Start()
 	})
 	Kit.corner(toggle, 12)
 	Kit.goldStroke(toggle, 1.5, 0.2)
+	HudLayout.register("Skills", toggle)
 	toggle.Activated:Connect(SkillTreeController.toggle)
 	gui.Parent = player():WaitForChild("PlayerGui")
+	Panels.register("skills", function()
+		SkillTreeController.setOpen(false)
+	end)
 
 	SkillBarController.OpenTree = function()
 		SkillTreeController.setOpen(true)

@@ -8,6 +8,7 @@ local load = require("../loader")
 local Schema = load("src/shared/Logic/Schema")
 local Registry = load("src/shared/Net/Registry")(Schema)
 local SkillDefinitions = load("src/shared/Definitions/SkillDefinitions")
+local Constants = load("src/shared/Constants")
 local SkillIcons = load("src/shared/Definitions/SkillIcons")
 local SkillRules = load("src/shared/Logic/SkillRules")
 local JobDefinitions = load("src/shared/Definitions/JobDefinitions")
@@ -486,7 +487,17 @@ return function(t)
 			t.eq(reason({ "BladeStorm" }, nil), "wrongSlot")
 			t.eq(reason({}, "Whirlwind"), "wrongSlot")
 			t.eq(reason({ "Whirlwind", "Whirlwind" }, nil), "duplicate")
-			t.eq(reason({ "Whirlwind", "IronSkin", "Hamstring", "Execution" }, nil), "tooMany")
+			local seven = {}
+			for _, skill in SkillDefinitions.forJob("Warrior") do
+				if skill.type == "Regular" and #seven < SkillRules.REGULAR_SLOTS + 1 then
+					table.insert(seven, skill.id)
+				end
+			end
+			t.eq(#seven, 7)
+			t.eq(reason(seven, nil), "tooMany")
+			table.remove(seven)
+			t.ok(SkillRules.validateLoadout("Warrior", owned, seven, nil), "six regular skills fit")
+			t.eq(SkillRules.REGULAR_SLOTS, Constants.Loadout.RegularSlots)
 			t.eq(select(2, SkillRules.validateLoadout(nil, owned, {}, nil)), "noJob")
 		end)
 
@@ -496,7 +507,7 @@ return function(t)
 			t.eq(table.concat(first.Regular, ","), "AutoAttack,ShieldBash")
 			local custom = SkillRules.autoFill("Warrior", owned, { Regular = { "Hamstring" }, Special = nil })
 			t.eq(custom.Regular[1], "Hamstring")
-			t.eq(#custom.Regular, 3)
+			t.eq(#custom.Regular, 6)
 			t.ok(custom.Special ~= nil)
 			t.ok(SkillRules.validateLoadout("Warrior", owned, custom.Regular, custom.Special))
 		end)
@@ -537,11 +548,16 @@ return function(t)
 				t.eq(ok, false)
 				t.eq(reason, "basic")
 				-- A full bar keeps the player's choices (no forced slot).
-				local full = SkillRules.autoFill(
-					"Warrior",
-					owned,
-					{ Regular = { "Hamstring", "ShieldBash", "Whirlwind" } }
-				)
+				local full = SkillRules.autoFill("Warrior", owned, {
+					Regular = {
+						"Hamstring",
+						"ShieldBash",
+						"Whirlwind",
+						"IronSkin",
+						"Execution",
+						"CleavingStrike",
+					},
+				})
 				t.ok(table.find(full.Regular, id) == nil, "not forced onto a full bar")
 				-- Pruning keeps it.
 				t.eq(SkillRules.prune("Warrior", {}, { Regular = { id }, Special = nil }).Regular[1], id)
@@ -698,13 +714,13 @@ return function(t)
 			return (Schema.validateArgs(Registry[name].args, #args, args))
 		end
 
-		t.it("SetLoadout takes at most 3 regular skills plus 1 special", function()
-			t.ok(valid("SetLoadout", { { "CleavingStrike", "Whirlwind", "Execution" }, "BladeStorm" }))
+		t.it("SetLoadout takes at most 6 regular skills plus 1 special", function()
+			local six = { "CleavingStrike", "Whirlwind", "Execution", "IronSkin", "Hamstring", "ShieldBash" }
+			t.ok(valid("SetLoadout", { six, "BladeStorm" }))
 			t.ok(valid("SetLoadout", { {} }))
-			t.ok(
-				not valid("SetLoadout", { { "CleavingStrike", "Whirlwind", "Execution", "IronSkin" } }),
-				"4th slot"
-			)
+			local seven = table.clone(six)
+			table.insert(seven, "AutoAttack")
+			t.ok(not valid("SetLoadout", { seven }), "7th slot")
 			t.ok(not valid("SetLoadout", { { "Nope" } }), "unknown id")
 			t.ok(not valid("SetLoadout", { { "CleavingStrike" }, 7 }), "special type")
 		end)
@@ -738,8 +754,7 @@ return function(t)
 			local name, width, height = device[1], device[2], device[3]
 			t.it(`{name}: on screen, ≥ 44 px, no overlaps, clear of the jump button and HUD`, function()
 				local layout = CombatButtonsLayout.compute(width, height)
-				local keys =
-					{ "attack", "sprint", "crouch", "skill1", "skill2", "skill3", "special", "potion" }
+				local keys = CombatButtonsLayout.shownKeys(layout)
 				local rects = {}
 				for _, key in keys do
 					local slot = (layout :: any)[key]
@@ -775,7 +790,8 @@ return function(t)
 				local p = layout.panel
 				t.ok(p.x >= 0 and p.y >= 0 and p.x + p.w <= width and p.y + p.h <= height, "panel on screen")
 				t.ok(layout.node >= SkillTreeLayout.MIN_TOUCH_PX, "node size")
-				t.ok(4 * (layout.barSlot + 8) + 3 * 8 <= layout.bar.w, "bar slots fit")
+				-- The bar scrolls sideways when the 7 slots don't fit (D-75).
+				t.ok(layout.barSlot >= SkillTreeLayout.MIN_TOUCH_PX, "bar slot size")
 				local rects = {}
 				-- A node is its tile, the rank badge (4 px out) and its label
 				-- (column width - 4) underneath.

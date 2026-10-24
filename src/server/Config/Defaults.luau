@@ -160,7 +160,7 @@ return {
 	-- is rejected and the built-in default used). CLAUDE.md §12
 	-- interpretation: a regular mob's "30% rare / 70% rare" means 30% Rare /
 	-- 70% Standard-or-Uncommon, split 45 / 25 (D-07); bosses 20% Legendary /
-	-- 80% Rare and always drop. Elites (★) drop more often (D-06).
+	-- 80% Rare and always drop. Elites (⭐) drop more often (D-06).
 	Loot = {
 		Tables = {
 			DungeonMob = { DropChancePct = 12, Rarity = { Standard = 45, Uncommon = 25, Rare = 30 } },
@@ -178,6 +178,16 @@ return {
 	},
 
 	-- Server mob AI (ARCHITECTURE.md §7: one scheduler, ≤ 10 Hz, sleep when idle).
+	-- Phase 11 (D-73): story quests.
+	Quests = {
+		Enabled = true,
+		-- Quest unlocks (dungeon gate, enhancement, war-zone gates, D-73)
+		-- also apply in Studio when true; off so testers aren't locked out.
+		GatesInStudio = false,
+		-- Visit / zone checks per second for players with such a step.
+		PollHz = 2,
+	},
+
 	Mobs = {
 		TickHz = 8,
 		SleepRadius = 150,

@@ -66,7 +66,7 @@ return function(t)
 		end)
 
 		t.it("loadout and enhancement (§7, §10)", function()
-			t.eq(Constants.Loadout.RegularSlots, 3)
+			t.eq(Constants.Loadout.RegularSlots, 6)
 			t.eq(Constants.Loadout.SpecialSlots, 1)
 			t.eq(Constants.Enhancement.Max, 10)
 			t.eq(Constants.Enhancement.WeaponAttackPerLevel, 20)

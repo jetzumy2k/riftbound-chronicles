@@ -29,6 +29,17 @@ local MAX_WIDTH = 420
 
 local STRINGS: { [string]: string } = {
 	["system.welcome"] = "Welcome to Riftbound Chronicles",
+	-- Phase 11 quests (D-73).
+	["quest.accepted"] = "📜 New quest: {name}",
+	["quest.ready"] = "⭐ {name}: done! Return to your commander.",
+	["quest.complete"] = "✅ Quest complete: {name}",
+	["quest.found"] = "◆ Found: {name}",
+	["quest.title"] = "New title: « {title} ». Wear it from the quest log (J).",
+	["quest.token"] = "Rift token: +1 skill point. Open your skills (K).",
+	["quest.level"] = "You need level {level} for that quest.",
+	["quest.locked.dungeon"] = 'Finish the quest "First Spark" to open the Rift Dungeons.',
+	["quest.locked.enhance"] = 'Finish the quest "Into the Rift" to unlock enhancement.',
+	["quest.locked.portal"] = 'Finish the quest "The Broken Gate" to open the war-zone gates.',
 	["race.invalidPreset"] = "That look isn't available for this realm.",
 	["combat.blocked.safeZone"] = "You can't fight inside a safe zone. Step past the glowing ring.",
 	["combat.blocked.protected"] = "That target is protected right now.",
@@ -52,7 +63,7 @@ local STRINGS: { [string]: string } = {
 	["skill.learn.rankOpen"] = "Your skills can now reach rank {rank}!",
 	["skill.learn.learned"] = "Learned {name}! It's on your skill bar if a slot was free.",
 	["skill.learn.ranked"] = "{name} is now rank {rank}.",
-	["skill.learn.firstPoint"] = "You have a skill point! Press K or tap ✦ SKILLS to learn your first skill.",
+	["skill.learn.firstPoint"] = "You have a skill point! Press K or tap 🌟 SKILLS to learn your first skill.",
 	["skill.learn.newPoints"] = "+{points} skill point! Open your skill tree (K) to spend it.",
 	["skill.reset.safeZone"] = "Reset your skill tree inside a safe zone, out of combat.",
 	["skill.reset.done"] = "Skill tree reset: every point is back.",
@@ -145,9 +156,9 @@ local STRINGS: { [string]: string } = {
 }
 
 local ICONS: { [string]: string } = {
-	Info = "✦",
-	Welcome = "✦",
-	Warning = "⚠",
+	Info = "🔔",
+	Welcome = "🌟",
+	Warning = "❗",
 }
 
 local log = Log.new("Notification")
@@ -235,7 +246,7 @@ local function show(kind: string, message: string)
 	-- Same message already visible: just keep it alive instead of stacking.
 	for _, existing in toasts do
 		local text = existing:FindFirstChild("Text")
-		if text and text:IsA("TextLabel") and text.Text == `{ICONS[kind] or "✦"}  {message}` then
+		if text and text:IsA("TextLabel") and text.Text == `{ICONS[kind] or "🔔"}  {message}` then
 			return
 		end
 	end
@@ -267,7 +278,7 @@ local function show(kind: string, message: string)
 		BackgroundTransparency = 1,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.fromScale(1, 0),
-		Text = `{ICONS[kind] or "✦"}  {message}`,
+		Text = `{ICONS[kind] or "🔔"}  {message}`,
 		TextWrapped = true,
 		TextSize = textSize,
 		FontFace = Theme.Fonts.BodyBold,

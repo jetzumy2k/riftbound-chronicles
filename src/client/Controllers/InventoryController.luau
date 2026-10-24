@@ -12,7 +12,7 @@
 	    your stats with gear, the stackables (Healing Potion "Use",
 	    fragments "Combine" 10 -> 1 Enhancement Stone) and the wallet.
 	  - The bag: every item as a tile (icon, rarity border and letter, item
-	    level, +N, 🔒 locked, ✓ equipped), strongest first, filtered by All /
+	    level, +N, 🔒 locked, ✅ equipped), strongest first, filtered by All /
 	    Weapons / Armor / Accessories. Bulk salvage of unlocked Standard and
 	    Uncommon pieces (tap twice).
 	  - Detail: name in its rarity colour plus the rarity word (never colour
@@ -53,6 +53,8 @@ local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local CharacterPreview = require(UI.CharacterPreview)
+local Panels = require(UI.Panels)
+local HudLayout = require(UI.HudLayout)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
 local NotificationController = require(script.Parent.NotificationController)
@@ -77,10 +79,10 @@ local RARITY_LETTER: { [string]: string } = {
 	Mythical = "M",
 }
 local SLOT_GLYPH: { [string]: string } = {
-	Weapon = "⚔",
+	Weapon = "🗡",
 	OffHand = "🛡",
-	Helm = "⛑",
-	Shoulders = "🦺",
+	Helm = "👑",
+	Shoulders = "🧥",
 	Chest = "🛡",
 	Hands = "🧤",
 	Legs = "👖",
@@ -279,7 +281,7 @@ local function tile(size: number, item: Item?, emptyGlyph: string?): TextButton
 		if item.Locked then
 			badge(b, "🔒", Vector2.new(0, 0), Theme.Colors.Text)
 		elseif equippedSlot(item.Guid) then
-			badge(b, "✓", Vector2.new(0, 0), Theme.Colors.Safe)
+			badge(b, "✅", Vector2.new(0, 0), Theme.Colors.Safe)
 		end
 	end
 	return b
@@ -553,7 +555,7 @@ local function drawFilters(parent: ScrollingFrame)
 	local slotFilter = string.match(filter, "^" .. SLOT_FILTER_PREFIX .. "(%w+)$")
 	if slotFilter then
 		-- From an empty doll slot: tap to show everything again.
-		local chip = button(`{SLOT_LABEL[slotFilter] or slotFilter} ✕`, 96, Theme.Colors.Gold)
+		local chip = button(`{SLOT_LABEL[slotFilter] or slotFilter} ×`, 96, Theme.Colors.Gold)
 		chip.LayoutOrder = 0
 		chip.Parent = parent
 		chip.Activated:Connect(function()
@@ -657,8 +659,8 @@ local function drawEnhance(parent: Instance, item: Item, def: ItemDefinitions.It
 		text(
 			box,
 			if result.success
-				then `✓ Success! Now +{result.level}`
-				else `✗ Failed: still +{result.level} (a stone was used, the item is unchanged)`,
+				then `✅ Success! Now +{result.level}`
+				else `❌ Failed: still +{result.level} (a stone was used, the item is unchanged)`,
 			13,
 			if result.success then Theme.Colors.Safe else Color3.fromRGB(255, 150, 130),
 			Theme.Fonts.BodyBold
@@ -815,7 +817,7 @@ local function drawDetail(parent: Instance)
 		text(parent, string.format(why, item.ItemLevel), 12, Color3.fromRGB(255, 150, 130)).LayoutOrder = 6
 	end
 	if slot then
-		text(parent, `✓ Equipped ({slot})`, 12, Theme.Colors.Safe).LayoutOrder = 6
+		text(parent, `✅ Equipped ({slot})`, 12, Theme.Colors.Safe).LayoutOrder = 6
 	end
 	local comparison = selectedComparison()
 	if comparison then
@@ -931,11 +933,13 @@ function render()
 		area = camera.ViewportSize
 	end
 	local layout = InventoryLayout.compute(area.X, area.Y)
+	-- D-74: in the shared panel layer, above the HUD, one panel at a time.
 	local frame = Kit.glassPanel({
 		Name = "Inventory",
 		Position = UDim2.fromOffset(layout.panel.x, layout.panel.y),
 		Size = UDim2.fromOffset(layout.panel.w, layout.panel.h),
-		Parent = gui,
+		BackgroundTransparency = 0.04,
+		Parent = Panels.layer(),
 	})
 	panel = frame
 
@@ -1058,7 +1062,7 @@ function render()
 			ZIndex = 5,
 			Parent = frame,
 		})
-		local shut = button("✕", 44)
+		local shut = button("×", 44)
 		shut.AnchorPoint = Vector2.new(1, 0)
 		shut.Position = UDim2.new(1, -6, 0, 6)
 		shut.ZIndex = 6
@@ -1098,7 +1102,9 @@ local function refreshPotion()
 	local slot = CombatButtonsLayout.compute(gui.AbsoluteSize.X, gui.AbsoluteSize.Y).potion
 	potionButton.Visible = data.Job ~= nil
 	potionButton.Size = UDim2.fromOffset(slot.size, slot.size)
+	potionButton.AnchorPoint = Vector2.new(1, 1)
 	potionButton.Position = UDim2.new(1, -slot.right, 1, -slot.bottom)
+	HudLayout.apply("Potion")
 	potionButton.Text = if wait > 0 then `🧪\n{wait}s` else `🧪\n×{have}`
 	local ready = have > 0 and wait <= 0
 	potionButton.BackgroundTransparency = if ready then 0.1 else 0.45
@@ -1120,8 +1126,11 @@ end
 
 function InventoryController.setOpen(value: boolean)
 	open = value
-	if not value then
+	if value then
+		Panels.opened("bag")
+	else
 		confirm = nil
+		Panels.closed("bag")
 	end
 	render()
 end
@@ -1155,6 +1164,7 @@ function InventoryController:Start()
 	})
 	Kit.corner(toggle, 12)
 	Kit.goldStroke(toggle, 1.5, 0.2)
+	HudLayout.register("Bag", toggle)
 	toggle.Activated:Connect(InventoryController.toggle)
 	potionButton = Kit.new("TextButton", {
 		Name = "PotionButton",
@@ -1172,6 +1182,9 @@ function InventoryController:Start()
 	Kit.goldStroke(potionButton, 1.5, 0.2)
 	potionButton.Activated:Connect(drinkPotion)
 	gui.Parent = localPlayer():WaitForChild("PlayerGui")
+	Panels.register("bag", function()
+		InventoryController.setOpen(false)
+	end)
 
 	render()
 	NetClient.on("EnhanceResult", function(result)
@@ -1206,6 +1219,8 @@ function InventoryController:Start()
 		end
 	end)
 	refreshPotion()
+	HudLayout.register("Potion", potionButton)
+	HudLayout.Changed:Connect(refreshPotion)
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then
 			return

@@ -82,6 +82,8 @@ function ProfileTemplate.new(): { [string]: any }
 			SfxVolume = 80,
 			GraphicsTier = "Auto",
 			ShowDamageNumbers = true,
+			-- D-74: HUD pieces the player moved (Layout/HudSlots).
+			HudLayout = {},
 		},
 
 		Counters = {},

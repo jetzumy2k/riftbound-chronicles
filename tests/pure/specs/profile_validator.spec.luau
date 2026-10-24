@@ -189,17 +189,36 @@ return function(t)
 			t.eq(data.StoryFlags[""], nil)
 		end)
 
-		t.it("cleans the skill loadout: max 3 regular, no duplicates", function()
+		t.it("cleans the skill loadout: max 6 regular, no duplicates", function()
 			local data = fresh()
 			data.Job = "Warrior"
-			data.OwnedSkills = { ShieldBash = 1, CleavingStrike = 1, Whirlwind = 1, IronSkin = 1 }
+			data.OwnedSkills = {
+				ShieldBash = 1,
+				CleavingStrike = 1,
+				Whirlwind = 1,
+				IronSkin = 1,
+				Hamstring = 1,
+				Execution = 1,
+			}
+			-- Entries past slot 6 are dropped; duplicates are dropped.
 			data.EquippedSkills = {
-				Regular = { "ShieldBash", "ShieldBash", "Whirlwind", "IronSkin", "CleavingStrike" },
+				Regular = {
+					"ShieldBash",
+					"ShieldBash",
+					"Whirlwind",
+					"IronSkin",
+					"CleavingStrike",
+					"Hamstring",
+					"Execution",
+				},
 				Special = 5,
 				Extra = true,
 			}
 			ProfileValidator.repair(data)
-			t.eq(table.concat(data.EquippedSkills.Regular, ","), "ShieldBash,Whirlwind")
+			t.eq(
+				table.concat(data.EquippedSkills.Regular, ","),
+				"ShieldBash,Whirlwind,IronSkin,CleavingStrike,Hamstring"
+			)
 			t.eq(data.EquippedSkills.Special, nil)
 			t.eq(data.EquippedSkills.Extra, nil)
 		end)

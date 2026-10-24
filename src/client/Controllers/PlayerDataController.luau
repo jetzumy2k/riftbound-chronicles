@@ -36,7 +36,29 @@ export type State = {
 	Stackables: { [string]: number },
 	Wallet: { Gold: number, PvPMarks: number },
 	ReadyAt: { [string]: number },
+	-- Phase 11 (D-73): quests, story flags, titles, cosmetics.
+	Quests: QuestsView,
+	-- D-74: HUD pieces the player moved (id -> centre fraction).
+	HudLayout: { [string]: { X: number, Y: number } },
 }
+
+export type QuestProgress = {
+	Status: string,
+	Objectives: { [string]: number },
+	Found: { string },
+}
+
+export type QuestsView = {
+	Quests: { [string]: QuestProgress },
+	Flags: { string },
+	Titles: { string },
+	EquippedTitle: string?,
+	Cosmetics: { string },
+}
+
+local function emptyQuests(): QuestsView
+	return { Quests = {}, Flags = {}, Titles = {}, Cosmetics = {} }
+end
 
 export type Item = {
 	Guid: string,
@@ -50,7 +72,7 @@ export type Item = {
 }
 
 local PlayerDataController = {
-	-- (state, reason: "snapshot" | "progression" | "inventory", levelsGained: number)
+	-- (state, reason: "snapshot" | "progression" | "inventory" | "quests", levelsGained: number)
 	Changed = Signal.new(),
 }
 
@@ -68,6 +90,8 @@ local state: State = {
 	Stackables = {},
 	Wallet = { Gold = 0, PvPMarks = 0 },
 	ReadyAt = {},
+	Quests = emptyQuests(),
+	HudLayout = {},
 }
 
 function PlayerDataController:Init()
@@ -91,9 +115,19 @@ function PlayerDataController:Init()
 			Stackables = snapshot.Stackables or {},
 			Wallet = snapshot.Wallet or { Gold = 0, PvPMarks = 0 },
 			ReadyAt = state.ReadyAt,
+			Quests = snapshot.Quests or emptyQuests(),
+			HudLayout = snapshot.HudLayout or {},
 		}
 		log:Debug("snapshot: L%d %d/%d XP", state.Level, state.Experience, state.XPToNext)
 		PlayerDataController.Changed:Fire(state, "snapshot", 0)
+	end)
+
+	NetClient.on("QuestUpdate", function(update)
+		if type(update) ~= "table" then
+			return
+		end
+		state.Quests = update
+		PlayerDataController.Changed:Fire(state, "quests", 0)
 	end)
 
 	NetClient.on("ProgressionUpdate", function(update)

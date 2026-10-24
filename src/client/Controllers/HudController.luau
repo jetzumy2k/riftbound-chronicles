@@ -24,6 +24,7 @@ local Constants = require(Shared.Constants)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local HudLayout = require(UI.HudLayout)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
 
@@ -217,7 +218,7 @@ local function build()
 	Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Text = "⚔  WAR ZONE · PvP",
+		Text = "🗡  WAR ZONE · PvP",
 		TextSize = 13,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Color3.fromRGB(255, 190, 170),
@@ -239,7 +240,7 @@ local function build()
 	Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Text = "✦  PROTECTED",
+		Text = "🛡  PROTECTED",
 		TextSize = 13,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Theme.Colors.GoldBright,
@@ -327,6 +328,13 @@ end
 function HudController:Start()
 	build()
 	updateScale()
+	-- D-74: the player can move these (and the "📐" button opens the editor).
+	HudLayout.start()
+	local hud = safeBadge.Parent :: ScreenGui
+	HudLayout.register("Level", hud:FindFirstChild("Progress") :: GuiObject)
+	HudLayout.register("Vitals", hud:FindFirstChild("Vitals") :: GuiObject)
+	HudLayout.register("Zone", safeBadge)
+	HudLayout.register("Zone", warBadge)
 	local camera = Workspace.CurrentCamera
 	if camera then
 		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
@@ -346,8 +354,13 @@ function HudController:Start()
 	renderSafeZone()
 
 	render(PlayerDataController:Get())
-	PlayerDataController.Changed:Connect(function(state)
+	HudLayout.setEditVisible(PlayerDataController:Get().Job ~= nil)
+	PlayerDataController.Changed:Connect(function(state, reason)
 		render(state)
+		HudLayout.setEditVisible(state.Job ~= nil)
+		if reason == "snapshot" then
+			HudLayout.load(state.HudLayout)
+		end
 	end)
 end
 

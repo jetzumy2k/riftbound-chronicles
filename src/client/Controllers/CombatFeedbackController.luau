@@ -5,7 +5,7 @@
 
 	  Attack  the attacker's combo-step animation (AnimationController) and
 	          its effect at the clip's Hit frame (CombatVfx.playStep).
-	  Damage  floating number (gold "✦" + larger on crits), a brief white
+	  Damage  floating number (gold "🌟" + larger on crits), a brief white
 	          hit flash, a light or heavy hit reaction, hit-stop on both
 	          fighters and a small camera shake when we are involved.
 	  Defeat  non-graphic: a burst of light and the body fades out
@@ -99,10 +99,10 @@ local function showNumber(
 	label.TextSize = if crit then 34 elseif shielded or tick then 19 else 24
 	label.Text = if shielded
 		then `🛡 {formatNumber(amount)}`
-		elseif tick == "Poison" then `☠ {formatNumber(amount)}`
+		elseif tick == "Poison" then `💀 {formatNumber(amount)}`
 		elseif tick == "Burn" then `🔥 {formatNumber(amount)}`
 		elseif heal then `+{formatNumber(amount)}`
-		elseif crit then `✦ {formatNumber(amount)}`
+		elseif crit then `💥 {formatNumber(amount)}`
 		else formatNumber(amount)
 	label.TextColor3 = if shielded
 		then Color3.fromRGB(150, 210, 255)

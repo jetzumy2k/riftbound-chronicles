@@ -15,6 +15,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local XPTable = require(Shared.Logic.XPTable)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
+local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
 
 local ProfileView = {}
 
@@ -107,6 +108,54 @@ function ProfileView.progression(data: { [string]: any }, levelsGained: number?)
 	}
 end
 
+--[[
+	Phase 11 (D-73): the owner's quests (status, step counts, interactables
+	found), story flags, titles, equipped title and cosmetics. Unknown ids
+	are never sent.
+]]
+function ProfileView.quests(data: { [string]: any }): { [string]: any }
+	local quests = {}
+	local state = if type(data.QuestState) == "table" then data.QuestState else {}
+	for _, id in QuestDefinitions.IDS do
+		local progress = state[id]
+		if type(progress) == "table" then
+			local found = {}
+			for target in progress.Found or {} do
+				if QuestDefinitions.Interactables[target] then
+					table.insert(found, target)
+				end
+			end
+			table.sort(found)
+			quests[id] =
+				{ Status = progress.Status, Objectives = table.clone(progress.Objectives), Found = found }
+		end
+	end
+	local function set(source: any, known: { [string]: any }): { string }
+		local out = {}
+		if type(source) == "table" then
+			for id, value in source do
+				if value == true and known[id] ~= nil then
+					table.insert(out, id)
+				end
+			end
+		end
+		table.sort(out)
+		return out
+	end
+	local flags = {}
+	for _, flag in QuestDefinitions.FLAGS do
+		flags[flag] = true
+	end
+	local title = data.EquippedTitle
+	return {
+		Quests = quests,
+		Flags = set(data.StoryFlags, flags),
+		Titles = set(data.Titles, QuestDefinitions.Titles),
+		EquippedTitle = if type(title) == "string" and QuestDefinitions.Titles[title] then title else nil,
+		Cosmetics = set(data.Cosmetics, QuestDefinitions.Cosmetics),
+	}
+end
+
 function ProfileView.snapshot(data: { [string]: any }): { [string]: any }
 	return {
 		Race = data.Race,
@@ -122,6 +171,11 @@ function ProfileView.snapshot(data: { [string]: any }): { [string]: any }
 		Equipment = ProfileView.equipment(data),
 		Stackables = ProfileView.stackables(data),
 		Wallet = ProfileView.wallet(data),
+		Quests = ProfileView.quests(data),
+		-- D-74: where the player moved their HUD pieces.
+		HudLayout = if type(data.Settings) == "table" and type(data.Settings.HudLayout) == "table"
+			then table.clone(data.Settings.HudLayout)
+			else {},
 	}
 end
 

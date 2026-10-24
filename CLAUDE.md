@@ -12,7 +12,7 @@ The experience combines:
 - Dungeon PvE.
 - Race-vs-race PvP.
 - Four job types: Healer, Warrior, Archer/Long-Range, Mage (Mage added by the creator on 2026-10-11, PLAN.md D-30).
-- 3 regular skills + 1 special skill equipped at a time.
+- 6 regular skills + 1 special skill equipped at a time (was 3 + 1; raised by the creator on 2026-10-24, PLAN.md D-75).
 - Randomized gear attributes.
 - Enhancement Stones and +10 equipment enhancement.
 - Secure Admin/Moderator panel.
@@ -227,8 +227,8 @@ Every equipped skill must be validated against the player's job on the server.
 
 # 7. Skill Loadout
 
-Maximum equipped skills:
-- 3 regular skills.
+Maximum equipped skills (6 regular slots since 2026-10-24, creator request, PLAN.md D-75):
+- 6 regular skills (the free Auto Attack can take one of them).
 - 1 special skill.
 
 The player may own more skills, but only the allowed loadout can be active.

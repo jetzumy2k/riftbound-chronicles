@@ -6,7 +6,7 @@
 	"RC_Combatant".
 
 	Each status has:
-	  - a chip above the head with an icon and a word ("❄ FROZEN"), never
+	  - a chip above the head with an icon and a word ("🧊 FROZEN"), never
 	    colour alone (the selected target shows them on its target plate);
 	  - an aura while it lasts: stars circling the head (stun), a block of
 	    ice (freeze), frost shards at the feet (root), mist (slow), green
@@ -36,21 +36,21 @@ type Chip = { attribute: string, text: string, color: Color3 }
 
 -- Display order.
 local CHIPS: { Chip } = {
-	{ attribute = "Stunned", text = "✶ STUNNED", color = Color3.fromRGB(255, 230, 120) },
-	{ attribute = "Frozen", text = "❄ FROZEN", color = Color3.fromRGB(170, 230, 255) },
+	{ attribute = "Stunned", text = "💫 STUNNED", color = Color3.fromRGB(255, 230, 120) },
+	{ attribute = "Frozen", text = "🧊 FROZEN", color = Color3.fromRGB(170, 230, 255) },
 	{ attribute = "Rooted", text = "⚓ ROOTED", color = Color3.fromRGB(170, 230, 255) },
 	{ attribute = "Slowed", text = "↓ SLOWED", color = Color3.fromRGB(180, 200, 255) },
-	{ attribute = "Silenced", text = "∅ SILENCED", color = Color3.fromRGB(220, 170, 255) },
-	{ attribute = "Poisoned", text = "☠ POISON", color = Color3.fromRGB(150, 240, 110) },
+	{ attribute = "Silenced", text = "🔇 SILENCED", color = Color3.fromRGB(220, 170, 255) },
+	{ attribute = "Poisoned", text = "💀 POISON", color = Color3.fromRGB(150, 240, 110) },
 	{ attribute = "Burning", text = "🔥 BURN", color = Color3.fromRGB(255, 160, 70) },
 	{ attribute = "Marked", text = "◎ MARKED", color = Color3.fromRGB(255, 140, 120) },
 	{ attribute = "Weakened", text = "▼ WEAK", color = Color3.fromRGB(200, 150, 255) },
 	{ attribute = "Taunted", text = "! TAUNTED", color = Color3.fromRGB(255, 120, 100) },
-	{ attribute = "Guarded", text = "⛨ GUARD", color = Theme.Colors.GoldBright },
-	{ attribute = "Hardened", text = "⬢ HARDENED", color = Color3.fromRGB(220, 200, 170) },
+	{ attribute = "Guarded", text = "🛡 GUARD", color = Theme.Colors.GoldBright },
+	{ attribute = "Hardened", text = "🧱 HARDENED", color = Color3.fromRGB(220, 200, 170) },
 	{ attribute = "Empowered", text = "▲ EMPOWER", color = Color3.fromRGB(255, 150, 110) },
 	{ attribute = "Hasted", text = "» HASTE", color = Color3.fromRGB(150, 240, 220) },
-	{ attribute = "Regenerating", text = "✚ REGEN", color = Color3.fromRGB(140, 255, 170) },
+	{ attribute = "Regenerating", text = "💚 REGEN", color = Color3.fromRGB(140, 255, 170) },
 	{ attribute = "Shield", text = "◈ ", color = Color3.fromRGB(150, 210, 255) },
 }
 
@@ -248,7 +248,7 @@ local function buildAura(model: Model, attribute: string): Aura
 			)
 		)
 	elseif attribute == "Silenced" then
-		add(billboardIcon(model, "∅", Color3.fromRGB(220, 170, 255), 3.4))
+		add(billboardIcon(model, "🔇", Color3.fromRGB(220, 170, 255), 3.4))
 	elseif attribute == "Poisoned" then
 		add(
 			emitter(

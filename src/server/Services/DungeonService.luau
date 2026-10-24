@@ -47,6 +47,7 @@ local DungeonDefinitions = require(Shared.Definitions.DungeonDefinitions)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local DungeonRules = require(Shared.Logic.DungeonRules)
 local LevelGap = require(Shared.Logic.LevelGap)
+local QuestRules = require(Shared.Logic.QuestRules)
 local PartyRules = require(Shared.Logic.PartyRules)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
@@ -499,6 +500,12 @@ local function onGate(player: Player, gateRace: string, gate: BasePart)
 	if data.Race ~= gateRace or (root.Position - gate.Position).Magnitude > GATE_REACH then
 		return
 	end
+	-- D-73: Quest 1 (First Spark) opens the gate on live servers.
+	local gated = not RunService:IsStudio() or ConfigurationService:Get("Quests").GatesInStudio
+	if not QuestRules.unlocked(data, "DungeonAccess", gated) then
+		notify(player, "Warning", "quest.locked.dungeon")
+		return
+	end
 	local level = LevelService:GetLevel(player) or 0
 	if level < copy.dungeon.minLevel then
 		notify(player, "Warning", "dungeon.level", { level = tostring(copy.dungeon.minLevel) })
@@ -813,6 +820,33 @@ function DungeonService:Start()
 end
 
 -- Whether the player is inside a dungeon.
+-- World CFrame of point (x, z) from the centre of room `roomId` on floor
+-- `floorIndex` in `race`'s copy (quest interactables, D-73); nil if absent.
+function DungeonService:RoomCFrame(
+	race: string,
+	floorIndex: number,
+	roomId: string,
+	x: number,
+	z: number
+): CFrame?
+	local copy = copies[race]
+	local floor = copy and copy.dungeon.floors[floorIndex]
+	if copy == nil or floor == nil then
+		return nil
+	end
+	for _, room in floor.rooms do
+		if room.id == roomId then
+			return copy.origin * DungeonBuilder.campCFrame(floor, room, x, z)
+		end
+	end
+	return nil
+end
+
+-- The floor the player is on inside a dungeon copy, or nil outside.
+function DungeonService:FloorOf(player: Player): number?
+	return if copyOfPlayer[player] then floorOfPlayer[player] else nil
+end
+
 function DungeonService:IsInRun(player: Player): boolean
 	return copyOfPlayer[player] ~= nil
 end

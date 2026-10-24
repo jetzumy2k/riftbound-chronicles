@@ -14,7 +14,7 @@
 	                  for its tier and for the rank, the skill above it
 	                  learned, a free point, below max rank
 	  fitToLevel      drops skills / ranks the level doesn't open (repair)
-	  validateLoadout a whole 3 + 1 skill bar: learned, own job, slot type,
+	  validateLoadout a whole 6 + 1 skill bar: learned, own job, slot type,
 	                  no duplicates (T-04)
 	  canCast         equipped, learned, stun / freeze / silence, cooldown,
 	                  global cooldown, Focus
@@ -71,7 +71,8 @@ export type HelpFacts = {
 
 local SkillRules = {}
 
-SkillRules.REGULAR_SLOTS = 3
+-- Mirrors Constants.Loadout.RegularSlots (D-75; checked in enums_constants.spec).
+SkillRules.REGULAR_SLOTS = 6
 -- A skill's rank can rise once per this many levels (rank 5 opens at 24).
 SkillRules.RANK_LEVEL_STEP = 6
 -- Per rank above 1: damage / heal / shield / over-time numbers.
@@ -228,8 +229,8 @@ local function usable(skill: Skill?, job: string?, owned: Owned): boolean
 end
 
 --[[
-	Returns (ok, reason). `regular` is at most 3 entries (the remote schema
-	enforces it); this checks everything else.
+	Returns (ok, reason). `regular` is at most REGULAR_SLOTS entries (the
+	remote schema enforces it too); this checks everything else.
 ]]
 function SkillRules.validateLoadout(
 	job: string?,

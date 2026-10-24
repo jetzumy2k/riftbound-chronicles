@@ -40,7 +40,7 @@ end
 JobDefinitions.Warrior = freezeDeep({
 	id = "Warrior",
 	displayName = "Warrior",
-	glyph = "⚔",
+	glyph = "🗡",
 	roleByRace = {
 		Angel = "High Defense · Melee DPS",
 		Devil = "High Defense · Melee DPS",
@@ -58,7 +58,7 @@ JobDefinitions.Warrior = freezeDeep({
 JobDefinitions.Healer = freezeDeep({
 	id = "Healer",
 	displayName = "Healer",
-	glyph = "♥",
+	glyph = "💖",
 	roleByRace = {
 		Angel = "Healing · Support · Buff",
 		Devil = "Healing · Support · Debuff",

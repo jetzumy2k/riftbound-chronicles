@@ -788,7 +788,7 @@ local function trainingYard(core: Instance, decorParent: Instance, realm: WorldL
 		local text = Instance.new("TextLabel")
 		text.BackgroundTransparency = 1
 		text.Size = UDim2.fromScale(1, 1)
-		text.Text = "⚔  TRAINING GROUNDS  ⚔"
+		text.Text = "🗡  TRAINING GROUNDS  🗡"
 		text.TextScaled = true
 		text.FontFace = Font.new(Font.fromEnum(Enum.Font.Merriweather).Family, Enum.FontWeight.Bold)
 		text.TextColor3 = if style.towerTop == "spire"

@@ -146,7 +146,7 @@ Each capital has a **Training Grounds** yard in front of the spawn, outside the 
 
 ## Phase 5 manual tests (skill trees, D-45)
 Studio now uses the real level gates (1 skill point per level). To try the whole tree, set `Skills.StudioUnlockAll = true` and `StudioBonusPoints = 60` in `src/server/Config/Defaults.luau` (Studio only, never live). Server Output: `96 skills in 16 branches ready`. Old test characters are migrated to schema v2 with an empty tree (all points back); skills or ranks above the character's level are removed on join.
-1. **Skill tree:** press **K** or tap **✦ SKILLS (n)** on the right edge. Each class has 4 branch columns x 6 tiers, 24 skills (Warrior: Blademaster / Ironclad / Warlord / Vanguard; Healer: Light / Sanctity / Judgment / Seraph; Archer: Marksman / Venom / Ranger / Windrunner; Mage: Pyromancy / Cryomancy / Arcanist / Stormcaller). Every node and branch has a **drawn icon** (no empty boxes), a rank badge `n/5` (specials, round icons: `n/3`), a padlock + "Lv N" while locked, and **LEARN / +RANK** when a point can be spent. Lines join each skill to the one it needs. The tree scrolls and keeps its scroll position when you learn.
+1. **Skill tree:** press **K** or tap **🌟 SKILLS (n)** on the right edge. Each class has 4 branch columns x 6 tiers, 24 skills (Warrior: Blademaster / Ironclad / Warlord / Vanguard; Healer: Light / Sanctity / Judgment / Seraph; Archer: Marksman / Venom / Ranger / Windrunner; Mage: Pyromancy / Cryomancy / Arcanist / Stormcaller). Every node and branch has a **drawn icon** (no empty boxes), a rank badge `n/5` (specials, round icons: `n/3`), a padlock + "Lv N" while locked, and **LEARN / +RANK** when a point can be spent. Lines join each skill to the one it needs. The tree scrolls and keeps its scroll position when you learn.
 1b. **Level gates:** at level 0 only the four tier-1 skills can be learned; new skills open at levels 3-6, 8-11, 14-17, 20-23 and 27-30 (one column per level), with a toast naming the new skill on level-up. A skill's rank 2 opens at level 6, rank 3 at 12, rank 4 at 18, rank 5 at 24 (**"Rank n opens at level X"** on the button and as a toast); a toast says when a new rank opens.
 2. **Skill information:** tap a node: the right / lower pane shows type, category, branch, rank, Focus, cooldown, range / radius, target type, every effect with numbers and durations, the **COMBO** rule and what the next rank adds. Hover a skill-bar button (desktop) or press-and-hold it (phone) for the same card.
 3. **Learn and choose your set:** **Learn (1 pt)** / **Rank n (1 pt)** spends a point; **Put in slot 1/2/3** or **Put in Special** builds the bar from *any* learned skills (swaps if already on the bar); **Remove from bar** empties a slot. The bar row at the top of the tree shows the result. **Reset** works only in a safe zone (toast otherwise) and refunds every point. Rejoin: tree, ranks and bar are saved.
@@ -199,13 +199,44 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Icons and six skill slots (D-75)
+1. No empty boxes anywhere: 🌟 SKILLS, the notification icons (🔔 / ❗), 📐 (HUD layout), ⭐ over a commander with a quest to hand in, ✅ on equipped items and chosen slots, status chips over heads (💫 STUNNED, 🧊 FROZEN, 🔇 SILENCED, 💚 REGEN ...), the race / job emblems on the start screens, and every bag tile (helm 👑, shoulders 🧥, axes 🔨, staff 🌟, wand 🎇).
+2. Learn five or more regular skills: they fill the new slots by themselves (Auto Attack stays in slot 1). Desktop: a bar of seven at the bottom; keys 1-6 cast, Q casts the special.
+3. Skill tree: the bar at the top shows slots 1-6 + SPECIAL (it scrolls sideways on a phone); a learned skill offers "Put in slot 1" to "Put in slot 6"; swapping and "Remove from bar" still work. Rejoin: the bar is kept.
+4. Phone landscape (emulate iPhone SE 568 × 284 and a bigger phone): seven skill buttons in two rows left of the attack button; none overlaps the HUD, run / crouch, the potion, SKILLS / BAG or the jump button; each is easy to tap.
+5. Phone portrait: three regular buttons plus the special; the small "4-6" button switches to slots 4-6 (it then reads "1-3"). A gold dot on it means a skill on the hidden page is ready. Keys and casting otherwise unchanged.
+6. Security: sending SetLoadout with 7 regular skills is refused by the schema; 6 is accepted only if all are learned, regular and of your job.
+
+## Phase 11 review fixes: panels, NPCs, movable HUD (D-74)
+1. Talk to the commander: the dialogue text is bright and easy to read; the rest of the screen dims behind it; the "Talk" prompt and skill buttons no longer show on top.
+2. Open the bag, then press K or the quest tracker: the bag closes and the other opens (never two at once). Tap the dim area outside a panel: it closes.
+3. The commanders have skin and hair, an uncovered adult face, shining plate and a gentle idle (breathing / looking around), in both capitals.
+4. Press 📐 (right of the HUD panels): gold boxes appear on Level & EXP, HP & Focus, the zone badge, Party, SKILLS, BAG, the potion button, the quest tracker and 📐. Drag a few (mouse and touch), press Save; rejoin: they stay. Reset puts everything back; Cancel drops changes. A box dragged to an edge never leaves the screen; the layout fits a different screen size (phone emulation).
+
+## Phase 11: story and quests (D-73)
+Studio skips the quest unlocks (dungeon gate, enhancement, war-zone gates) so testing isn't blocked; set config `Quests.GatesInStudio = true` to test them as live servers do.
+
+**Checks** (a new character; "J" opens the quest log):
+1. Right after choosing a job, "📜 New quest: First Spark" appears and the tracker (top right) says "▶ Go to the Training Grounds". A ◆ marker with the distance points at the yard.
+2. Enter the yard: the step changes to "Defeat Rift Sprites 0/5"; kills count up; at 5, "⭐ First Spark: done!" and the tracker says "⭐ Return to <commander>". A gold ⭐ floats over the commander in front of the spawn.
+3. Talk to the commander (prompt "Talk"): the dialogue shows the quest's closing words, the rewards and "Complete". Press it: EXP, an Uncommon weapon, 5 Healing Potions, "✅ Quest complete". Talk again: "Into the Rift" is offered with "Accept".
+4. Quests 2-4 (the playtest gate: a new player from level 0 to Quest 4): enter the dungeons, clear 8 wolves / beetles, defeat a Stoneback Guardian; collect the three glowing Rift fragments in the Candlelit Nave, Sunken Cloister and Broken Chapel (they only show while the quest needs them); defeat Cerberus, then collect the Gate Core behind it. Each hand-in gives its rewards once.
+5. Rejoin mid-quest: the tracker shows the same step and counts.
+6. Steps are in order: Rift Sprites killed before reaching the yard don't count; a fragment collected twice counts once.
+7. Quest 5 at level 10: stand before the great hall, then inspect the Desert and Jungle gates (glowing markers in front of them). Reward: the title "Riftwalker"; wear it from the log; it floats over your head for everyone.
+8. Quests 6-8 at level 20: enter a war zone, defeat 6 of its creatures, walk out through your camp's Return portal (being defeated doesn't count); Rival Encounter completes on any hit given or taken against the other realm in a war zone.
+9. Quests 9-11: three clues (oasis, waterfall, Ash Gallery on floor 2), the Basilisk (floor 3; +1 skill point shown in the skill tree), floor 4 and Typhon (final rewards, title "Nullbane").
+10. With `Quests.GatesInStudio = true`: the dungeon gate says to finish First Spark, enhancing says to finish Into the Rift, the war-zone gates say to finish The Broken Gate.
+11. Mobile (portrait and landscape): the tracker never covers the HUD, the SKILLS / BAG / potion buttons or skills (on phones in portrait it is a "📜 2/5" pill under the potion button); the log and dialogue fit and scroll; buttons are full size.
+12. A second player of the other realm sees their own commander and quests; titles show over heads for both.
+
 ## Equipment overhaul, stage 6: bag / equipment screen (D-72)
 **Checks** (open the bag with B or the BAG button; "Studio: add test gear" fills it):
 1. The equipment block shows your character in 3D between the slots: armor on the left, Main hand / Off-hand / Necklace / Earrings / Ring 1 / Ring 2 on the right. It wears exactly what you wear (weapon, shield, armor meshes, jewellery).
 2. Drag the character sideways (mouse or finger): it turns, and eases back when you let go. Dragging never moves the camera behind the screen.
 3. Equip or unequip something: within about half a second the 3D copy updates. Respawn with the bag open: it shows the new character.
 4. Select a bag piece you aren't wearing: the detail shows "If you wear it (slot):" with one ▲ (gain) or ▼ (loss) line per stat and "Takes off ..." naming what goes back to the bag; the target slot glows gold with a ▼ on the doll. Try a two-hander while wearing a sword and shield: both are named, and the shield's Defense shows as a loss.
-5. Tap an empty slot: the bag shows only pieces that fit it, with a gold "<Slot> ✕" chip that shows everything again.
+5. Tap an empty slot: the bag shows only pieces that fit it, with a gold "<Slot> ×" chip that shows everything again.
 6. "Your stats" lists HP, Attack, Defense and crit with the gear's share in brackets; it changes when you equip.
 8. The preview is bright: armor colours read clearly against a lighter purple backdrop, and the character fills the frame head to toe (wings may be cut at the sides).
 9. Every bag tile has an icon (earrings 💠, staff 🌟, wand 🎇; no empty boxes) for all four classes.

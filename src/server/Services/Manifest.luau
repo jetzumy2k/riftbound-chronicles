@@ -35,4 +35,5 @@ return {
 	{ name = "LootService", layer = 5 },
 	{ name = "DungeonService", layer = 5 },
 	{ name = "PvPService", layer = 5 },
+	{ name = "QuestService", layer = 6 },
 }

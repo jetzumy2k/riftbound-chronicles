@@ -42,6 +42,8 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local WarZoneTerrain = require(Shared.Logic.WarZoneTerrain)
+local QuestRules = require(Shared.Logic.QuestRules)
+local Signal = require(Shared.Util.Signal)
 local PvPRules = require(Shared.Logic.PvPRules)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
@@ -66,7 +68,15 @@ local BOSS_ANNOUNCE_RADIUS = 160
 
 local log = Log.new("PvPService")
 
-local PvPService = {}
+local PvPService = {
+	-- (player, zoneId) walked out through their camp's Return portal (quests).
+	ReturnedHome = Signal.new(),
+}
+
+-- Quest unlocks apply on live servers (and in Studio if configured, D-73).
+local function questGated(): boolean
+	return not RunService:IsStudio() or ConfigurationService:Get("Quests").GatesInStudio
+end
 
 local function config(): any
 	return ConfigurationService:Get("PvP")
@@ -132,6 +142,11 @@ local function enterZone(player: Player, zone: WorldLayout.WarZone, gate: BasePa
 		notify(player, "Warning", "dungeon.inRun")
 		return
 	end
+	-- D-16 / D-73: the war-zone gates also need Quest 4 (The Broken Gate).
+	if not QuestRules.unlocked(data, "PortalAccess", questGated()) then
+		notify(player, "Warning", "quest.locked.portal")
+		return
+	end
 	if not mayTravel(player, gate, true) then
 		return
 	end
@@ -151,7 +166,11 @@ local function returnHome(player: Player, portal: BasePart, portalRace: string)
 	end
 	local home = TravelService:GetHomeCFrame(player)
 	if home then
+		local zoneId = player:GetAttribute("WarZone")
 		TravelService:Teleport(player, home)
+		if type(zoneId) == "string" then
+			PvPService.ReturnedHome:Fire(player, zoneId)
+		end
 	end
 end
 

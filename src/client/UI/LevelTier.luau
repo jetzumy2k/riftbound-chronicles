@@ -4,7 +4,7 @@
 	a colour, a mark and a word per Logic/LevelGap tier, so the danger and
 	the EXP never rest on colour alone (CLAUDE.md §28).
 
-	  Deadly   grey    ☠  far too strong, no EXP
+	  Deadly   grey    💀  far too strong, no EXP
 	  Higher   red     ▲▲
 	  High     orange  ▲
 	  Medium   yellow  △
@@ -21,7 +21,7 @@ local LevelGap = require(ReplicatedStorage.Shared.Logic.LevelGap)
 export type Style = { tier: LevelGap.Tier, color: Color3, mark: string, word: string }
 
 local STYLES: { [string]: { color: Color3, mark: string, word: string } } = {
-	Deadly = { color = Color3.fromRGB(150, 150, 156), mark = "☠", word = "Deadly · no EXP" },
+	Deadly = { color = Color3.fromRGB(150, 150, 156), mark = "💀", word = "Deadly · no EXP" },
 	Higher = { color = Color3.fromRGB(255, 82, 70), mark = "▲▲", word = "Very hard" },
 	High = { color = Color3.fromRGB(255, 152, 60), mark = "▲", word = "Hard" },
 	Medium = { color = Color3.fromRGB(255, 226, 90), mark = "△", word = "Tough" },

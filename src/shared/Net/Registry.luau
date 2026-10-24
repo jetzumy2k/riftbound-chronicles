@@ -28,6 +28,8 @@ local AnimationClips = require(script.Parent.Parent.Definitions.AnimationClips)
 local SkillDefinitions = require(script.Parent.Parent.Definitions.SkillDefinitions)
 local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions)
 local ItemRules = require(script.Parent.Parent.Logic.ItemRules)
+local QuestDefinitions = require(script.Parent.Parent.Definitions.QuestDefinitions)
+local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
 local MAX_LEVEL = Constants.Level.Max
@@ -41,6 +43,22 @@ for _, skill in SkillDefinitions.All do
 	end
 end
 
+local QUEST_IDS = table.clone(QuestDefinitions.IDS)
+local TITLE_IDS = {}
+for id in QuestDefinitions.Titles do
+	table.insert(TITLE_IDS, id)
+end
+local COSMETIC_IDS = {}
+for id in QuestDefinitions.Cosmetics do
+	table.insert(COSMETIC_IDS, id)
+end
+local INTERACTABLE_IDS = {}
+for id in QuestDefinitions.Interactables do
+	table.insert(INTERACTABLE_IDS, id)
+end
+table.sort(TITLE_IDS)
+table.sort(COSMETIC_IDS)
+table.sort(INTERACTABLE_IDS)
 local ITEM_IDS = table.clone(ItemDefinitions.IDS)
 local STACKABLE_IDS = table.clone(ItemDefinitions.STACKABLE_IDS)
 local CONSUMABLE_IDS = table.clone(ItemDefinitions.CONSUMABLE_IDS)
@@ -64,6 +82,28 @@ return function(S: any)
 	local equipment = S.map(S.enum(Enums.ItemSlot), guid, 12)
 	local stackables = S.map(S.enum(STACKABLE_IDS), S.int(0), 16)
 	local wallet = S.struct({ Gold = S.int(0), PvPMarks = S.int(0) })
+	-- D-74: moved HUD pieces, centre as a screen fraction.
+	local hudLayout = S.map(
+		S.enum(table.clone(HudSlots.IDS)),
+		S.struct({ X = S.number(0, 1), Y = S.number(0, 1) }),
+		#HudSlots.IDS
+	)
+	-- Phase 11 (D-73): the owner's quests and story state (ProfileView.quests).
+	local questsView = S.struct({
+		Quests = S.map(
+			S.enum(QUEST_IDS),
+			S.struct({
+				Status = S.enum({ "Active", "ReadyToTurnIn", "Completed" }),
+				Objectives = S.map(S.string(32, 1, "^[%w_]+$"), S.int(0, 1000), 8),
+				Found = S.array(S.enum(INTERACTABLE_IDS), 16),
+			}),
+			32
+		),
+		Flags = S.array(S.string(32, 1, "^[%w_]+$"), 32),
+		Titles = S.array(S.enum(TITLE_IDS), 32),
+		EquippedTitle = S.optional(S.enum(TITLE_IDS)),
+		Cosmetics = S.array(S.enum(COSMETIC_IDS), 32),
+	})
 
 	return {
 		-- Client tells the server its controllers are initialised and it can
@@ -95,6 +135,42 @@ return function(S: any)
 			kind = "Event",
 			args = { S.enum(Enums.HeadStyle) },
 			rate = { capacity = 2, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- Phase 11 (D-73): accept / turn in a quest at your realm's quest
+		-- giver (server checks reach, prerequisites, level and status; the
+		-- rewards are claimed once as "Q:<id>"). There is no progress remote.
+		QuestAccept = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(QUEST_IDS) },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		QuestTurnIn = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(QUEST_IDS) },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		-- D-74: save where the player moved their HUD pieces (display only;
+		-- known ids, numbers 0..1).
+		SetHudLayout = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { hudLayout },
+			rate = { capacity = 3, refillPerSecond = 0.1 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- Wear an owned title (or none). Display only.
+		EquipTitle = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.optional(S.enum(TITLE_IDS)) },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
 			states = { "ProfileLoaded" },
 		},
 
@@ -152,12 +228,16 @@ return function(S: any)
 			states = { "ProfileLoaded", "HasJob" },
 		},
 
-		-- Skill loadout intent (Phase 5): up to 3 regular skills + 1 special.
-		-- A 4th regular entry fails the schema; SkillService checks the rest.
+		-- Skill loadout intent (Phase 5, D-75): up to 6 regular skills + 1
+		-- special. A 7th regular entry fails the schema; SkillService checks
+		-- the rest.
 		SetLoadout = {
 			direction = "ClientToServer",
 			kind = "Event",
-			args = { S.array(S.enum(SKILL_IDS), 3), S.optional(S.enum(SKILL_IDS)) },
+			args = {
+				S.array(S.enum(SKILL_IDS), Constants.Loadout.RegularSlots),
+				S.optional(S.enum(SKILL_IDS)),
+			},
 			rate = { capacity = 4, refillPerSecond = 0.5 },
 			states = { "ProfileLoaded", "HasJob" },
 		},
@@ -535,6 +615,35 @@ return function(S: any)
 			},
 		},
 
+		-- Server -> owning client: quests, flags, titles, cosmetics (D-73).
+		QuestUpdate = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = { questsView },
+		},
+
+		-- Server -> owning client: what the quest giver says (on talking to
+		-- them; text is from QuestDefinitions, never player input).
+		QuestDialogue = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					Giver = S.string(64, 1),
+					Title = S.string(64),
+					Entries = S.array(
+						S.struct({
+							Quest = S.enum(QUEST_IDS),
+							Mode = S.enum({ "Offer", "Progress", "TurnIn", "Later" }),
+							Text = S.string(600),
+						}),
+						12
+					),
+					Idle = S.optional(S.string(600)),
+				}),
+			},
+		},
+
 		-- Server -> owning client: replicated profile view (DATA_MODEL.md §6).
 		-- Sent once the profile is loaded and the client is ready. Phase 2 fields;
 		-- later phases extend this schema together with ProfileView.
@@ -561,6 +670,10 @@ return function(S: any)
 					Equipment = equipment,
 					Stackables = stackables,
 					Wallet = wallet,
+					-- Phase 11 (D-73).
+					Quests = questsView,
+					-- D-74.
+					HudLayout = hudLayout,
 				}),
 			},
 		},

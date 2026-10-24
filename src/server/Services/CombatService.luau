@@ -190,6 +190,9 @@ local CombatService = {
 	-- (model, amount, crit) a creature took a hit and is still standing
 	-- (MobService: stagger, enrage). Handlers must not yield.
 	NpcHurt = Signal.new(),
+	-- (attackerPlayer, victimPlayer) a player hurt a player (quests, D-73).
+	-- Handlers must not yield.
+	PlayerHit = Signal.new(),
 }
 
 -- "Why didn't my attack do anything?" toasts: at most this often per player.
@@ -484,6 +487,9 @@ local function applyDamage(
 	local credited = attacker.player
 	if credited then
 		target.contributors[credited] = (target.contributors[credited] or 0) + amount
+		if target.player and amount > 0 then
+			CombatService.PlayerHit:Fire(credited, target.player)
+		end
 	end
 	mirror(target)
 	broadcast(target, {

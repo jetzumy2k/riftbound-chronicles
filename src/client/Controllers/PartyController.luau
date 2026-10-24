@@ -5,7 +5,7 @@
 	server decides everything (PartyService).
 
 	  Panel    left side under the HUD: each member's name, level and health
-	           (bar + numbers), ★ marks the leader. The leader can remove a
+	           (bar + numbers), ⭐ marks the leader. The leader can remove a
 	           member (×). Buttons: "+ Invite" and "Leave party".
 	           Not in a party: a single "+ Party" button to invite someone.
 	  Picker   players of your realm who are not in your party, each with an
@@ -13,7 +13,7 @@
 	  Popup    "<name> invites you to a party" with Accept / Decline and a
 	           countdown; never covers the centre of the screen.
 	  Union    (D-48) party leaders join up to 4 parties: the panel lists the
-	           other parties of your union ("★" = union leader's party, × to
+	           other parties of your union ("⭐" = union leader's party, × to
 	           remove one if you lead the union); "+ Union" opens the picker
 	           of other party leaders, "Leave union" takes your party out.
 	           Intents: UnionInvite / UnionRespond / UnionLeave / UnionKick.
@@ -31,10 +31,12 @@ local NetClient = require(Shared.Net.Client)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local Panels = require(UI.Panels)
+local HudLayout = require(UI.HudLayout)
 
 local PANEL_WIDTH = 210
 local ROW_HEIGHT = 40
-local LEADER_MARK = "★"
+local LEADER_MARK = "⭐"
 
 local PartyController = {}
 
@@ -355,15 +357,22 @@ local function renderPicker()
 	end
 end
 
+local function closePicker()
+	picker.Visible = false
+	Panels.closed("party")
+end
+
 local function openPicker()
 	pickerMode = "party"
 	picker.Visible = true
+	Panels.opened("party")
 	renderPicker()
 end
 
 local function openUnionPicker()
 	pickerMode = "union"
 	picker.Visible = true
+	Panels.opened("party")
 	renderPicker()
 end
 
@@ -389,6 +398,7 @@ local function build()
 		Parent = gui,
 	})
 	local panelLayout = Kit.list(panel, Enum.FillDirection.Vertical, 4, Enum.HorizontalAlignment.Left)
+	HudLayout.register("Party", panel)
 	panelLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 	rows = Kit.new("Frame", {
 		BackgroundTransparency = 1,
@@ -456,9 +466,11 @@ local function build()
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromScale(0.9, 0.7),
+		BackgroundTransparency = 0.04,
 		Visible = false,
-		Parent = gui,
+		Parent = Panels.layer(),
 	})
+	Panels.register("party", closePicker)
 	Kit.new("UISizeConstraint", { MaxSize = Vector2.new(360, 420), Parent = picker })
 	Kit.padding(picker, 10, 12)
 	pickerTitle = Kit.label("Invite to your party", 16, Theme.Fonts.Display, Theme.Colors.GoldBright)
@@ -469,9 +481,7 @@ local function build()
 	close.AnchorPoint = Vector2.new(1, 0)
 	close.Position = UDim2.fromScale(1, 0)
 	close.Parent = picker
-	close.Activated:Connect(function()
-		picker.Visible = false
-	end)
+	close.Activated:Connect(closePicker)
 	pickerList = Kit.new("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(0, 52),

@@ -124,6 +124,12 @@ return function(S: any)
 			StudioBossRespawnSeconds = S.number(5, 7200),
 		}),
 
+		Quests = S.struct({
+			Enabled = S.boolean(),
+			GatesInStudio = S.boolean(),
+			PollHz = S.number(0.5, 10),
+		}),
+
 		Mobs = S.struct({
 			TickHz = S.int(1, 10),
 			SleepRadius = S.number(20, 1000),

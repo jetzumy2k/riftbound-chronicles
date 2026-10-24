@@ -173,6 +173,16 @@ return function(t)
 				-- D-72 review: enum only, ProfileLoaded, 2 per 10 s; the server maps
 				-- it to fixed official head ids (BodyStyle.HEADS), never client ids.
 				SetHeadStyle = true,
+				-- Phase 11 review (D-73): quest id enum only, ProfileLoaded + HasJob;
+				-- the server checks reach to its own giver, prerequisites, level and
+				-- status, and claims rewards once ("Q:<id>"). No progress remote.
+				QuestAccept = true,
+				QuestTurnIn = true,
+				-- Owned title id or nil; display only.
+				EquipTitle = true,
+				-- D-74 review: HUD positions only (known ids, 0..1), ProfileLoaded,
+				-- 3 per 30 s; sanitized again on the server; affects nothing else.
+				SetHudLayout = true,
 				-- Phase 4 review: one-shot, job enum only, ProfileLoaded + HasRace
 				-- states; job decides skill categories, never stats directly.
 				SelectJob = true,
@@ -201,7 +211,7 @@ return function(t)
 				-- Focus, stun, hostility / ally rules, range and LOS, and
 				-- computes every effect (SECURITY_MODEL T-02/T-03/T-04).
 				SkillCast = true,
-				-- Phase 5 review: ≤ 3 regular + 1 special skill ids (enum);
+				-- Phase 5 review: ≤ 6 regular (D-75) + 1 special skill ids (enum);
 				-- validated against learned skills, job and slot type.
 				SetLoadout = true,
 				-- Phase 5 rework (D-45): one skill id (enum); the server checks

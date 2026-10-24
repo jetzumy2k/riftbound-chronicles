@@ -221,7 +221,7 @@ local function buildTouchButton()
 	local icon = Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 0.8),
-		Text = "⚔",
+		Text = "🗡",
 		TextSize = 40,
 		FontFace = Theme.Fonts.DisplayHeavy,
 		TextColor3 = Theme.Colors.GoldBright,

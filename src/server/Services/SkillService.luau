@@ -35,6 +35,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage.Shared
 local CombatMath = require(Shared.Logic.CombatMath)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
+local QuestRules = require(Shared.Logic.QuestRules)
 local SkillRules = require(Shared.Logic.SkillRules)
 local Log = require(Shared.Util.Log)
 
@@ -102,8 +103,12 @@ local function unlockAll(): boolean
 	return isStudio() and skillsConfig().StudioUnlockAll == true
 end
 
-local function bonusPoints(): number
-	return if isStudio() then skillsConfig().StudioBonusPoints else 0
+-- Extra skill points: Studio test points, plus Quest 10's Rift token
+-- (the special-skill unlock token, D-73).
+local function bonusPoints(data: { [string]: any }?): number
+	local studio = if isStudio() then skillsConfig().StudioBonusPoints else 0
+	local token = if data and QuestRules.hasFlag(data, "RiftToken") then 1 else 0
+	return studio + token
 end
 
 local function loadoutOf(data: { [string]: any }): SkillRules.Loadout
@@ -164,7 +169,7 @@ local function repair(player: Player)
 		log:Info("user=%d skills trimmed to level %d", player.UserId, data.Level)
 		data.OwnedSkills = fitted
 	end
-	if SkillRules.available(data.OwnedSkills, data.Level, bonusPoints()) < 0 then
+	if SkillRules.available(data.OwnedSkills, data.Level, bonusPoints(data)) < 0 then
 		AuditLogService:Security(player, "SkillPointsOverspent", `spent {SkillRules.spent(data.OwnedSkills)}`)
 		data.OwnedSkills = {}
 	end
@@ -181,7 +186,7 @@ local function onLearn(player: Player, id: string)
 		return
 	end
 	local ok, reason =
-		SkillRules.canLearn(data.Job, data.OwnedSkills, data.Level, bonusPoints(), unlockAll(), id)
+		SkillRules.canLearn(data.Job, data.OwnedSkills, data.Level, bonusPoints(data), unlockAll(), id)
 	local skill = SkillDefinitions.get(id)
 	if not ok or skill == nil then
 		if reason == "wrongJob" or reason == "noJob" then
@@ -650,13 +655,23 @@ function SkillService:Init()
 	end)
 end
 
+-- Tells the skill tree about extra points (display only; the server
+-- checks with the profile). QuestService calls it after the Rift token.
+function SkillService:RefreshBonus(player: Player)
+	local points = bonusPoints(PlayerDataService:GetData(player))
+	player:SetAttribute("SkillBonusPoints", if points > 0 then points else nil)
+end
+
 function SkillService:Start()
 	-- Tells the skill tree about Studio test allowances (display only).
 	local function publish(player: Player)
 		player:SetAttribute("SkillsUnlockAll", if unlockAll() then true else nil)
-		player:SetAttribute("SkillBonusPoints", if bonusPoints() > 0 then bonusPoints() else nil)
+		SkillService:RefreshBonus(player)
 	end
 	Players.PlayerAdded:Connect(publish)
+	PlayerDataService.ProfileLoaded:Connect(function(player)
+		SkillService:RefreshBonus(player)
+	end)
 	for _, player in Players:GetPlayers() do
 		publish(player)
 	end

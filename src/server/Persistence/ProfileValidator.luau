@@ -23,6 +23,8 @@ local FacePresets = require(Shared.Definitions.FacePresets)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local QuestRules = require(Shared.Logic.QuestRules)
+local HudSlots = require(Shared.Layout.HudSlots)
 local ProfileTemplate = require(script.Parent.ProfileTemplate)
 
 local MAX_NOTES = 25
@@ -315,6 +317,10 @@ local function repairQuestsAndCosmetics(data: Data, note: (string) -> ())
 	filterMap(data.QuestState, "QuestState", note, function(id, state)
 		return isShortString(id, MAX_KEY_LENGTH) and type(state) == "table"
 	end)
+	-- Phase 11 (D-73): known quests only, counts within each step's target.
+	for _, message in QuestRules.repair(data.QuestState) do
+		note(message)
+	end
 	filterMap(data.StoryFlags, "StoryFlags", note, isSetEntry)
 	filterMap(data.ClaimedRewardIds, "ClaimedRewardIds", note, function(id, claimedAt)
 		return isShortString(id, MAX_REWARD_ID_LENGTH) and isFinite(claimedAt) and claimedAt >= 0
@@ -376,6 +382,21 @@ local function repairMisc(data: Data, template: Data, note: (string) -> ())
 		note("Settings.ShowDamageNumbers: reset")
 		settings.ShowDamageNumbers = template.Settings.ShowDamageNumbers
 	end
+	-- D-74: known HUD pieces, centres within the screen (missing in older saves).
+	local hud = HudSlots.sanitize(settings.HudLayout)
+	local before, after = 0, 0
+	if type(settings.HudLayout) == "table" then
+		for _ in settings.HudLayout do
+			before += 1
+		end
+	end
+	for _ in hud do
+		after += 1
+	end
+	if type(settings.HudLayout) ~= "table" or before ~= after then
+		note("Settings.HudLayout: repaired")
+	end
+	settings.HudLayout = hud
 
 	filterMap(data.Counters, "Counters", note, function(key, value)
 		return ProfileTemplate.COUNTER_KEYS[key] == true and isFinite(value) and value >= 0

@@ -145,14 +145,13 @@ return function(t)
 	end)
 
 	t.it("job glyphs use symbols Roblox fonts render (no exotic dingbats)", function()
-		-- Rendered reliably by Roblox's fonts / emoji fallback. ✧ ➹ ✺ did not render.
+		-- Colour emoji render in every font; text-style dingbats depend on the
+		-- font and showed as boxes in the HUD fonts (D-75, glyphs.spec).
 		local SAFE = {
-			["⚔"] = true,
-			["♥"] = true,
+			["🗡"] = true,
+			["💖"] = true,
 			["🏹"] = true,
 			["🔮"] = true,
-			["☀"] = true,
-			["✦"] = true,
 		}
 		for _, job in Enums.Job do
 			local def = JobDefinitions.get(job)

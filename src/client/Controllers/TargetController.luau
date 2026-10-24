@@ -3,7 +3,7 @@
 	TargetController — the selected target (Phase 5 rework, D-45).
 
 	One selected target that stays selected until you pick another, it is
-	defeated, it goes far away, or you press ✕ on the target frame:
+	defeated, it goes far away, or you press × on the target frame:
 	  Desktop  click a creature or player (a near miss still counts: the
 	           fighter closest to the click within a small radius); Tab
 	           cycles enemies in front of you
@@ -18,7 +18,7 @@
 
 	Shows a ring under the target (red enemy / green ally, with a different
 	dash pattern so colour is not the only cue) and a plate over its head:
-	⚔ / ✚, name, level, HP bar with numbers, status words and ✕ to clear.
+	🗡 / 💚, name, level, HP bar with numbers, status words and × to clear.
 
 	Display and intent only: the server re-validates every target.
 ]]
@@ -519,7 +519,7 @@ end
 local function buildFrame()
 	-- A plate floating over the target's head: it follows the target and
 	-- never collides with the HUD, toasts or touch buttons. It lives in
-	-- PlayerGui (adorned to the target) so its ✕ button can be pressed.
+	-- PlayerGui (adorned to the target) so its × button can be pressed.
 	plate = Kit.new("BillboardGui", {
 		Name = "RC_TargetPlate",
 		ResetOnSpawn = false,
@@ -587,7 +587,7 @@ local function buildFrame()
 		Position = UDim2.new(1, -6, 0.5, 0),
 		Size = UDim2.fromOffset(44, 44),
 		BackgroundColor3 = Theme.Colors.GlassRaised,
-		Text = "✕",
+		Text = "×",
 		TextSize = 18,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Theme.Colors.Text,
@@ -630,7 +630,7 @@ local function renderFrame()
 			levelText = `  ·  <font color="#{style.color:ToHex()}">Lv {level}{mark}</font>`
 		end
 	end
-	nameLabel.Text = `{if hostile then "⚔" else "✚"}  {escapeRich(name)}{levelText}`
+	nameLabel.Text = `{if hostile then "🗡" else "💚"}  {escapeRich(name)}{levelText}`
 	local hp, maxHp = model:GetAttribute("HP"), model:GetAttribute("MaxHP")
 	if type(hp) == "number" and type(maxHp) == "number" and maxHp > 0 then
 		hpFill.Size = UDim2.fromScale(math.clamp(hp / maxHp, 0, 1), 1)

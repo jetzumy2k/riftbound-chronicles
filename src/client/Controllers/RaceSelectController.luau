@@ -228,7 +228,7 @@ local function buildCard(parent: Instance, race: string): Card?
 	Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Text = "✓  SELECTED",
+		Text = "✅  SELECTED",
 		TextSize = 14,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Color3.fromRGB(40, 24, 8),
@@ -321,7 +321,7 @@ local function applyCardLayout(card: Card, layout: RaceSelectLayout.Layout, r: R
 end
 
 --------------------------------------------------------------------------------
--- Compact race toggle  [ ☀ ANGELS | ✶ DEVILS ]
+-- Compact race toggle  [ 🌞 ANGELS | 💫 DEVILS ]
 --------------------------------------------------------------------------------
 
 local function buildToggle(parent: Instance): Frame
@@ -408,7 +408,7 @@ local function buildPreview(parent: Instance): (Frame, (string?, number?) -> ())
 		Parent = frame,
 	})
 	Kit.list(placeholder, Enum.FillDirection.Vertical, 10, Enum.HorizontalAlignment.Center)
-	local placeholderMedallion = Kit.medallion(84, "✦", Theme.Colors.Gold)
+	local placeholderMedallion = Kit.medallion(84, "◆", Theme.Colors.Gold)
 	placeholderMedallion.Parent = placeholder
 	local placeholderText =
 		Kit.label("Choose a realm to see your champion", 15, Theme.Fonts.Accent, Theme.Colors.TextDim)
@@ -639,7 +639,7 @@ local function buildLooks(parent: Instance): Frame
 			local check = Kit.new("TextLabel", {
 				BackgroundTransparency = 1,
 				Size = UDim2.fromScale(1, 1),
-				Text = "✓",
+				Text = "✅",
 				TextSize = 24,
 				FontFace = Theme.Fonts.BodyBold,
 				TextColor3 = Color3.new(1, 1, 1),
@@ -742,7 +742,7 @@ local function build(): ScreenGui
 	-- Header.
 	local header = Kit.new("Frame", { Name = "Header", BackgroundTransparency = 1, Parent = canvas })
 	Kit.list(header, Enum.FillDirection.Vertical, 4, Enum.HorizontalAlignment.Center)
-	local title = Kit.goldTitle("✦  CHOOSE YOUR REALM  ✦", 40)
+	local title = Kit.goldTitle("◆  CHOOSE YOUR REALM  ◆", 40)
 	title.LayoutOrder = 1
 	title.Parent = header
 	local subtitle = Kit.label(

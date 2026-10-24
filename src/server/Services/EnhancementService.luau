@@ -22,9 +22,11 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 local EnhanceRules = require(Shared.Logic.EnhanceRules)
+local QuestRules = require(Shared.Logic.QuestRules)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local Log = require(Shared.Util.Log)
 
@@ -69,6 +71,13 @@ local function warn(player: Player, key: string)
 end
 
 local function onEnhance(player: Player, guid: string, perfect: boolean)
+	-- D-73: Quest 2 (Into the Rift) unlocks enhancing on live servers.
+	local profile = PlayerDataService:GetData(player)
+	local gated = not RunService:IsStudio() or ConfigurationService:Get("Quests").GatesInStudio
+	if profile and not QuestRules.unlocked(profile, "EnhancementUnlocked", gated) then
+		NetService:FireClient("Notify", player, { kind = "Warning", textKey = "quest.locked.enhance" })
+		return
+	end
 	if busy[player] then
 		return
 	end

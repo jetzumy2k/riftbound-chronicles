@@ -51,9 +51,9 @@ Constants.Experience = table.freeze({
 	MaxGrant = 1000000,
 })
 
--- CLAUDE.md §7
+-- CLAUDE.md §7 (6 regular slots since D-75; Auto Attack can take one)
 Constants.Loadout = table.freeze({
-	RegularSlots = 3,
+	RegularSlots = 6,
 	SpecialSlots = 1,
 })
 

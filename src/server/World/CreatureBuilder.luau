@@ -1346,7 +1346,7 @@ local function newHumanoid(enemy: EnemyDefinitions.Enemy, hipHeight: number): Hu
 	humanoid.RigType = Enum.HumanoidRigType.R15
 	humanoid.HipHeight = hipHeight
 	humanoid.WalkSpeed = enemy.moveSpeed
-	humanoid.DisplayName = if enemy.elite then `{enemy.name} ★` else enemy.name
+	humanoid.DisplayName = if enemy.elite then `{enemy.name} ⭐` else enemy.name
 	humanoid.NameDisplayDistance = 60
 	humanoid.HealthDisplayDistance = 60
 	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn

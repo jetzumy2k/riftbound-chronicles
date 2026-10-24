@@ -13,6 +13,7 @@ local harness = require("./harness")
 -- Static list: keeps requires literal so they resolve the same in every Lune version.
 local specs = {
 	{ "enums_constants", require("./specs/enums_constants.spec") },
+	{ "glyphs", require("./specs/glyphs.spec") },
 	{ "schema", require("./specs/schema.spec") },
 	{ "rate_bucket", require("./specs/rate_bucket.spec") },
 	{ "signal", require("./specs/signal.spec") },
@@ -52,6 +53,9 @@ local specs = {
 	{ "pvp", require("./specs/pvp.spec") },
 	{ "skills", require("./specs/skills.spec") },
 	{ "structure", require("./specs/structure.spec") },
+	{ "quest_rules", require("./specs/quest_rules.spec") },
+	{ "quest_layout", require("./specs/quest_layout.spec") },
+	{ "hud_slots", require("./specs/hud_slots.spec") },
 }
 
 for _, entry in specs do

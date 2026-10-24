@@ -31,6 +31,7 @@ local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
 local GearLook = require(Shared.Logic.GearLook)
 local WeaponRules = require(Shared.Definitions.WeaponRules)
+local HudSlots = require(Shared.Layout.HudSlots)
 
 local Wardrobe = require(script.Parent.Parent.Appearance.Wardrobe)
 local BodyStyle = require(script.Parent.Parent.Appearance.BodyStyle)
@@ -274,6 +275,13 @@ function RaceService:Init()
 
 	NetService:Handle("SelectRace", onSelectRace)
 	NetService:Handle("SetHeadStyle", onSetHeadStyle)
+	-- D-74: where the player moved their HUD pieces (display only).
+	NetService:Handle("SetHudLayout", function(player: Player, layout: any)
+		local data = PlayerDataService:GetData(player)
+		if data then
+			data.Settings.HudLayout = HudSlots.sanitize(layout)
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		restyling[player] = nil
 	end)

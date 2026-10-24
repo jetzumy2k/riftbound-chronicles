@@ -47,7 +47,7 @@ type Profile = {
     -- Skills (Phase 5, D-45) ------------------------------------------------
     OwnedSkills: { [SkillId]: number },  -- learned skill -> rank 1..maxRank
                                      -- (skill points = 1 + Level, spent 1 per rank)
-    EquippedSkills: {                -- 3 regular + 1 special
+    EquippedSkills: {                -- 6 regular + 1 special (D-75)
         Regular: { SkillId? },       -- length ≤ 3, no duplicates
         Special: SkillId?,
     },
@@ -118,6 +118,7 @@ Enhancement doesn't store derived stats. Effective stats are computed from `DefI
 type QuestProgress = {
     Status: "Active" | "ReadyToTurnIn" | "Completed",
     Objectives: { [ObjectiveId]: number },   -- counters, clamped to target
+    Found: { [InteractableId]: true },       -- quest objects already used (Phase 11, D-73)
     AcceptedAt: number,
     CompletedAt: number?,
 }
@@ -141,7 +142,7 @@ type QuestProgress = {
 | `Race`/`Job` | nil or a valid enum | nil (forces re-selection) and log |
 | `FacePreset` | in allowlist | 1 |
 | `OwnedSkills` | Each id exists and matches the Job; rank is a whole number 1..maxRank; the skill above it in the tree is learned. More points spent than the level allows (checked by SkillService on load) refunds the tree | Drop invalid |
-| `EquippedSkills` | Learned, job-valid, correct slot type, no duplicates, ≤ 3 + 1 | Drop invalid entries |
+| `EquippedSkills` | Learned, job-valid, correct slot type, no duplicates, ≤ 6 + 1 (D-75) | Drop invalid entries |
 | `Inventory` | Guid key equals `item.Guid`. DefId exists. Rarity valid. Enhancement 0..10. Attributes come from the allowed pool, within bounds | Drop the item if DefId is unknown (log the full item); otherwise clamp |
 | Duplicate Guids | Impossible by key, but checked across Equipment | Unequip dangling references |
 | `Equipment` | Slot valid, guid in Inventory, item fits the slot | nil |

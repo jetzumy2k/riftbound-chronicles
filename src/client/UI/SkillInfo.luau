@@ -88,7 +88,7 @@ function SkillInfo.fill(parent: Instance, skill: SkillDefinitions.Skill, rank: n
 		add(`•  {effect}`, 12, Theme.Fonts.Body, Theme.Colors.Text)
 	end
 	if info.combo then
-		add(`✦  {info.combo}`, 12, Theme.Fonts.BodyBold, COMBO_COLOR)
+		add(`🔗  {info.combo}`, 12, Theme.Fonts.BodyBold, COMBO_COLOR)
 	end
 	local options_: Options = options or {} :: Options
 	if not options_.compact and info.nextRank and #info.nextRank > 0 then

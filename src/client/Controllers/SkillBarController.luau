@@ -1,7 +1,7 @@
 --!strict
 --[[
-	SkillBarController — the 3 + 1 skill buttons (Phase 5, CLAUDE.md §7,
-	PLAN.md D-45).
+	SkillBarController — the 6 + 1 skill buttons (Phase 5, CLAUDE.md §7,
+	PLAN.md D-45, D-75).
 
 	Sends *intents only*: `SkillCast(id, target?)`. The server checks the
 	bar, cooldown, Focus, target, range and line of sight and computes every
@@ -22,8 +22,11 @@
 	(CombatController.toggleAutoAttack); pressing again stops. Its button
 	reads AUTO / ON instead of Focus and rank.
 
-	Input: desktop 1, 2, 3, Q (click works too) · gamepad X, Y, L1, R1 ·
-	touch: buttons around the attack button (CombatButtonsLayout).
+	Input: desktop 1-6, Q (click works too) · gamepad X, Y, L1, DPad left /
+	up / down, R1 · touch: buttons around the attack button
+	(CombatButtonsLayout). On a narrow portrait phone three regular buttons
+	show at a time and the small page button flips them between slots 1-3
+	and 4-6; a dot on it means a skill on the other page is ready.
 
 	Each button shows its drawn icon (UI/SkillIcon), key, rank pips, Focus cost, a cooldown sweep
 	with seconds, and a "COMBO" tag + bright outline when its combo is ready
@@ -60,17 +63,33 @@ local NotificationController = require(script.Parent.NotificationController)
 type Skill = SkillDefinitions.Skill
 
 local SLOT_KEYS = CombatButtonsLayout.SKILL_KEYS
-local KEY_LABELS = { skill1 = "1", skill2 = "2", skill3 = "3", special = "Q" }
+local KEY_LABELS = {
+	skill1 = "1",
+	skill2 = "2",
+	skill3 = "3",
+	skill4 = "4",
+	skill5 = "5",
+	skill6 = "6",
+	special = "Q",
+}
 local KEYBOARD: { [Enum.KeyCode]: string } = {
 	[Enum.KeyCode.One] = "skill1",
 	[Enum.KeyCode.Two] = "skill2",
 	[Enum.KeyCode.Three] = "skill3",
+	[Enum.KeyCode.Four] = "skill4",
+	[Enum.KeyCode.Five] = "skill5",
+	[Enum.KeyCode.Six] = "skill6",
 	[Enum.KeyCode.Q] = "special",
 	[Enum.KeyCode.ButtonX] = "skill1",
 	[Enum.KeyCode.ButtonY] = "skill2",
 	[Enum.KeyCode.ButtonL1] = "skill3",
+	[Enum.KeyCode.DPadLeft] = "skill4",
+	[Enum.KeyCode.DPadUp] = "skill5",
+	[Enum.KeyCode.DPadDown] = "skill6",
 	[Enum.KeyCode.ButtonR1] = "special",
 }
+-- Paged touch layout: which regular slots each page shows.
+local PAGE_SLOTS = { { "skill1", "skill2", "skill3" }, { "skill4", "skill5", "skill6" } }
 -- Desktop bar (bottom centre).
 local BAR_SIZE = 60
 local BAR_GAP = 10
@@ -108,6 +127,11 @@ local buttons: { [string]: Button } = {}
 local readyAt: { [string]: number } = {}
 local globalReadyAt = 0
 local touch = false
+-- Paged touch layout (narrow portrait): page 1 = slots 1-3, page 2 = 4-6.
+local paged = false
+local page = 1
+local pageButton: TextButton
+local pageDot: Frame
 local screen: ScreenGui
 local tooltip: Frame
 local tooltipBody: Frame
@@ -480,11 +504,27 @@ local function makeButton(gui: ScreenGui, slot: string): Button
 	}
 end
 
+-- Is this slot's button on screen (one page of skills in a paged layout)?
+local function shown(slot: string): boolean
+	if not paged or slot == "special" then
+		return true
+	end
+	return table.find(PAGE_SLOTS[page], slot) ~= nil
+end
+
 local function place()
 	local camera = Workspace.CurrentCamera
 	local viewport = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+	paged = false
+	pageButton.Visible = false
 	if touch then
 		local layout = CombatButtonsLayout.compute(viewport.X, viewport.Y) :: any
+		paged = layout.paged
+		if layout.page then
+			local s = layout.page
+			pageButton.Position = UDim2.new(1, -s.right, 1, -s.bottom)
+			pageButton.Size = UDim2.fromOffset(s.size, s.size)
+		end
 		for slot, button in buttons do
 			local s = layout[slot]
 			button.frame.AnchorPoint = Vector2.new(1, 1)
@@ -514,8 +554,26 @@ local function render()
 	local focus = focusOf(character)
 	local now = os.clock()
 	local visible = state.Job ~= nil
+	pageButton.Visible = visible and paged
+	pageButton.Text = if page == 1 then "4-6" else "1-3"
+	-- A dot on the page button: a skill on the hidden page is ready to use.
+	local otherReady = false
+	if paged then
+		for _, slot in PAGE_SLOTS[3 - page] do
+			local skill = skillIn(slot)
+			if
+				skill
+				and not SkillDefinitions.isBasic(skill)
+				and now >= (readyAt[skill.id] or 0)
+				and focus >= skill.focusCost
+			then
+				otherReady = true
+			end
+		end
+	end
+	pageDot.Visible = otherReady
 	for slot, button in buttons do
-		button.frame.Visible = visible
+		button.frame.Visible = visible and shown(slot)
 		local skill = skillIn(slot)
 		-- The icon is rebuilt only when the skill or the button size changes.
 		local iconKey = if skill then `{skill.id}:{button.size}:{touch}` else nil
@@ -591,6 +649,36 @@ local function build()
 		buttons[slot] = makeButton(gui, slot)
 		buttons[slot].keyLabel.Visible = not touch
 	end
+	-- Paged touch layout only: flips the regular buttons between 1-3 and 4-6.
+	pageButton = Kit.new("TextButton", {
+		Name = "SkillPage",
+		AnchorPoint = Vector2.new(1, 1),
+		BackgroundColor3 = Theme.Colors.Glass,
+		BackgroundTransparency = 0.15,
+		Text = "4-6",
+		TextSize = 13,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.GoldBright,
+		AutoButtonColor = true,
+		Visible = false,
+		Parent = gui,
+	})
+	Kit.corner(pageButton, 22)
+	Kit.goldStroke(pageButton, 1.5, 0.25)
+	pageDot = Kit.new("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -2, 0, 2),
+		Size = UDim2.fromOffset(10, 10),
+		BackgroundColor3 = COMBO_COLOR,
+		Visible = false,
+		Parent = pageButton,
+	})
+	Kit.corner(pageDot, 5)
+	pageButton.Activated:Connect(function()
+		page = 3 - page
+		showTooltip(nil)
+		render()
+	end)
 	tooltip = Kit.glassPanel({
 		Name = "Tooltip",
 		AnchorPoint = Vector2.new(0, 1),

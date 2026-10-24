@@ -216,7 +216,7 @@ local function render(state: any)
 		return
 	end
 	fitToScreen(w)
-	w.title.Text = `⚔ {state.dungeon or "Dungeon"}  {if collapsed then "+" else "–"}`
+	w.title.Text = `🗡 {state.dungeon or "Dungeon"}  {if collapsed then "+" else "–"}`
 	w.body.Visible = not collapsed
 	w.leave.Text = "Leave"
 	local where = if state.roomIndex

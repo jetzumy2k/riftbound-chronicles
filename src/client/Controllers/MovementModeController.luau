@@ -57,7 +57,7 @@ local function buildTouchButtons()
 	local buttons: { [string]: { button: TextButton, stroke: UIStroke } } = {}
 	local specs = {
 		{ mode = "Sprint", label = "»\nRUN", slot = "sprint" },
-		{ mode = "Crouch", label = "⌄\nCROUCH", slot = "crouch" },
+		{ mode = "Crouch", label = "▼\nCROUCH", slot = "crouch" },
 	}
 	local placed: { { button: TextButton, corner: UICorner, slot: string } } = {}
 	for _, spec in specs do

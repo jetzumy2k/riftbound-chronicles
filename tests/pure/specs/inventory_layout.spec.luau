@@ -67,9 +67,7 @@ return function(t)
 				t.ok(inside(toggle, width, height), "on screen")
 				t.ok(toggle.h >= InventoryLayout.MIN_TOUCH_PX, "touch size")
 				local combat = CombatButtonsLayout.compute(width, height)
-				for _, key in
-					{ "attack", "sprint", "crouch", "skill1", "skill2", "skill3", "special", "potion" }
-				do
+				for _, key in CombatButtonsLayout.shownKeys(combat) do
 					local r = CombatButtonsLayout.rect((combat :: any)[key], width, height)
 					t.ok(not overlaps(toggle, r), key)
 				end
