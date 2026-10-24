@@ -152,6 +152,9 @@ type Rig = {
 	fxStruck: boolean,
 	flightSeen: any,
 	enragedSeen: boolean,
+	-- D-81: the eye parts and their resting colour (found once).
+	eyes: { BasePart }?,
+	eyeColor: Color3?,
 	-- Serpents: where the body has been (world, newest first), the body's
 	-- rest layout, and the neck's counter-turn against the weave (degrees).
 	trail: { Vector3 },
@@ -374,7 +377,9 @@ local function glowOf(rig: Rig): Color3
 	local found = Color3.fromRGB(255, 200, 120)
 	for _, d in rig.model:GetDescendants() do
 		if
-			d:IsA("BasePart") and (d.Name == "Glow" or d.Name == "Eye" or d.Material == Enum.Material.Neon)
+			d:IsA("BasePart")
+			and d.Name ~= "Shine"
+			and (d.Name == "Glow" or d.Name == "Eye" or d.Material == Enum.Material.Neon)
 		then
 			found = d.Color
 			break
@@ -382,6 +387,41 @@ local function glowOf(rig: Rig): Color3
 	end
 	rig.glow = found
 	return found
+end
+
+--[[
+	D-81: eye expressions. "Calm" is the resting glow, "Fierce" flares it
+	(enraged), "Out" dims the eyes to a dull, unlit tone (defeated: a
+	non-graphic "lights out").
+]]
+local function setEyes(rig: Rig, mood: "Calm" | "Fierce" | "Out")
+	if rig.eyes == nil then
+		local found = {}
+		for _, d in rig.model:GetDescendants() do
+			if d:IsA("BasePart") and (d.Name == "Eye" or d.Name == "Shine") then
+				table.insert(found, d)
+			end
+		end
+		rig.eyes = found
+	end
+	for _, part in rig.eyes :: { BasePart } do
+		if part.Name == "Shine" then
+			part.Transparency = if mood == "Out" then 1 else 0
+			continue
+		end
+		local base = rig.eyeColor or part.Color
+		rig.eyeColor = base
+		if mood == "Fierce" then
+			part.Color = base:Lerp(Color3.new(1, 1, 1), 0.35)
+			part.Material = Enum.Material.Neon
+		elseif mood == "Out" then
+			part.Color = base:Lerp(Color3.new(0, 0, 0), 0.7)
+			part.Material = Enum.Material.SmoothPlastic
+		else
+			part.Color = base
+			part.Material = Enum.Material.Neon
+		end
+	end
 end
 
 -- Height of the ground under the creature.
@@ -529,6 +569,9 @@ local function effects(rig: Rig, now: number)
 	if enraged ~= rig.enragedSeen then
 		rig.enragedSeen = enraged
 		CreatureFx.embers(rig.root, enraged, glowOf(rig))
+		if rig.defeatStart == nil then
+			setEyes(rig, if enraged then "Fierce" else "Calm")
+		end
 		if enraged then
 			voice(rig, 1)
 		end
@@ -1486,6 +1529,8 @@ local function track(model: Model)
 		fxStruck = true,
 		flightSeen = model:GetAttribute("RC_Flight"),
 		enragedSeen = false,
+		eyes = nil,
+		eyeColor = nil,
 		trail = {},
 		slither = nil,
 		neckCounter = 0,
@@ -1569,6 +1614,7 @@ function MobVisualController.defeat(model: Model)
 		-- A last, deeper cry in its own voice (D-63: one shared lion cry made
 		-- golems and birds roar), then the body settles in a puff of dust.
 		CreatureFx.embers(rig.root, false, Color3.new())
+		setEyes(rig, "Out")
 		CreatureSfx.play(rig.voice, rig.root, rig.scale * 1.5, "defeat", 5, 0.8)
 		task.delay(0.75, function()
 			if rig.root.Parent then

@@ -334,8 +334,50 @@ class Creature:
         return prim
 
     def solid(self, prim):
+        if isinstance(prim, Ellipsoid) and prim.region == "Eye" and self._is_eyeball(prim):
+            # A living eye (PLAN.md D-81): glowing iris, a dark pupil and a
+            # highlight, sculpted into one piece that follows the head bone.
+            self.solids.append([prim] + self._eye_details(prim))
+            return prim
         self.solids.append(prim)
         return prim
+
+    # Creatures with slit pupils (reptiles and cats); the rest are round.
+    SLIT_PUPILS = {"Serpent", "Hydra", "Dragon", "Gorgon", "Lion", "Chimera", "Griffin"}
+
+    @staticmethod
+    def _is_eyeball(prim):
+        # Not the knights' visor slits (long flat glows).
+        r = prim.r
+        return min(r[0], r[1]) >= 0.035 and max(r[0], r[1]) <= 1.8 * min(r[0], r[1])
+
+    def _eye_details(self, eye):
+        """Pupil and highlight for an eyeball, facing away from its head bone.
+        The eyeball itself is enlarged and brought forward out of the skin
+        (the sculpted eyes sat mostly inside the head and barely showed)."""
+        bone = self.skeleton[eye.bone]
+        out = eye.c - bone.pos
+        out[1] *= 0.3
+        n = np.linalg.norm(out)
+        out = np.array([0.0, 0.0, -1.0]) if n < 1e-6 else out / n
+        eye.c = eye.c + out * (0.4 * float(min(eye.r)))
+        eye.r = eye.r * 1.3
+        right = np.cross([0.0, 1.0, 0.0], out)
+        right = right / max(np.linalg.norm(right), 1e-9)
+        up = np.cross(out, right)
+        frame = np.column_stack([right, up, out])
+        # The eye's extent along `out` (its surface in front of the centre).
+        local = eye.rot.T @ out
+        extent = 1.0 / np.sqrt(np.sum((local / eye.r) ** 2))
+        re = float(min(eye.r))
+        if self.name in self.SLIT_PUPILS:
+            radii = (0.2 * re, 0.68 * re, 0.32 * re)
+        else:
+            radii = (0.46 * re, 0.5 * re, 0.32 * re)
+        pupil = Ellipsoid(eye.c + out * (extent - 0.26 * re), radii, eye.bone, "Pupil", blend=0.0, rot=frame)
+        shine_at = eye.c + out * (extent - 0.12 * re) + up * (0.42 * re) + right * (0.3 * re)
+        shine = Ellipsoid(shine_at, (0.17 * re, 0.17 * re, 0.17 * re), eye.bone, "Shine", blend=0.0, rot=frame)
+        return [pupil, shine]
 
     def group(self, prims):
         """
@@ -360,13 +402,18 @@ class Creature:
         # mesh), each sampled over its own bounds.
         groups = [("blend", self.prims)] + [("solid", s if isinstance(s, list) else [s]) for s in self.solids]
         for kind, prims in groups:
-            lo = np.min([p.bounds()[0] for p in prims], axis=0) - 0.3
-            hi = np.max([p.bounds()[1] for p in prims], axis=0) + 0.3
-            shape = np.ceil((hi - lo) / step).astype(int) + 1
-            gx, gy, gz = [lo[i] + np.arange(shape[i]) * step for i in range(3)]
+            gstep = step
+            if any(p.region == "Pupil" for p in prims):
+                # Eyes need a fine grid for the pupil and highlight.
+                gstep = min(step, float(min(prims[0].r)) / 4)
+            pad = 0.3 if gstep == step else 4 * gstep
+            lo = np.min([p.bounds()[0] for p in prims], axis=0) - pad
+            hi = np.max([p.bounds()[1] for p in prims], axis=0) + pad
+            shape = np.ceil((hi - lo) / gstep).astype(int) + 1
+            gx, gy, gz = [lo[i] + np.arange(shape[i]) * gstep for i in range(3)]
             pts = np.stack(np.meshgrid(gx, gy, gz, indexing="ij"), -1).reshape(-1, 3)
             field = self._field(pts, prims).reshape(shape)
-            verts, quads = surface_nets(field, lo, step)
+            verts, quads = surface_nets(field, lo, gstep)
             tris = quads_to_tris(quads, verts)
             verts = taubin(verts, tris, iterations=4 if kind == "blend" else 2)
             meshes.append((prims, verts, tris))
@@ -527,6 +574,8 @@ PREVIEW_COLORS = {
     "Dark": (0.18, 0.16, 0.19),
     "Horn": (0.88, 0.84, 0.74),
     "Eye": (1.0, 0.55, 0.2),
+    "Pupil": (0.05, 0.04, 0.06),
+    "Shine": (1.0, 1.0, 1.0),
     "Glow": (1.0, 0.45, 0.15),
     "Scale": (0.3, 0.42, 0.28),
     "Mane": (0.3, 0.12, 0.08),

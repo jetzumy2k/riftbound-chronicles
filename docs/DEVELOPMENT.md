@@ -199,6 +199,19 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Creature faces (D-81)
+Every creature's eyes were rebuilt: larger, brought forward out of the skin, each with a glowing iris, a dark pupil (slit for serpents, dragons, cats, griffins and gorgons; round for the rest) and a white highlight. Only the meshes changed, so each shape must be **re-imported**:
+1. Studio: **File > Import 3D**, pick `build/creatures/<Name>.gltf` (defaults, rig and skinning on, units **studs**).
+2. Right-click the imported model > **Save to File...** > `src/server/CreatureModels/<Name>.rbxm` (**replace** the old file), then delete it from the Workspace.
+3. Do this for the 16 shapes in that folder: Hound, Cerberus, Serpent, Hydra, Beetle, Spider, Golem, Knight, Lion, Chimera, Dragon, Griffin, Steed, Bat, Harpy, Gorgon. Knight, Harpy and Gorgon have visor / slit eyes and are unchanged, so they can be skipped.
+A shape not re-imported yet just keeps its old eyes.
+
+**Checks**
+1. Close up, each creature's eyes show a coloured iris, a dark pupil and a small white highlight, and they move with the head (looking round, biting, flying).
+2. An enraged creature (low health, or an impatient boss): the eyes flare brighter along with the embers.
+3. Defeat: the eyes go dark and the highlight disappears as it falls (no gore, CLAUDE.md §18).
+4. Nothing glows white by mistake: hit sparks and embers keep the creature's own colour.
+
 ## Phase 15: facial expressions (D-79)
 Use a local server with 2 players so you can watch the other character's face up close (zoom in; the face only moves within 70 studs).
 

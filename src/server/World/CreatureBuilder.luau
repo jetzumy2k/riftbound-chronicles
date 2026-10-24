@@ -1203,6 +1203,11 @@ local function regionStyle(region: string, ctx: Ctx, skin: Enum.Material): (Colo
 		return BONE, Enum.Material.SmoothPlastic
 	elseif region == "Eye" or region == "Glow" then
 		return ctx.glow, Enum.Material.Neon
+	elseif region == "Pupil" then
+		-- D-81: the eye's dark pupil and white highlight.
+		return Color3.fromRGB(18, 14, 22), Enum.Material.SmoothPlastic
+	elseif region == "Shine" then
+		return Color3.new(1, 1, 1), Enum.Material.Neon
 	elseif region == "Mane" or region == "Tuft" then
 		return ctx.dark:Lerp(ctx.glow, 0.3), Enum.Material.Fabric
 	elseif region == "Horns" then
@@ -1289,7 +1294,7 @@ local function buildFromMesh(
 			elseif region == "Petal" then
 				d.Transparency = 0.3
 			end
-			d.CastShadow = region ~= "Eye" and region ~= "Glow"
+			d.CastShadow = region ~= "Eye" and region ~= "Glow" and region ~= "Pupil" and region ~= "Shine"
 			if d:IsA("MeshPart") then
 				-- Region colour and material instead of a texture.
 				d.TextureID = ""
