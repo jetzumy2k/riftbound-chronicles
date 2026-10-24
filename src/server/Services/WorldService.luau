@@ -20,6 +20,7 @@ local Log = require(Shared.Util.Log)
 local FOLDER_NAME = "RC_World"
 
 local CombatService = require(script.Parent.CombatService)
+local BudgetAudit = require(script.Parent.Parent.World.BudgetAudit)
 local CapitalBuilder = require(script.Parent.Parent.World.CapitalBuilder)
 local DesertBuilder = require(script.Parent.Parent.World.DesertBuilder)
 local JungleBuilder = require(script.Parent.Parent.World.JungleBuilder)
@@ -60,6 +61,7 @@ function WorldService:Init()
 		spawnByRace[realm.race] = built.spawn
 		gatesByRace[realm.race] = built.gates
 		log:Info("%s built (%d parts)", realm.displayName, built.parts)
+		BudgetAudit.report(realm.displayName, "Capital", root:FindFirstChild(realm.zone) :: Instance)
 	end
 
 	for _, zone in WorldLayout.WarZones :: { [string]: WorldLayout.WarZone } do
@@ -74,6 +76,7 @@ function WorldService:Init()
 		end
 		returnPortals[zone.id] = portals
 		log:Info("%s built (%d parts, in %.1f s)", zone.name, parts, os.clock() - started)
+		BudgetAudit.report(zone.name, "WarZone", root:FindFirstChild(zone.id) :: Instance)
 	end
 
 	root.Parent = Workspace

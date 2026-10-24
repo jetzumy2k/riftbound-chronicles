@@ -199,6 +199,12 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 16 stage 1: zone budgets (D-82)
+
+1. Play in Studio and open the Output. For each capital, war zone and dungeon copy there is one `[WorldBudget]` line, like `Skyreach Citadel [Capital]: parts 812/1400 (58%), ...`.
+2. Any zone over its budget prints a warning naming the fields that are over. Send the lines (copy or screenshot) so the budgets can be set from real numbers.
+3. Optional: on a phone (or the device emulator), press Ctrl+F6 for the MicroProfiler in each zone and note the frame time.
+
 ## Creature faces (D-81)
 Every creature's eyes were rebuilt: larger, brought forward out of the skin, each with a glowing iris, a dark pupil (slit for serpents, dragons, cats, griffins and gorgons; round for the rest) and a white highlight. Only the meshes changed, so each shape must be **re-imported**:
 1. Studio: **File > Import 3D**, pick `build/creatures/<Name>.gltf` (defaults, rig and skinning on, units **studs**).

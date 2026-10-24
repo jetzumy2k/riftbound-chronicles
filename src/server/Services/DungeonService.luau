@@ -64,6 +64,7 @@ local TravelService = require(script.Parent.TravelService)
 local MobService = require(script.Parent.MobService)
 local BossService = require(script.Parent.BossService)
 local PartyService = require(script.Parent.PartyService)
+local BudgetAudit = require(script.Parent.Parent.World.BudgetAudit)
 local DungeonBuilder = require(script.Parent.Parent.World.DungeonBuilder)
 
 local DUNGEON_ID = "RiftHollow" -- the dungeon behind the capital gates
@@ -765,6 +766,7 @@ local function buildCopy(folder: Folder, race: string, dungeon: DungeonDefinitio
 	map.Name = `{dungeon.id}_{race}`
 	map:PivotTo(origin * CFrame.new(0, 0.5, 0))
 	map.Parent = folder
+	BudgetAudit.report(map.Name, "Dungeon", map)
 	local copy: Copy = {
 		race = race,
 		dungeon = dungeon,
