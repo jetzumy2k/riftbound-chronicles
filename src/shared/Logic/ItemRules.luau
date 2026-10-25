@@ -288,7 +288,13 @@ end
 	Rolls the attributes of a new `def` item. `random()` returns [0, 1)
 	(the server's Random). Different stats, weighted by the pool.
 ]]
-function ItemRules.roll(def: ItemDef, rarity: string, itemLevel: number, random: () -> number): { Attribute }
+function ItemRules.roll(
+	def: ItemDef,
+	rarity: string,
+	itemLevel: number,
+	random: () -> number,
+	valueRolls: number?
+): { Attribute }
 	local remaining = table.clone(ItemRules.poolFor(def))
 	local out: { Attribute } = {}
 	for _ = 1, math.min(ItemRules.ROLLS[rarity], #remaining) do
@@ -308,7 +314,12 @@ function ItemRules.roll(def: ItemDef, rarity: string, itemLevel: number, random:
 		local entry = table.remove(remaining, index) :: PoolEntry
 		local spec = ItemRules.STATS[entry.stat]
 		local lo, hi = ItemRules.bounds(entry.stat, rarity, itemLevel)
-		local value = math.clamp(clean(roundStep(lo + (hi - lo) * random(), spec.step), spec.step), lo, hi)
+		-- `valueRolls` > 1 (live event, D-89): the best of that many rolls.
+		local r = random()
+		for _ = 2, valueRolls or 1 do
+			r = math.max(r, random())
+		end
+		local value = math.clamp(clean(roundStep(lo + (hi - lo) * r, spec.step), spec.step), lo, hi)
 		table.insert(out, { Stat = entry.stat, Value = value })
 	end
 	return out

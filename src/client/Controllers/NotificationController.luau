@@ -34,6 +34,10 @@ local MAX_WIDTH = 420
 
 local STRINGS: { [string]: string } = {
 	["system.welcome"] = "Welcome to Riftbound Chronicles",
+	-- Phase 18 live events (D-89, EventController).
+	["event.started"] = "Event started: {name}. {blurb}",
+	["event.ended"] = "Event ended: {name}",
+	["event.running"] = "Event running: {name} ({left} left)",
 	-- Phase 11 quests (D-73).
 	["quest.accepted"] = "New quest: {name}",
 	["quest.ready"] = "{name}: done! Return to your commander.",
@@ -185,6 +189,7 @@ local TOPIC_ICONS: { [string]: string } = {
 	race = "👤",
 	movement = "🏃",
 	system = "🔧",
+	event = "🎉",
 }
 -- Keys whose meaning has a better icon than their topic's.
 local KEY_ICONS: { [string]: string } = {

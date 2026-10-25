@@ -16,6 +16,10 @@
 	            default and limits. Edits collect as unsaved changes; "Save"
 	            sends the batch, "Reset" puts a value back to its default.
 	            Loot tables show their live total (must be 100).
+	  Events    (Phase 18, D-89) what is running and scheduled (stop any),
+	            and every event template: start now or in N hours for the
+	            chosen length. The server checks the template's longest
+	            length and cooldown; events of later stages show greyed out
 	  World     respawn the war-zone bosses now
 	  Log       recent audit entries (Moderators: their own)
 
@@ -36,6 +40,7 @@ local NetClient = require(Shared.Net.Client)
 local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local AdminRules = require(Shared.Logic.AdminRules)
+local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -58,6 +63,7 @@ type Page = { id: string, label: string, permission: string? }
 local TABS: { Page } = {
 	{ id = "Players", label = "👥 Players" },
 	{ id = "Settings", label = "🔧 Settings", permission = "config.view" },
+	{ id = "Events", label = "🎉 Events", permission = "events.activate" },
 	{ id = "World", label = "🌍 World" },
 	{ id = "Log", label = "📜 Log", permission = "audit.view" },
 }
@@ -92,6 +98,10 @@ local rarityIndex = 3
 local stackIndex = 1
 local reasonIndex = 1
 local banIndex = 1
+
+-- Events tab: chosen length (index into EVENT_MINUTES).
+local EVENT_MINUTES = { 30, 60, 120, 360, 1440, 2880, 4320 }
+local minutesIndex = 2
 
 -- Settings tab
 local config: any = nil
@@ -1235,16 +1245,175 @@ local function drawWorld(area: Frame)
 	local later = card(body, "Coming later")
 	label(
 		later,
-		"Events (Double EXP, invasions...) arrive with the event system (Phase 18).",
-		12,
-		Theme.Colors.TextDim
-	)
-	label(
-		later,
 		"Store / item mall: not in v1 (PLAN.md D-15). Anything sold for Robux needs a Roblox policy review first; paid random items are not allowed without it.",
 		12,
 		Theme.Colors.TextDim
 	)
+end
+
+--------------------------------------------------------------------------------
+-- Events (Phase 18, D-89)
+--------------------------------------------------------------------------------
+
+local EVENT_REASONS = {
+	running = "it is already running (or scheduled) at that time",
+	cooldown = "it ran too recently (its cooldown has not passed)",
+	duration = "that length is longer than this event allows",
+	notReady = "this event arrives in a later stage",
+	past = "that start time is in the past",
+	ahead = "events can be scheduled at most 30 days ahead",
+	full = "too many events are running or scheduled",
+	notRunning = "it is not running or scheduled",
+	stale = "another admin changed the settings meanwhile; try again",
+}
+
+local function span(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	local days = seconds // 86400
+	local hours = (seconds % 86400) // 3600
+	local minutes = (seconds % 3600) // 60
+	if days > 0 then
+		return `{days}d {hours}h`
+	elseif hours > 0 then
+		return `{hours}h {minutes}m`
+	end
+	return `{minutes}m`
+end
+
+local function lengthText(minutes: number): string
+	return if minutes >= 1440
+		then `{minutes // 1440} day(s)`
+		elseif minutes >= 60 then `{minutes // 60} h`
+		else `{minutes} min`
+end
+
+local function eventCall(action: string, args: { [string]: any }): any
+	local result = NetClient.invoke("AdminEvents", action, args)
+	if type(result) ~= "table" then
+		setStatus("❌ No answer from the server.", true)
+		return nil
+	end
+	if result.ok == false then
+		local reason = tostring(result.reason or result.code)
+		setStatus(`❌ Refused: {EVENT_REASONS[reason] or reason}`, true)
+		return nil
+	end
+	return result
+end
+
+local function drawEvents(area: Frame)
+	local body = scroller(area, "events", UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1))
+	local listed = eventCall("List", {})
+	if listed == nil then
+		return
+	end
+	local now = listed.now
+	local live = card(body, "Running and scheduled", "Every server follows this list (times in UTC).")
+	local any = false
+	for _, w in listed.windows do
+		local e = EventDefinitions.get(w.Id)
+		if e == nil or w.EndsAt <= now then
+			continue
+		end
+		any = true
+		local line = row(live)
+		local started = w.StartsAt <= now
+		label(
+			line,
+			`{e.icon} {e.name}: {if started
+				then `running, ends in {span(w.EndsAt - now)}`
+				else `starts in {span(w.StartsAt - now)} ({os.date("!%d %b %H:%M", w.StartsAt)} UTC), lasts {span(
+					w.EndsAt - w.StartsAt
+				)}`}`,
+			13,
+			if started then Theme.Colors.Safe else Theme.Colors.Text,
+			true
+		).Size =
+			UDim2.new(1, -110, 0, 0)
+		button(line, if started then "Stop" else "Cancel", 96, "danger", function()
+			if eventCall("Stop", { Id = w.Id }) then
+				setStatus(`✅ {e.name} {if started then "stopped" else "cancelled"}.`)
+				refresh()
+			end
+		end)
+	end
+	if not any then
+		label(live, "No events running or scheduled.", 12, Theme.Colors.TextDim)
+	end
+
+	local options = card(
+		body,
+		"Length and start",
+		"Pick how long the event lasts. 'Start now' begins it at once; 'Schedule' starts it the number of hours from now typed in the box."
+	)
+	local lengths = row(options)
+	for index, minutes in EVENT_MINUTES do
+		button(lengths, lengthText(minutes), 76, if index == minutesIndex then "gold" else nil, function()
+			minutesIndex = index
+			refresh()
+		end)
+	end
+	local later = row(options)
+	label(later, "Schedule in (hours):", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(140, 0)
+	field(later, "eventHours", "e.g. 24", 100)
+
+	local templates = card(
+		body,
+		"Events",
+		"Rewards multiply only while an event runs; nothing earned changes when it ends."
+	)
+	for _, e in EventDefinitions.List do
+		local ready = EventDefinitions.isReady(e)
+		local entry = Kit.new("Frame", {
+			BackgroundColor3 = Theme.Colors.Ink,
+			BackgroundTransparency = 0.6,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = templates,
+		})
+		Kit.corner(entry, 8)
+		Kit.padding(entry, 6, 8)
+		Kit.list(entry, Enum.FillDirection.Vertical, 4, Enum.HorizontalAlignment.Left)
+		label(
+			entry,
+			`{e.icon} {e.name}`,
+			13,
+			if ready then Theme.Colors.GoldBright else Theme.Colors.TextMuted,
+			true
+		)
+		label(
+			entry,
+			`{e.blurb}  ·  {e.zone}  ·  up to {lengthText(e.maxMinutes)}, cooldown {lengthText(
+				e.cooldownMinutes
+			)}`,
+			11,
+			Theme.Colors.TextDim
+		)
+		if not ready then
+			label(entry, `Arrives in Phase 18 stage {e.stage}.`, 11, Theme.Colors.TextMuted)
+			continue
+		end
+		local actions = row(entry)
+		local minutes = math.min(EVENT_MINUTES[minutesIndex], e.maxMinutes)
+		button(actions, `Start now ({lengthText(minutes)})`, 170, "gold", function()
+			if eventCall("Start", { Id = e.id, Minutes = minutes }) then
+				setStatus(`✅ {e.name} started for {lengthText(minutes)}.`)
+				refresh()
+			end
+		end)
+		button(actions, "Schedule", 110, nil, function()
+			local hours = tonumber(fields.eventHours or "")
+			if hours == nil or hours <= 0 or hours > 720 then
+				setStatus("❌ Type the hours from now (up to 720) in the box above.", true)
+				return
+			end
+			local startsAt = now + math.floor(hours * 3600)
+			if eventCall("Schedule", { Id = e.id, Minutes = minutes, StartsAt = startsAt }) then
+				setStatus(`✅ {e.name} scheduled in {span(startsAt - now)}.`)
+				refresh()
+			end
+		end)
+	end
 end
 
 local function drawLog(area: Frame)
@@ -1311,7 +1480,7 @@ function refresh()
 	updateSaveBar = function() end
 	clear(strip)
 	Kit.list(strip, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Left)
-	pageButtons(strip, TABS, tab, 120, function(id)
+	pageButtons(strip, TABS, tab, 104, function(id)
 		if id ~= tab then
 			tab = id
 			setStatus("")
@@ -1323,6 +1492,8 @@ function refresh()
 		drawPlayers(area)
 	elseif tab == "Settings" then
 		drawSettings(area)
+	elseif tab == "Events" then
+		drawEvents(area)
 	elseif tab == "World" then
 		drawWorld(area)
 	else

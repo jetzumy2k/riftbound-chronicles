@@ -43,6 +43,7 @@ local AuditLogService = require(script.Parent.AuditLogService)
 local ConfigurationService = require(script.Parent.ConfigurationService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local EventService = require(script.Parent.EventService)
 local LevelService = require(script.Parent.LevelService)
 local JobService = require(script.Parent.JobService)
 local AntiExploitService = require(script.Parent.AntiExploitService)
@@ -562,7 +563,8 @@ local function onCast(player: Player, id: string, hint: Model?)
 
 	-- Committed.
 	local rank = SkillRules.rankOf(data.OwnedSkills, id)
-	playerCooldowns[id] = t + skill.cooldown
+	-- Live events (No-Cooldown Training in the yards, D-89).
+	playerCooldowns[id] = t + skill.cooldown * EventService:Factor("TrainingCooldown", player)
 	globalReady[player] = t + config.GlobalCooldownSeconds
 	CombatService:CastStarted(caster, SkillDefinitions.recovery(skill), SkillDefinitions.isHostile(skill))
 	sendCooldown(player, id)

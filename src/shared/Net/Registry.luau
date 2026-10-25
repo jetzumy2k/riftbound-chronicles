@@ -29,6 +29,7 @@ local SkillDefinitions = require(script.Parent.Parent.Definitions.SkillDefinitio
 local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions)
 local ItemRules = require(script.Parent.Parent.Logic.ItemRules)
 local QuestDefinitions = require(script.Parent.Parent.Definitions.QuestDefinitions)
+local EventDefinitions = require(script.Parent.Parent.Definitions.EventDefinitions)
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
 
@@ -383,6 +384,24 @@ return function(S: any)
 			rate = { capacity = 2, refillPerSecond = 0.1 },
 			states = { "ProfileLoaded" },
 			permission = "bosses.manage",
+		},
+		-- Live events (Phase 18, D-89): list the windows, start one now,
+		-- schedule one (UTC seconds), stop one. Durations and cooldowns are
+		-- checked against the template on the server.
+		AdminEvents = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "List", "Start", "Schedule", "Stop" }),
+				S.struct({
+					Id = S.optional(S.enum(table.clone(EventDefinitions.IDS))),
+					Minutes = S.optional(S.int(1, 30 * 24 * 60)),
+					StartsAt = S.optional(S.int(0, 4102444800)),
+				}),
+			},
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+			permission = "events.activate",
 		},
 		AdminAudit = {
 			direction = "ClientToServer",

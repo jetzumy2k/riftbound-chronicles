@@ -30,6 +30,10 @@
 	  AdminBoss                     respawn the war-zone bosses now
 	  AdminAudit                    recent audit entries (Moderators: only
 	                                their own)
+	  AdminEvents                   live events (Phase 18, D-89): the
+	                                windows, start now, schedule, stop
+	                                (EventService checks the template's
+	                                duration, cooldown and stage)
 
 	Every change is an audit entry with the actor, role, target and the
 	before / after values. Staff stay in game during flag maintenance.
@@ -61,6 +65,7 @@ local LevelService = require(script.Parent.LevelService)
 local InventoryService = require(script.Parent.InventoryService)
 local PvPService = require(script.Parent.PvPService)
 local QuestService = require(script.Parent.QuestService)
+local EventService = require(script.Parent.EventService)
 
 local log = Log.new("AdminService")
 
@@ -420,6 +425,43 @@ local function onBoss(actor: Player, action: string): { [string]: any }
 	return { ok = true, count = count }
 end
 
+local function onEvents(actor: Player, action: string, args: { [string]: any }): { [string]: any }
+	if action == "List" then
+		return { ok = true, now = os.time(), windows = EventService:GetWindows() }
+	end
+	local id = args.Id
+	if type(id) ~= "string" then
+		return fail("event")
+	end
+	if action == "Stop" then
+		local ok, reason = EventService:Stop(id, actor.UserId)
+		if not ok then
+			return fail(reason or "stop")
+		end
+		audit(actor, "EventStop", id)
+		return { ok = true }
+	end
+	local minutes = args.Minutes
+	if type(minutes) ~= "number" then
+		return fail("duration")
+	end
+	local startsAt = if action == "Schedule" then args.StartsAt else os.time()
+	if type(startsAt) ~= "number" then
+		return fail("time")
+	end
+	local ok, reason, window = EventService:Schedule(id, startsAt, minutes, actor.UserId)
+	if not ok or window == nil then
+		return fail(reason or "schedule")
+	end
+	audit(
+		actor,
+		if action == "Start" then "EventStart" else "EventSchedule",
+		id,
+		{ startsAt = window.StartsAt, endsAt = window.EndsAt }
+	)
+	return { ok = true, window = window }
+end
+
 local function short(value: any): string
 	local ok, text = pcall(HttpService.JSONEncode, HttpService, value)
 	text = if ok then text else tostring(value)
@@ -481,6 +523,7 @@ function AdminService:Init()
 	NetService:Handle("AdminConfigSet", onConfigSet)
 	NetService:Handle("AdminBoss", onBoss)
 	NetService:Handle("AdminAudit", onAudit)
+	NetService:Handle("AdminEvents", onEvents)
 end
 
 function AdminService:Start()

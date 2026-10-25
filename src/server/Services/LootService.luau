@@ -45,6 +45,7 @@ local ConfigurationService = require(script.Parent.ConfigurationService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local InventoryService = require(script.Parent.InventoryService)
+local EventService = require(script.Parent.EventService)
 
 local log = Log.new("LootService")
 local random = Random.new()
@@ -117,7 +118,9 @@ local function rollFor(player: Player, tableId: string, level: number, source: s
 	if not earns(level, data.Level, capGap) then
 		return nil
 	end
-	local rarity = LootRules.roll(tableFor(tableId), random:NextNumber(), random:NextNumber())
+	-- Live events (D-89): drop chance and rarity weights (re-normalized).
+	local t = EventService:LootTable(tableFor(tableId), player)
+	local rarity = LootRules.roll(t, random:NextNumber(), random:NextNumber())
 	if rarity == nil then
 		return nil
 	end
@@ -200,7 +203,8 @@ function LootService:DropStonesFor(players: { Player }, tableId: string, level: 
 		if data == nil or data.Job == nil or not earns(level, data.Level, false) then
 			continue
 		end
-		local stone = LootRules.rollStone(t, random:NextNumber(), random:NextNumber())
+		local stone =
+			LootRules.rollStone(EventService:StoneTable(t, player), random:NextNumber(), random:NextNumber())
 		if stone == nil then
 			continue
 		end

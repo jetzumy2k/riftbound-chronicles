@@ -199,6 +199,21 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 18 stage 1: event engine and reward events (D-89)
+
+Studio Play (Player1 is Owner); open 🛠 > 🎉 Events.
+
+1. Pick 30 min, press "Start now" on Double EXP Weekend: a toast "Event started: ✨ Double EXP Weekend..." and a 🎉 ✨ chip at the top centre with the time left; tap the chip to list it. The Events tab shows it running with a Stop button.
+2. Defeat a creature: the EXP gained is doubled (compare before / after). Start Class Mastery too: EXP is 2.25x; the chip shows both icons.
+3. Stop Double EXP: "Event ended" toast, EXP back to normal. Starting it again right away is refused ("ran too recently").
+4. No-Cooldown Training: in a capital's training yard skills recharge almost at once; outside the yard, normal cooldowns.
+5. Healing Festival (as a Healer): heals and shields are 50% bigger.
+6. Rare Attribute Weekend: new drops roll noticeably better attribute values. Legendary Hunt / Double Drops: more and rarer drops in the dungeon.
+7. Schedule Triple Quest EXP in 0.02 hours (about a minute): it appears under "starts in", then starts by itself; Cancel removes a scheduled one.
+8. Greyed events (e.g. Nullborn World Boss) say "Arrives in Phase 18 stage 2" and have no buttons.
+9. Local server test, 2 players: Player2 (not staff) has no 🛠 button but sees the chip and the toasts.
+10. Output: no errors; the Log tab shows EventStart / EventStop entries.
+
 ## Phase 16 stage 6: creature language and boss silhouettes (D-88)
 
 1. Elites (e.g. Stoneback Guardian) show ⭐ after the name; every boss shows 👑.

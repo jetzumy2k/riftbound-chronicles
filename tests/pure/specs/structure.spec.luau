@@ -250,6 +250,7 @@ return function(t)
 				AdminConfigSet = true,
 				AdminBoss = true,
 				AdminAudit = true,
+				AdminEvents = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then
@@ -268,7 +269,7 @@ return function(t)
 					t.ok(spec.permission == nil, `{name}: a permission on a player remote`)
 				end
 			end
-			t.eq(count, 7)
+			t.eq(count, 8)
 		end)
 
 		t.it("progression services register no remote handlers", function()

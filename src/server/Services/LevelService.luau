@@ -24,6 +24,7 @@ local ProfileView = require(script.Parent.Parent.Persistence.ProfileView)
 
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local EventService = require(script.Parent.EventService)
 
 local SOURCE_PATTERN = "^[%w_:%-]+$"
 local MAX_SOURCE_LENGTH = 64
@@ -75,6 +76,8 @@ function LevelService:GrantXP(player: Player, amount: number, source: string): (
 	if data == nil then
 		return false, 0
 	end
+	-- Live events (D-89): scaled as it is earned, capped per category.
+	amount = math.min(EventService:ScaleXp(player, amount, source), Constants.Experience.MaxGrant)
 
 	-- Synchronous read-modify-write.
 	local oldLevel = data.Level

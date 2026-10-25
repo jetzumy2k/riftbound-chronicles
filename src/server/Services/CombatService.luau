@@ -60,6 +60,7 @@ local AuditLogService = require(script.Parent.AuditLogService)
 local ConfigurationService = require(script.Parent.ConfigurationService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local EventService = require(script.Parent.EventService)
 local LevelService = require(script.Parent.LevelService)
 local StatsService = require(script.Parent.StatsService)
 local JobService = require(script.Parent.JobService)
@@ -719,8 +720,11 @@ local function healAmount(healer: Entity, coefficient: number, allowCrit: boolea
 	return CombatMath.heal({
 		attack = attackOf(healer, healer.attack),
 		attackerLevel = healer.level,
-		-- Gear Healing Power (D-64): heals, shields and regeneration.
-		coefficient = coefficient * (1 + healer.healingPowerPct / 100),
+		-- Gear Healing Power (D-64): heals, shields and regeneration; live
+		-- events (Healing Festival, D-89).
+		coefficient = coefficient * (1 + healer.healingPowerPct / 100) * (if healer.player
+			then EventService:Factor("Healing", healer.player)
+			else 1),
 		critChancePct = if allowCrit then healer.critChancePct else 0,
 		critMultiplier = healer.critMultiplier,
 		roll = if allowCrit then rng:NextNumber() else 1,

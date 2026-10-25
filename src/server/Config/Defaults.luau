@@ -204,6 +204,13 @@ return {
 		RatesPct = { 100, 100, 100, 100, 100, 90, 80, 70, 60, 50 },
 	},
 
+	-- Phase 18 live events (D-89, D-12): running and scheduled windows
+	-- { Id, StartsAt, EndsAt, By } in UTC seconds. Written by the admin
+	-- panel's Events tab (EventService), never by the settings editor.
+	Events = {
+		Windows = {},
+	},
+
 	-- Server mob AI (ARCHITECTURE.md §7: one scheduler, ≤ 10 Hz, sleep when idle).
 	-- Phase 11 (D-73): story quests.
 	Quests = {

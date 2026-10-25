@@ -40,6 +40,7 @@ local ProfileView = require(script.Parent.Parent.Persistence.ProfileView)
 local AuditLogService = require(script.Parent.AuditLogService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local EventService = require(script.Parent.EventService)
 local RaceService = require(script.Parent.RaceService)
 local JobService = require(script.Parent.JobService)
 local CombatService = require(script.Parent.CombatService)
@@ -141,6 +142,16 @@ end
 	Returns the item, or nil and a reason ("unknown", "rarity", "level",
 	"source", "noProfile", "full").
 ]]
+-- Rolls per attribute value (best kept): Rare Attribute Weekend (D-89) on
+-- earned gear, never on staff grants or gifts.
+local function valueRolls(player: Player, source: string): number
+	local prefix = string.match(source, "^(%a+):")
+	if prefix == "Admin" or prefix == "Gift" or prefix == "Studio" then
+		return 1
+	end
+	return math.floor(EventService:Factor("AttributeRolls", player))
+end
+
 function InventoryService:GrantItem(
 	player: Player,
 	defId: string,
@@ -189,7 +200,7 @@ function InventoryService:GrantItem(
 		ItemLevel = itemLevel,
 		Attributes = ItemRules.roll(def, rarity, itemLevel, function()
 			return random:NextNumber()
-		end),
+		end, valueRolls(player, source)),
 		Enhancement = 0,
 		Locked = false,
 		Source = source,

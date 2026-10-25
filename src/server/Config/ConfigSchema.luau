@@ -148,6 +148,18 @@ return function(S: any)
 			StudioBossRespawnSeconds = S.number(5, 7200),
 		}),
 
+		Events = S.struct({
+			Windows = S.array(
+				S.struct({
+					Id = S.string(32, 1, "^%w+$"),
+					StartsAt = S.int(0),
+					EndsAt = S.int(0),
+					By = S.int(0),
+				}),
+				64
+			),
+		}),
+
 		Quests = S.struct({
 			Enabled = S.boolean(),
 			GatesInStudio = S.boolean(),
