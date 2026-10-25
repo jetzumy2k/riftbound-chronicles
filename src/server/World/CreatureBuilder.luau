@@ -27,6 +27,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EnemyDefinitions = require(ReplicatedStorage.Shared.Definitions.EnemyDefinitions)
+local CreatureLanguage = require(ReplicatedStorage.Shared.Definitions.CreatureLanguage)
 local CreatureRigs = require(ReplicatedStorage.Shared.Animation.CreatureRigs)
 local CreatureIK = require(ReplicatedStorage.Shared.Logic.CreatureIK)
 local CreatureMeshes = require(ReplicatedStorage.Shared.Animation.CreatureMeshes)
@@ -1351,7 +1352,8 @@ local function newHumanoid(enemy: EnemyDefinitions.Enemy, hipHeight: number): Hu
 	humanoid.RigType = Enum.HumanoidRigType.R15
 	humanoid.HipHeight = hipHeight
 	humanoid.WalkSpeed = enemy.moveSpeed
-	humanoid.DisplayName = if enemy.elite then `{enemy.name} ⭐` else enemy.name
+	-- ⭐ elite, 👑 boss (CreatureLanguage, D-88).
+	humanoid.DisplayName = CreatureLanguage.displayName(enemy.name, CreatureLanguage.rankOf(enemy))
 	humanoid.NameDisplayDistance = 60
 	humanoid.HealthDisplayDistance = 60
 	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOn

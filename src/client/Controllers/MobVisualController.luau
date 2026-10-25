@@ -45,6 +45,9 @@
 	              crashes down, Roar throws the head back with jaws wide,
 	              Sweep swings across; hit: a short recoil; defeat: the
 	              body sinks and rolls onto its side before it fades.
+	  Rank        (D-88) bosses carry their marks (Effects/BossMarks): a
+	              sigil on the ground under them, a crown of rift shards
+	              over the head of floor bosses and Bosses.
 ]]
 
 local Players = game:GetService("Players")
@@ -58,6 +61,8 @@ local CreatureSlither = require(ReplicatedStorage.Shared.Animation.CreatureSlith
 local CreatureGait = require(ReplicatedStorage.Shared.Animation.CreatureGait)
 local CreatureMeshes = require(ReplicatedStorage.Shared.Animation.CreatureMeshes)
 local CreatureSounds = require(ReplicatedStorage.Shared.Definitions.CreatureSounds)
+local EnemyDefinitions = require(ReplicatedStorage.Shared.Definitions.EnemyDefinitions)
+local BossMarks = require(script.Parent.Parent.Effects.BossMarks)
 local CameraShake = require(script.Parent.Parent.Effects.CameraShake)
 local CreatureFx = require(script.Parent.Parent.Effects.CreatureFx)
 local CreatureSfx = require(script.Parent.Parent.Effects.CreatureSfx)
@@ -190,6 +195,11 @@ type Rig = {
 	staggerStart: number?,
 	staggerStamp: any,
 	defeatStart: number?,
+	-- A boss's sigil and crown (D-88), the ground height under it and when
+	-- that was last looked up (by ray while it flies).
+	marks: BossMarks.Marks?,
+	markGround: number,
+	markRayAt: number,
 }
 
 local rigs: { [Model]: Rig } = {}
@@ -652,6 +662,45 @@ local function refreshRayFilter(now: number)
 		end
 	end
 	rayParams.FilterDescendantsInstances = list
+end
+
+-- Where the crown circles: over the head, or the middle of several heads.
+local function crownAnchor(rig: Rig): Vector3
+	local sum, count = Vector3.zero, 0
+	for _, tag in rig.heads do
+		local joint = rig.motors["Head" .. tag]
+		if joint and joint:IsA("Bone") then
+			sum += joint.TransformedWorldCFrame.Position
+			count += 1
+		elseif joint and joint:IsA("Motor6D") and joint.Part1 then
+			sum += joint.Part1.Position
+			count += 1
+		end
+	end
+	if count > 0 then
+		return sum / count
+	end
+	return (rig.root.CFrame * CFrame.new(0, rig.root.Size.Y / 2 + 0.5 * rig.scale, 0)).Position
+end
+
+-- The boss's sigil on the ground under it (found by ray while it flies)
+-- and its crown over the head.
+local function placeMarks(rig: Rig, marks: BossMarks.Marks, now: number, dt: number)
+	local position = rig.root.Position
+	if rig.air < 0.05 then
+		rig.markGround = groundY(rig)
+	elseif now >= rig.markRayAt then
+		rig.markRayAt = now + 0.2
+		local hit = Workspace:Raycast(position, Vector3.new(0, -200, 0), rayParams)
+		if hit then
+			rig.markGround = hit.Position.Y
+		end
+	end
+	local enraged = rig.model:GetAttribute("RC_Enraged") == true
+	local ground = Vector3.new(position.X, rig.markGround, position.Z)
+	if not BossMarks.update(marks, now, dt, ground, crownAnchor(rig), enraged) then
+		rig.marks = nil
+	end
 end
 
 --[[
@@ -1420,6 +1469,10 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 	tailMotion(rig, now, rear, strike, down)
 	-- Last: the feet, from wherever the body ended up this frame.
 	stepLegs(rig, down)
+	local marks = rig.marks
+	if marks then
+		placeMarks(rig, marks, now, dt)
+	end
 end
 
 -- Records a joint and what it says about the rig's anatomy.
@@ -1558,7 +1611,14 @@ local function track(model: Model)
 		staggerStart = nil,
 		staggerStamp = model:GetAttribute("RC_Stagger"),
 		defeatStart = nil,
+		marks = nil,
+		markGround = root.Position.Y,
+		markRayAt = 0,
 	}
+	local enemy = EnemyDefinitions.get(model:GetAttribute("RC_Enemy"))
+	if enemy then
+		rig.marks = BossMarks.attach(model, enemy)
+	end
 	-- Joints hang off the root and off other limbs (chains); with streaming
 	-- some arrive later.
 	for _, d in model:GetDescendants() do
@@ -1575,6 +1635,10 @@ local function track(model: Model)
 	model.AncestryChanged:Connect(function(_, parent)
 		if parent == nil then
 			rigs[model] = nil
+			if rig.marks then
+				BossMarks.destroy(rig.marks)
+				rig.marks = nil
+			end
 		end
 	end)
 end
@@ -1615,6 +1679,9 @@ function MobVisualController.defeat(model: Model)
 		-- golems and birds roar), then the body settles in a puff of dust.
 		CreatureFx.embers(rig.root, false, Color3.new())
 		setEyes(rig, "Out")
+		if rig.marks then
+			BossMarks.fade(rig.marks, os.clock())
+		end
 		CreatureSfx.play(rig.voice, rig.root, rig.scale * 1.5, "defeat", 5, 0.8)
 		task.delay(0.75, function()
 			if rig.root.Parent then
@@ -1665,6 +1732,11 @@ function MobVisualController:Start()
 				-- Out of range: keep its position current so the first step
 				-- back in range does not read a burst of speed.
 				rig.lastPosition = rig.root.Position
+				-- Its boss marks still follow it (never left behind).
+				local marks = rig.marks
+				if marks then
+					placeMarks(rig, marks, now, dt)
+				end
 			end
 		end
 	end)

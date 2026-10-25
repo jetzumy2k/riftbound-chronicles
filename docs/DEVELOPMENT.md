@@ -199,6 +199,15 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 16 stage 6: creature language and boss silhouettes (D-88)
+
+1. Elites (e.g. Stoneback Guardian) show ⭐ after the name; every boss shows 👑.
+2. Floor 4, Hall of Thirty: each mini boss stands on a single glowing ring in its element's colour (Yeti and Fenrir pale blue, Nemean Lion gold, Echidna violet, Grendel crimson...), bodies tinted to match. Harpy Queen / Cockatrice / Arachne are visibly smaller, Yeti / Tarasque / Minotaur bigger; the Tarasque has spikes, the Taotie horns.
+3. Floor bosses (Cerberus, Chimera, Basilisk) and the field / sanctum Bosses: two rings with diamond rune marks, and rift shards circling over the head (over the middle of Cerberus's three heads).
+4. Let a boss enrage (or wait out its timer): the sigil turns red and spins fast. A flying boss (Chimera, Typhon) keeps its sigil on the ground below it.
+5. Defeat a boss: the sigil and crown fade out with it. Walk far away and back: no marks left floating.
+6. Frame rate on the phone emulator in the Hall of Thirty.
+
 ## Phase 16 stage 5: dungeon floors (D-87)
 
 1. Play, check the Output: both `RiftHollow_* [Dungeon]` lines about 6,100 parts, 160 lights, no warning.

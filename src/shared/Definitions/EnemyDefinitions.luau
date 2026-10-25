@@ -18,12 +18,16 @@
 	with the EXP curve (xpAt).
 	Bosses (tier Boss / Floor / Mini) get HP and hit strength from
 	Logic/BossBalance and enrage after ENRAGE_SECONDS (BossService).
-	Visual: body plan + palette for the procedural creature builder.
+	Visual: body plan + palette for the procedural creature builder;
+	bosses follow Definitions/CreatureLanguage (D-88): an element sets the
+	glow (mini bosses take the element's whole palette), and mini bosses
+	come in three weights.
 
 	Display-safe data only. Pure module.
 ]]
 
 local BossBalance = require(script.Parent.Parent.Logic.BossBalance)
+local CreatureLanguage = require(script.Parent.CreatureLanguage)
 local StatFormulas = require(script.Parent.Parent.Logic.StatFormulas)
 local XPTable = require(script.Parent.Parent.Logic.XPTable)
 
@@ -57,6 +61,8 @@ export type Enemy = {
 	-- Bosses only (BossBalance tier).
 	tier: BossBalance.Tier?,
 	traits: { Trait }?,
+	-- Bosses: the element their glow shows (CreatureLanguage, D-88).
+	element: CreatureLanguage.Element?,
 }
 
 local EnemyDefinitions = {}
@@ -632,7 +638,8 @@ local roster: { Enemy } = {
 	),
 }
 
--- Floor 4: thirty mini bosses, levels 31-40 (three per level), one per chamber.
+-- Floor 4: thirty mini bosses, levels 31-40 (three per level), one per
+-- chamber: { id, name, body }. Their element and weight follow below.
 EnemyDefinitions.MINI_BOSSES = table.freeze({
 	{ "Minotaur", "Minotaur", "Guardian" },
 	{ "Gorgon", "Gorgon", "Guardian" },
@@ -666,19 +673,82 @@ EnemyDefinitions.MINI_BOSSES = table.freeze({
 	{ "Kelpie", "Kelpie", "Beetle" },
 })
 
-local MINI_COLORS = {
-	{ { 96, 60, 52 }, { 255, 140, 80 } },
-	{ { 60, 90, 70 }, { 160, 255, 140 } },
-	{ { 80, 70, 110 }, { 210, 150, 255 } },
-	{ { 50, 60, 90 }, { 120, 190, 255 } },
-	{ { 110, 96, 70 }, { 255, 220, 120 } },
-	{ { 70, 50, 60 }, { 255, 110, 160 } },
+-- Each boss's element (D-88), from its myth: the floor and field bosses
+-- keep their own colours (within the element's hue); mini bosses wear the
+-- element's palette.
+local ELEMENT: { [string]: CreatureLanguage.Element } = {
+	Cerberus = "Fire",
+	Chimera = "Fire",
+	Basilisk = "Wild",
+	Typhon = "Void",
+	Ammit = "Sun",
+	Anzu = "Sky",
+	Sphinx = "Sun",
+	Apophis = "Fire",
+	OasisColossus = "Tide",
+	Camazotz = "Shadow",
+	Ahuizotl = "Tide",
+	Mapinguari = "Wild",
+	JungleHydra = "Wild",
+	Leviathan = "Tide",
+	Minotaur = "Fire",
+	Gorgon = "Wild",
+	HarpyQueen = "Sky",
+	Fenrir = "Sky",
+	Garmr = "Shadow",
+	Orthrus = "Fire",
+	Arachne = "Shadow",
+	Scylla = "Tide",
+	Charybdis = "Void",
+	Tarasque = "Wild",
+	Grendel = "Shadow",
+	Yeti = "Sky",
+	Griffin = "Sun",
+	Wyvern = "Wild",
+	Fafnir = "Sun",
+	NemeanLion = "Sun",
+	Manticore = "Fire",
+	ErymanthianBoar = "Sky",
+	Cockatrice = "Wild",
+	Bakunawa = "Tide",
+	Taotie = "Shadow",
+	Bunyip = "Tide",
+	Catoblepas = "Wild",
+	Ladon = "Sun",
+	Echidna = "Void",
+	Nian = "Fire",
+	Peryton = "Sky",
+	Cadejo = "Void",
+	BlackShuck = "Shadow",
+	Kelpie = "Tide",
+}
+
+-- Mini boss weights (D-88): light and heavy breeds; the rest standard.
+EnemyDefinitions.MINI_SCALE = table.freeze({ Light = 1.9, Standard = 2.2, Heavy = 2.5 })
+local MINI_WEIGHT: { [string]: "Light" | "Heavy" } = {
+	HarpyQueen = "Light",
+	Cockatrice = "Light",
+	Cadejo = "Light",
+	Arachne = "Light",
+	Peryton = "Light",
+	Kelpie = "Light",
+	Tarasque = "Heavy",
+	Yeti = "Heavy",
+	Fafnir = "Heavy",
+	Grendel = "Heavy",
+	ErymanthianBoar = "Heavy",
+	Minotaur = "Heavy",
+	Catoblepas = "Heavy",
 }
 
 for index, spec in EnemyDefinitions.MINI_BOSSES do
 	local level = 30 + math.ceil(index / 3)
-	local colors = MINI_COLORS[(index - 1) % #MINI_COLORS + 1]
-	table.insert(roster, boss(spec[1], spec[2], spec[3] :: any, level, "Mini", 2.2, colors[1], colors[2]))
+	local palette = CreatureLanguage.ELEMENTS[ELEMENT[spec[1]]]
+	local scale = EnemyDefinitions.MINI_SCALE[MINI_WEIGHT[spec[1]] or "Standard"]
+	table.insert(
+		roster,
+		boss(spec[1], spec[2], spec[3] :: any, level, "Mini", scale, palette.body, palette.glow)
+	)
 end
 
 -- Each boss's myth look on top of its body plan (creator review 2026-10-17:
@@ -705,6 +775,9 @@ local LOOKS: { [string]: { Trait } } = {
 	Garmr = { "Spikes" },
 	Orthrus = { "Mane" },
 	Grendel = { "Spikes" },
+	-- D-88: the Tarasque's spiked shell, the Taotie's horns.
+	Tarasque = { "Spikes" },
+	Taotie = { "Horns" },
 	Griffin = { "Wings" },
 	Wyvern = { "Wings", "SerpentTail" },
 	Fafnir = { "Wings", "Horns" },
@@ -724,6 +797,9 @@ for _, enemy in roster do
 	local traits = LOOKS[enemy.id]
 	if traits then
 		(enemy :: any).traits = traits
+	end
+	if enemy.tier then
+		(enemy :: any).element = ELEMENT[enemy.id]
 	end
 end
 

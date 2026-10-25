@@ -34,6 +34,7 @@ local specs = {
 	{ "world_layout", require("./specs/world_layout.spec") },
 	{ "world_budget", require("./specs/world_budget.spec") },
 	{ "capital_terrain", require("./specs/capital_terrain.spec") },
+	{ "creature_language", require("./specs/creature_language.spec") },
 	{ "race_select_layout", require("./specs/race_select_layout.spec") },
 	{ "motion_math", require("./specs/motion_math.spec") },
 	{ "job_definitions", require("./specs/job_definitions.spec") },
