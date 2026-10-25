@@ -83,6 +83,8 @@ local log = Log.new("PvPService")
 local PvPService = {
 	-- (player, zoneId) walked out through their camp's Return portal (quests).
 	ReturnedHome = Signal.new(),
+	-- (attacker, victim) a PvP victory was credited (event contests, D-92).
+	VictoryCredited = Signal.new(),
 }
 
 -- Quest unlocks apply on live servers (and in Studio if configured, D-73).
@@ -200,6 +202,8 @@ local function addMarks(player: Player, amount: number, source: string)
 	if data == nil or amount <= 0 then
 		return
 	end
+	-- PvP Arena Rush (D-92): Marks multiplied while it runs.
+	amount = math.floor(amount * EventService:Factor("Marks", player) + 0.5)
 	data.Wallet.PvPMarks += amount
 	AuditLogService:Audit({
 		actorUserId = player.UserId,
@@ -274,6 +278,7 @@ local function recordDefeat(victim: Player, attacker: Player?, protectionEndedAg
 		notify(attacker, "Info", "pvp.victory", { name = victim.DisplayName })
 		addMarks(attacker, config().MarksPerVictory, "victory")
 		grantVictoryTitles(attacker, data)
+		PvPService.VictoryCredited:Fire(attacker, victim)
 	else
 		log:Debug("no victory credit %d -> %d: %s", attacker.UserId, victim.UserId, tostring(reason))
 	end

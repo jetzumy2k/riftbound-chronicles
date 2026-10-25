@@ -594,6 +594,12 @@ QuestDefinitions.Titles = table.freeze({
 	RiftVanguard = "Rift Vanguard",
 	RiftChampion = "Rift Champion",
 	TwinRealmLegend = "Twin Realm Legend",
+	-- Live event titles (Phase 18 stage 3, D-92).
+	TreasureSeeker = "Treasure Seeker",
+	KeenEye = "Keen Eye",
+	RealmDefender = "Realm Defender",
+	TournamentVictor = "Tournament Victor",
+	ParadeStar = "Parade Star",
 } :: { [string]: string })
 
 -- Cosmetics granted now; shown on the character in the art pass (Phase 16).

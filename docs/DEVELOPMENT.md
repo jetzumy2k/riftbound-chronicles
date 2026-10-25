@@ -199,6 +199,18 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 18 stage 3: hunts and challenges (D-92)
+
+Studio Play as Player1 (Owner), 🛠 > 🎉 Events (every event now has Start / Schedule).
+
+1. Treasure Hunt: tap the 🎉 chip: the board lists 5 clues. Go to the Desert / Jungle Rift and follow one: a chest with a glowing lid stands there; hold "Open": "+500 Gold, 2 stones" and "Chest opened: 1 of 5". Opening it again says you already did. All 5: title Treasure Seeker.
+2. Hidden Chest Hunt: 12 plain chests across both war zones; 8 give the title Keen Eye. Stop the event: the chests vanish.
+3. Angel Defense (as an Angel): every minute a wave of 6 Rift creatures comes into your capital's training yard ("Wave 1 of 5"); the board counts defeats. Stop the event: remaining creatures vanish and every defender gets 500 Gold + 1 stone (10+ defeats: Realm Defender).
+4. Race Challenge / Cross-Race Tournament (local server, 2 players of different realms, level 10+ or Studio min level): win fights in a war zone; the board shows the realm score and the top 5. When the event ends, fighters are paid (winners more; tournament top 3).
+5. PvP Arena Rush: a credited victory gives 10 PvP Marks instead of 5.
+6. Cosmetic Parade: stand in a capital for 5 minutes: 200 Gold and the title Parade Star (only once per parade).
+7. The board refreshes while open; Close or another panel closes it. Phone emulator: the board fits and scrolls.
+
 ## Phase 18 stage 2: world events (D-91)
 
 Studio Play as Player1 (Owner), 🛠 > 🎉 Events; travel to a war zone (Studio min level 1).

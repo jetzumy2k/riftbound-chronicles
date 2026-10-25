@@ -31,6 +31,8 @@ local BUILT = {
 	-- Stage 2 (D-91).
 	MythicalWeight = true,
 	BossRespawn = true,
+	-- Stage 3 (D-92).
+	Marks = true,
 }
 
 return function(t)
@@ -151,7 +153,6 @@ return function(t)
 			end
 			t.eq(can({}, "DoubleExp", 0, 60), "ok")
 			t.eq(can({}, "Nope", 0, 60), "unknown")
-			t.eq(can({}, "TreasureHunt", 0, 30), "notReady")
 			t.eq(can({}, "DoubleExp", 0, 0), "duration")
 			t.eq(can({}, "DoubleExp", 0, 5 * 24 * 60), "duration")
 			t.eq(can({}, "DoubleExp", -3600, 60), "past")

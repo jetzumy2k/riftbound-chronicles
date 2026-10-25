@@ -9,8 +9,11 @@
 	    Weekend. All EXP from creatures is doubled.") and ends, as toasts;
 	    on joining, running events are listed once ("Event running: ...");
 	  - shows a chip at the top centre while any event runs: the events'
-	    icons and the time left on the soonest to end. Tapping it lists
-	    every running event with its time left.
+	    icons and the time left on the soonest to end. Tapping it opens
+	    the event board (D-92): every running event with its time left,
+	    what it does, and its live state from the RC_EventBoard attribute
+	    (treasure clues, realm / tournament scores, defense waves, the
+	    parade's 5 minutes).
 ]]
 
 local HttpService = game:GetService("HttpService")
@@ -24,9 +27,11 @@ local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local Panels = require(UI.Panels)
 local NotificationController = require(script.Parent.NotificationController)
 
 local ATTRIBUTE = "RC_Events"
+local BOARD = "RC_EventBoard"
 
 local EventController = {}
 
@@ -35,6 +40,56 @@ type Running = { Id: string, EndsAt: number }
 local running: { Running } = {}
 local seen: { [string]: boolean }? = nil
 local chip: TextButton? = nil
+local board: Frame? = nil
+local drawBoard: () -> ()
+
+local function boardData(): { [string]: any }
+	local raw = ReplicatedStorage:GetAttribute(BOARD)
+	local ok, data = pcall(HttpService.JSONDecode, HttpService, if type(raw) == "string" then raw else "{}")
+	return if ok and type(data) == "table" then data else {}
+end
+
+-- Live lines for event `id` from the board (scores, clues, waves).
+local function liveLines(id: string, data: any): { string }
+	local lines = {}
+	if type(data) ~= "table" then
+		return lines
+	end
+	if id == "TreasureHunt" and type(data.clues) == "table" then
+		for index, clue in data.clues do
+			table.insert(lines, `Chest {index}: {clue}`)
+		end
+		table.insert(lines, "Find all 5 for the title Treasure Seeker.")
+	elseif id == "HiddenChestHunt" then
+		table.insert(
+			lines,
+			`{data.total or 12} chests are hidden around both war zones. Find 8 for the title Keen Eye.`
+		)
+	elseif id == "RaceChallenge" then
+		table.insert(lines, `Angels {data.Angel or 0}  :  {data.Devil or 0} Devils (war-zone victories)`)
+		table.insert(lines, "Everyone who wins a fight is paid at the end; the winning realm more.")
+	elseif id == "CrossRaceTournament" then
+		if type(data.top) == "table" and #data.top > 0 then
+			for place, entry in data.top do
+				table.insert(lines, `{place}. {entry.name}: {entry.score}`)
+			end
+		else
+			table.insert(lines, "No victories yet. The top 3 are paid at the end.")
+		end
+	elseif id == "AngelDefense" or id == "DevilDefense" then
+		table.insert(
+			lines,
+			`Wave {data.wave or 0} of {data.waves or 5} · {data.kills or 0} creatures defeated`
+		)
+		table.insert(lines, "Fight them in your training yard; every defender is paid at the end.")
+	elseif id == "CosmeticParade" then
+		table.insert(
+			lines,
+			`Spend {math.floor((data.seconds or 300) / 60)} minutes in a capital for the title Parade Star.`
+		)
+	end
+	return lines
+end
 
 local function decode(): { Running }
 	local raw = ReplicatedStorage:GetAttribute(ATTRIBUTE)
@@ -125,6 +180,9 @@ local function update()
 	seen = ids
 	running = now
 	render()
+	if board then
+		drawBoard()
+	end
 end
 
 local function build()
@@ -162,21 +220,113 @@ local function build()
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	fit()
 	button.Activated:Connect(function()
-		for _, entry in running do
-			local e = EventDefinitions.get(entry.Id) :: EventDefinitions.Event
-			NotificationController:ShowKey(
-				"Info",
-				"event.running",
-				{ name = `{e.icon} {e.name}`, left = left(entry.EndsAt) }
-			)
+		if board then
+			EventController.closeBoard()
+		else
+			Panels.opened("events")
+			drawBoard()
 		end
 	end)
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
 	chip = button
 end
 
+function EventController.closeBoard()
+	if board then
+		board:Destroy()
+		board = nil
+		Panels.closed("events")
+	end
+end
+
+-- The event board: every running event, its time left and live state.
+function drawBoard()
+	local old = board
+	if old then
+		old:Destroy()
+	end
+	local layer = Panels.layer()
+	local screen = layer.AbsoluteSize
+	local w, h = math.min(screen.X - 16, 460), math.min(screen.Y - 16, 480)
+	local frame = Kit.glassPanel({
+		Name = "EventBoard",
+		Active = true,
+		Position = UDim2.fromOffset((screen.X - w) / 2, (screen.Y - h) / 2),
+		Size = UDim2.fromOffset(w, h),
+		Parent = layer,
+	})
+	board = frame
+	local title = Kit.label("🎉 Live events", 17, Theme.Fonts.Display, Theme.Colors.GoldBright)
+	title.AutomaticSize = Enum.AutomaticSize.None
+	title.Position = UDim2.fromOffset(14, 10)
+	title.Size = UDim2.new(1, -110, 0, 26)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = frame
+	local close = Kit.new("TextButton", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, 8),
+		Size = UDim2.fromOffset(80, 44),
+		BackgroundColor3 = Theme.Colors.GlassHighlight,
+		BackgroundTransparency = 0.3,
+		Text = "Close",
+		TextSize = 13,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.Text,
+		Parent = frame,
+	})
+	Kit.corner(close, 8)
+	close.Activated:Connect(EventController.closeBoard)
+	local scroll = Kit.new("ScrollingFrame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, 58),
+		Size = UDim2.new(1, -20, 1, -66),
+		CanvasSize = UDim2.fromScale(0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 6,
+		Parent = frame,
+	})
+	local list = Kit.list(scroll, Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Left)
+	list.VerticalAlignment = Enum.VerticalAlignment.Top
+	local function line(parent: Instance, text: string, size: number, color: Color3, bold: boolean?)
+		local l = Kit.label(text, size, if bold then Theme.Fonts.BodyBold else Theme.Fonts.Body, color)
+		l.Size = UDim2.new(1, -8, 0, 0)
+		l.AutomaticSize = Enum.AutomaticSize.Y
+		l.TextWrapped = true
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.Parent = parent
+	end
+	local data = boardData()
+	if #running == 0 then
+		line(scroll, "No events running right now.", 13, Theme.Colors.TextDim)
+	end
+	for _, entry in running do
+		local e = EventDefinitions.get(entry.Id) :: EventDefinitions.Event
+		local card = Kit.new("Frame", {
+			BackgroundColor3 = Theme.Colors.Ink,
+			BackgroundTransparency = 0.45,
+			Size = UDim2.new(1, -8, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = scroll,
+		})
+		Kit.corner(card, 10)
+		Kit.padding(card, 8, 10)
+		Kit.list(card, Enum.FillDirection.Vertical, 3, Enum.HorizontalAlignment.Left)
+		line(card, `{e.icon} {e.name} · {left(entry.EndsAt)} left`, 14, Theme.Colors.GoldBright, true)
+		line(card, e.blurb, 12, Theme.Colors.TextDim)
+		for _, text in liveLines(e.id, data[e.id]) do
+			line(card, text, 12, Theme.Colors.Text)
+		end
+	end
+end
+
 function EventController:Start()
 	build()
+	Panels.register("events", EventController.closeBoard)
+	ReplicatedStorage:GetAttributeChangedSignal(BOARD):Connect(function()
+		if board then
+			drawBoard()
+		end
+	end)
 	ReplicatedStorage:GetAttributeChangedSignal(ATTRIBUTE):Connect(update)
 	update()
 	-- The countdown ticks once a minute is enough; every 15 s keeps it close.

@@ -47,7 +47,7 @@ export type Event = {
 }
 
 -- Stages built so far: events above this can't be started yet.
-EventDefinitions.READY_STAGE = 2
+EventDefinitions.READY_STAGE = 3
 
 local DAY = 24 * 60
 

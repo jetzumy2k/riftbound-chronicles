@@ -45,6 +45,10 @@ local STRINGS: { [string]: string } = {
 	["event.ended"] = "Event ended: {name}",
 	["event.worldBoss"] = "The Nullborn Herald has descended on both war zones!",
 	["event.invasion"] = "Mythical bosses invade the war zones!",
+	["event.reward"] = "Event reward: {gold} Gold, {stones} Enhancement Stone(s)",
+	["event.chestFound"] = "Chest opened: {found} of {total} found",
+	["event.chestOpened"] = "You already opened this chest",
+	["event.wave"] = "Defend the training yard! Wave {wave} of {waves}",
 	["event.running"] = "Event running: {name} ({left} left)",
 	-- Phase 11 quests (D-73).
 	["quest.accepted"] = "New quest: {name}",
