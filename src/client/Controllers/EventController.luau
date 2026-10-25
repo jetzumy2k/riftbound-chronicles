@@ -23,6 +23,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
+local EventRewards = require(Shared.Logic.EventRewards)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -35,7 +36,7 @@ local BOARD = "RC_EventBoard"
 
 local EventController = {}
 
-type Running = { Id: string, EndsAt: number }
+type Running = { Id: string, EndsAt: number, Rewards: { any }? }
 
 local running: { Running } = {}
 local seen: { [string]: boolean }? = nil
@@ -103,7 +104,11 @@ local function decode(): { Running }
 	local out = {}
 	for _, entry in list do
 		if type(entry) == "table" and EventDefinitions.get(entry.Id) and type(entry.EndsAt) == "number" then
-			table.insert(out, { Id = entry.Id, EndsAt = entry.EndsAt })
+			table.insert(out, {
+				Id = entry.Id,
+				EndsAt = entry.EndsAt,
+				Rewards = if type(entry.Rewards) == "table" then entry.Rewards else nil,
+			})
 		end
 	end
 	return out
@@ -313,6 +318,15 @@ function drawBoard()
 		Kit.list(card, Enum.FillDirection.Vertical, 3, Enum.HorizontalAlignment.Left)
 		line(card, `{e.icon} {e.name} · {left(entry.EndsAt)} left`, 14, Theme.Colors.GoldBright, true)
 		line(card, e.blurb, 12, Theme.Colors.TextDim)
+		if entry.Rewards and #entry.Rewards > 0 then
+			line(
+				card,
+				`🎁 Bonus rewards: {EventRewards.describe(entry.Rewards)}, for {EventRewards.RECIPIENTS[e.rewardTo or ""] or "taking part"}.`,
+				12,
+				Theme.Colors.GoldBright,
+				true
+			)
+		end
 		for _, text in liveLines(e.id, data[e.id]) do
 			line(card, text, 12, Theme.Colors.Text)
 		end

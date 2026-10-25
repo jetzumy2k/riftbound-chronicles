@@ -46,6 +46,10 @@ local function wrapProfile(profile: any): Session
 	function session.isActive(_)
 		return profile:IsActive()
 	end
+	-- Saves now (a Robux purchase was granted, D-93).
+	function session.save(_)
+		profile:Save()
+	end
 	function session.endSession(_)
 		profile:EndSession()
 	end

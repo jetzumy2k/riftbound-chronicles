@@ -34,7 +34,9 @@ export type State = {
 	Inventory: { [string]: Item },
 	Equipment: { [string]: string },
 	Stackables: { [string]: number },
-	Wallet: { Gold: number, PvPMarks: number },
+	Wallet: { Gold: number, PvPMarks: number, MallPoints: number? },
+	-- D-93: running Mall buffs, id -> when they end (os.clock()).
+	BuffsUntil: { [string]: number },
 	PvP: { Victories: number, Defeats: number },
 	ReadyAt: { [string]: number },
 	-- Phase 11 (D-73): quests, story flags, titles, cosmetics.
@@ -100,7 +102,20 @@ local state: State = {
 	HudLayout = {},
 	Attributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
 	AttributeResetAt = 0,
+	BuffsUntil = {},
 }
+
+local function readBuffs(view: any)
+	state.BuffsUntil = {}
+	if type(view) == "table" then
+		local now = os.clock()
+		for id, seconds in view do
+			if type(seconds) == "number" then
+				state.BuffsUntil[id] = now + seconds
+			end
+		end
+	end
+end
 
 local function readAttributes(view: any)
 	if type(view) == "table" and type(view.Attributes) == "table" then
@@ -135,10 +150,17 @@ function PlayerDataController:Init()
 			HudLayout = snapshot.HudLayout or {},
 			Attributes = state.Attributes,
 			AttributeResetAt = state.AttributeResetAt,
+			BuffsUntil = {},
 		}
 		readAttributes(snapshot.Attributes)
+		readBuffs(snapshot.Buffs)
 		log:Debug("snapshot: L%d %d/%d XP", state.Level, state.Experience, state.XPToNext)
 		PlayerDataController.Changed:Fire(state, "snapshot", 0)
+	end)
+
+	NetClient.on("BuffsUpdate", function(update)
+		readBuffs(update)
+		PlayerDataController.Changed:Fire(state, "buffs", 0)
 	end)
 
 	NetClient.on("AttributesUpdate", function(update)

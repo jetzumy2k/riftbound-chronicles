@@ -155,6 +155,16 @@ return function(S: any)
 					StartsAt = S.int(0),
 					EndsAt = S.int(0),
 					By = S.int(0),
+					-- D-93 stage 2: rewards for playing during the run
+					-- (Logic/EventRewards checks the content).
+					Rewards = S.optional(S.array(
+						S.struct({
+							Kind = S.enum({ "MallPoints", "Item", "Set" }),
+							Id = S.optional(S.string(32, 1, "^[%w_]+$")),
+							Count = S.int(1, 10000),
+						}),
+						4
+					)),
 				}),
 				64
 			),

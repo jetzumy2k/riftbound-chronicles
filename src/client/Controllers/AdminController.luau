@@ -43,6 +43,7 @@ local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local AdminRules = require(Shared.Logic.AdminRules)
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
+local EventRewards = require(Shared.Logic.EventRewards)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -108,6 +109,13 @@ local minutesIndex = 2
 -- re-asked after an action or on opening the tab, not on every tap).
 local eventDay = 0
 local eventsFetched: any = nil
+-- D-93 stage 2: rewards to attach to the next Start / Schedule.
+local eventRewards: { EventRewards.Entry } = {}
+-- The event page open (nil: the list) and the reward group being picked.
+local eventPage: string? = nil
+local rewardGroup = "MallPoints"
+local rewardItem = "EnhancementStone"
+local rewardSet = "Legendary"
 
 -- Settings tab
 local config: any = nil
@@ -394,7 +402,11 @@ local function drawProfile(body: Instance, p: any)
 	label(overview, `Realm: {p.Race or "not chosen"}  ·  Class: {p.Job or "not chosen"}`, 13)
 	label(overview, `PvP: {p.Victories} victories / {p.Defeats} defeats`, 13)
 	if p.Wallet then
-		label(overview, `Gold {p.Wallet.Gold}  ·  PvP Marks {p.Wallet.PvPMarks}`, 13)
+		label(
+			overview,
+			`Gold {p.Wallet.Gold}  ·  PvP Marks {p.Wallet.PvPMarks}  ·  Mall Points {p.Wallet.MallPoints or 0}`,
+			13
+		)
 		local stones = {}
 		for id, count in p.Stackables or {} do
 			table.insert(stones, `{AdminText.words(id)} x{count}`)
@@ -449,12 +461,14 @@ local function drawProgress(body: Instance, p: any)
 	end)
 	local wallet = card(
 		body,
-		"Gold and PvP Marks",
+		"Gold, PvP Marks and Mall Points",
 		"Type an amount to add. Use a minus number to take (for example -100); it never goes below 0."
 	)
 	local r = row(wallet)
 	field(r, "amount", "Amount", 130)
-	for _, currency in { { "Gold", "Add Gold" }, { "PvPMarks", "Add PvP Marks" } } do
+	for _, currency in
+		{ { "Gold", "Add Gold" }, { "PvPMarks", "Add PvP Marks" }, { "MallPoints", "Add Mall Points" } }
+	do
 		button(r, currency[2], 130, "gold", function()
 			local n = numberIn("amount")
 			if n == nil then
@@ -1271,6 +1285,12 @@ local EVENT_REASONS = {
 	full = "too many events are running or scheduled",
 	notRunning = "it is not running or scheduled",
 	stale = "another admin changed the settings meanwhile; try again",
+	rewardsPermission = "only an Owner or Admin can attach rewards",
+	["rewards:count"] = "a reward amount is too big (Mall Points up to 10,000, items up to 99, one set)",
+	["rewards:many"] = "at most 4 rewards per event",
+	["rewards:item"] = "that item can't be an event reward",
+	["rewards:group"] = "this event doesn't take that kind of reward",
+	["rewards:none"] = "this event takes no bonus rewards",
 	RateLimited = "too many requests at once; wait a few seconds and try again",
 }
 
@@ -1333,15 +1353,60 @@ local function scheduledStart(): (number?, string?)
 	return midnight + eventDay * 86400 + hour * 3600 + minute * 60, nil
 end
 
-local function drawEvents(area: Frame)
-	local body = scroller(area, "events", UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1))
-	local listed = eventsFetched or eventCall("List", {})
-	if listed == nil then
-		return
+local GROUPS = {
+	{
+		id = "Boosts",
+		title = "⚡ Boosts",
+		help = "Raise EXP, drops, stones or healing while they run. The boost is the reward.",
+	},
+	{ id = "World", title = "🌍 World events", help = "Creatures, bosses or weather in the war zones." },
+	{ id = "Hunts", title = "🗺️ Hunts", help = "Chests to find in the war zones." },
+	{ id = "Challenges", title = "🏆 Challenges", help = "Contests between players and realms." },
+}
+local ZONE_TEXT = {
+	All = "everywhere",
+	Dungeon = "the dungeons",
+	Desert = "the Desert Rift",
+	Jungle = "the Jungle Rift",
+	WarZones = "both war zones",
+	Capitals = "the capitals",
+	Training = "the training yards",
+}
+
+-- The live window of event `id` (running or scheduled), if any.
+local function windowOf(listed: any, id: string): any
+	for _, w in listed.windows do
+		if w.Id == id and w.EndsAt > listed.now then
+			return w
+		end
 	end
-	eventsFetched = listed
+	return nil
+end
+
+local function windowLine(w: any, now: number): string
+	if w.StartsAt <= now then
+		return `● Running · ends in {span(w.EndsAt - now)}`
+	end
+	return `📅 Scheduled · starts {localText(w.StartsAt)} your time (in {span(w.StartsAt - now)}), lasts {span(
+		w.EndsAt - w.StartsAt
+	)}`
+end
+
+local function stopButton(parent: Instance, e: EventDefinitions.Event, w: any, now: number)
+	local started = w.StartsAt <= now
+	button(parent, if started then "Stop" else "Cancel", 96, "danger", function()
+		if eventCall("Stop", { Id = w.Id }) then
+			setStatus(`✅ {e.name} {if started then "stopped" else "cancelled"}.`)
+			eventsFetched = nil
+			refresh()
+		end
+	end)
+end
+
+-- The list: what is live, then every event by group; tap one to open it.
+local function drawEventList(body: Instance, listed: any)
 	local now = listed.now
-	local live = card(body, "Running and scheduled", "Every server follows this list (times in UTC).")
+	local live = card(body, "Live now and scheduled", "Every server follows this list.")
 	local any = false
 	for _, w in listed.windows do
 		local e = EventDefinitions.get(w.Id)
@@ -1349,45 +1414,298 @@ local function drawEvents(area: Frame)
 			continue
 		end
 		any = true
-		local line = row(live)
-		local started = w.StartsAt <= now
+		local r = row(live)
 		label(
-			line,
-			`{e.icon} {e.name}: {if started
-				then `running, ends in {span(w.EndsAt - now)}`
-				else `starts {localText(w.StartsAt)} your time (in {span(w.StartsAt - now)}), lasts {span(
-					w.EndsAt - w.StartsAt
-				)}`}`,
+			r,
+			`{e.icon} {e.name}  ·  {windowLine(w, now)}`,
 			13,
-			if started then Theme.Colors.Safe else Theme.Colors.Text,
+			if w.StartsAt <= now then Theme.Colors.Safe else Theme.Colors.Text,
 			true
 		).Size =
 			UDim2.new(1, -110, 0, 0)
-		button(line, if started then "Stop" else "Cancel", 96, "danger", function()
-			if eventCall("Stop", { Id = w.Id }) then
-				setStatus(`✅ {e.name} {if started then "stopped" else "cancelled"}.`)
-				eventsFetched = nil
-				refresh()
-			end
-		end)
+		stopButton(r, e, w, now)
+		if w.Rewards and #w.Rewards > 0 then
+			label(live, `      🎁 {EventRewards.describe(w.Rewards)}`, 12, Theme.Colors.GoldBright)
+		end
 	end
 	if not any then
-		label(live, "No events running or scheduled.", 12, Theme.Colors.TextDim)
+		label(live, "Nothing is running or scheduled.", 12, Theme.Colors.TextDim)
+	end
+	for _, group in GROUPS do
+		local box = card(body, group.title, group.help)
+		for _, e in EventDefinitions.List do
+			if e.group ~= group.id then
+				continue
+			end
+			local w = windowOf(listed, e.id)
+			local entry = Kit.new("TextButton", {
+				BackgroundColor3 = Theme.Colors.Ink,
+				BackgroundTransparency = 0.5,
+				Size = UDim2.new(1, 0, 0, 52),
+				Text = "",
+				AutoButtonColor = true,
+				Parent = box,
+			})
+			Kit.corner(entry, 8)
+			local name = Kit.label(
+				`{e.icon} {e.name}{if w
+					then (if w.StartsAt <= now then "   ● Running" else "   📅 Scheduled")
+					else ""}`,
+				14,
+				Theme.Fonts.BodyBold,
+				if w then Theme.Colors.Safe else Theme.Colors.GoldBright
+			)
+			name.AutomaticSize = Enum.AutomaticSize.None
+			name.Position = UDim2.fromOffset(10, 6)
+			name.Size = UDim2.new(1, -60, 0, 20)
+			name.TextXAlignment = Enum.TextXAlignment.Left
+			name.TextTruncate = Enum.TextTruncate.AtEnd
+			name.Parent = entry
+			local blurb = Kit.label(e.blurb, 11, Theme.Fonts.Body, Theme.Colors.TextDim)
+			blurb.AutomaticSize = Enum.AutomaticSize.None
+			blurb.Position = UDim2.fromOffset(10, 27)
+			blurb.Size = UDim2.new(1, -60, 0, 18)
+			blurb.TextXAlignment = Enum.TextXAlignment.Left
+			blurb.TextTruncate = Enum.TextTruncate.AtEnd
+			blurb.Parent = entry
+			local arrow = Kit.label("›", 26, Theme.Fonts.BodyBold, Theme.Colors.GoldBright)
+			arrow.AnchorPoint = Vector2.new(1, 0.5)
+			arrow.Position = UDim2.new(1, -14, 0.5, 0)
+			arrow.Parent = entry
+			entry.Activated:Connect(function()
+				eventPage = e.id
+				eventRewards = {}
+				rewardGroup = if e.rewards then e.rewards[1] else "MallPoints"
+				setStatus("")
+				refresh()
+			end)
+		end
+	end
+end
+
+-- One event: about, status, 1 length, 2 bonus rewards, 3 when.
+local function drawEventPage(body: Instance, listed: any, e: EventDefinitions.Event)
+	local now = listed.now
+	local top = row(body)
+	button(top, "← All events", 130, nil, function()
+		eventPage = nil
+		setStatus("")
+		refresh()
+	end)
+	label(top, `{e.icon} {e.name}`, 17, Theme.Colors.GoldBright, true).Size = UDim2.new(1, -150, 0, 0)
+
+	local eligible = e.eligible
+	local who = "every player"
+	if eligible then
+		who = if eligible.race
+			then `{eligible.race}s only`
+			elseif eligible.job then `{eligible.job}s only`
+			elseif eligible.minLevel then `level {eligible.minLevel}+`
+			else who
+	end
+	local about = card(body, "About")
+	label(about, e.blurb, 13)
+	label(
+		about,
+		`Where: {ZONE_TEXT[e.zone] or e.zone}   ·   Who: {who}   ·   Longest run: {lengthText(e.maxMinutes)}   ·   Cooldown: {lengthText(
+			e.cooldownMinutes
+		)}`,
+		12,
+		Theme.Colors.TextDim
+	)
+	local w = windowOf(listed, e.id)
+	if w then
+		local r = row(about)
+		label(
+			r,
+			windowLine(w, now),
+			13,
+			if w.StartsAt <= now then Theme.Colors.Safe else Theme.Colors.Text,
+			true
+		).Size =
+			UDim2.new(1, -110, 0, 0)
+		stopButton(r, e, w, now)
+		if w.Rewards and #w.Rewards > 0 then
+			label(
+				about,
+				`🎁 Bonus rewards: {EventRewards.describe(w.Rewards)}`,
+				12,
+				Theme.Colors.GoldBright
+			)
+		end
 	end
 
-	local options = card(
-		body,
-		"Length and start",
-		"Pick how long the event lasts. 'Start now' begins it at once. To schedule: pick the day, type the start time (your local time, 24-hour, e.g. 14:30), then press 'Schedule' on the event."
-	)
-	local lengths = row(options)
+	-- 1. Length.
+	local lengthCard = card(body, "1. How long")
+	local lengths = row(lengthCard)
+	local chosen = math.min(EVENT_MINUTES[minutesIndex], e.maxMinutes)
 	for index, minutes in EVENT_MINUTES do
-		button(lengths, lengthText(minutes), 76, if index == minutesIndex then "gold" else nil, function()
-			minutesIndex = index
+		if minutes <= e.maxMinutes then
+			button(lengths, lengthText(minutes), 80, if index == minutesIndex then "gold" else nil, function()
+				minutesIndex = index
+				refresh()
+			end)
+		end
+	end
+	if EVENT_MINUTES[minutesIndex] > e.maxMinutes then
+		label(
+			lengthCard,
+			`This event runs at most {lengthText(e.maxMinutes)}: it will run {lengthText(chosen)}.`,
+			12,
+			Theme.Colors.TextDim
+		)
+	end
+
+	-- 2. Bonus rewards (only events that take them, only Owner / Admin).
+	local rewardCard = card(body, "2. Bonus rewards (optional)")
+	local allowedGroups = e.rewards
+	if allowedGroups == nil then
+		label(
+			rewardCard,
+			"This event's boost is the reward, so it takes no bonus rewards.",
+			12,
+			Theme.Colors.TextDim
+		)
+	elseif not can("items.grant") then
+		label(rewardCard, "Only an Owner or Admin can add bonus rewards.", 12, Theme.Colors.TextDim)
+	else
+		label(
+			rewardCard,
+			`Given once to {EventRewards.RECIPIENTS[e.rewardTo or ""] or "the players who take part"}, on top of the event's usual prizes. Up to {EventRewards.MAX_ENTRIES}.`,
+			12,
+			Theme.Colors.TextDim
+		)
+		if table.find(allowedGroups, rewardGroup) == nil then
+			rewardGroup = allowedGroups[1]
+		end
+		local tabs = row(rewardCard)
+		for _, group in EventRewards.GROUP_ORDER do
+			if table.find(allowedGroups, group) then
+				button(
+					tabs,
+					EventRewards.GROUP_NAMES[group],
+					150,
+					if group == rewardGroup then "gold" else nil,
+					function()
+						rewardGroup = group
+						refresh()
+					end
+				)
+			end
+		end
+		local items = (EventRewards.GROUP_ITEMS :: any)[rewardGroup] :: { string }?
+		if items then
+			if table.find(items, rewardItem) == nil then
+				rewardItem = items[1]
+			end
+			local pick = row(rewardCard)
+			for _, id in items do
+				local def = ItemDefinitions.stackable(id)
+				button(
+					pick,
+					if def then `{def.glyph} {def.name}` else id,
+					170,
+					if rewardItem == id then "gold" else nil,
+					function()
+						rewardItem = id
+						refresh()
+					end
+				)
+			end
+		elseif rewardGroup == "Sets" then
+			local pick = row(rewardCard)
+			for _, rarity in EventRewards.SET_RARITIES do
+				button(pick, `{rarity} set`, 150, if rewardSet == rarity then "gold" else nil, function()
+					rewardSet = rarity
+					refresh()
+				end)
+			end
+			label(
+				rewardCard,
+				"A complete set for the receiver's class at their level, fixed attributes.",
+				11,
+				Theme.Colors.TextDim
+			)
+		end
+		local add = row(rewardCard)
+		if rewardGroup ~= "Sets" then
+			local quick: { number } = if rewardGroup == "MallPoints"
+				then { 100, 250, 500, 1000 }
+				else { 1, 3, 5, 10 }
+			for _, n in quick do
+				button(
+					add,
+					tostring(n),
+					60,
+					if fields.rewardCount == tostring(n) then "gold" else nil,
+					function()
+						fields.rewardCount = tostring(n)
+						refresh()
+					end
+				)
+			end
+			field(add, "rewardCount", "or type", 90)
+		end
+		button(add, "+ Add", 90, "gold", function()
+			if #eventRewards >= EventRewards.MAX_ENTRIES then
+				setStatus(`❌ At most {EventRewards.MAX_ENTRIES} bonus rewards.`, true)
+				return
+			end
+			local entry: EventRewards.Entry
+			if rewardGroup == "Sets" then
+				entry = { Kind = "Set", Id = rewardSet, Count = 1 }
+			else
+				local n = tonumber(fields.rewardCount or "")
+				if n == nil or n < 1 or n % 1 ~= 0 then
+					setStatus("❌ Pick or type an amount first.", true)
+					return
+				end
+				entry = if rewardGroup == "MallPoints"
+					then { Kind = "MallPoints", Count = n }
+					else { Kind = "Item", Id = rewardItem, Count = n }
+			end
+			local ok, reason = EventRewards.validate({ entry }, allowedGroups)
+			if not ok then
+				setStatus(`❌ {EVENT_REASONS[`rewards:{reason}`] or reason}`, true)
+				return
+			end
+			table.insert(eventRewards, entry)
+			setStatus(`✅ Added {EventRewards.describeEntry(entry)}.`)
 			refresh()
 		end)
+		if #eventRewards == 0 then
+			label(rewardCard, "No bonus rewards added.", 12, Theme.Colors.TextDim)
+		end
+		for index, entry in eventRewards do
+			local r = row(rewardCard)
+			label(r, `🎁 {EventRewards.describeEntry(entry)}`, 13, Theme.Colors.Text, true).Size =
+				UDim2.new(1, -110, 0, 0)
+			button(r, "Remove", 96, "danger", function()
+				table.remove(eventRewards, index)
+				refresh()
+			end)
+		end
 	end
-	local days = row(options)
+
+	-- 3. When.
+	local whenCard = card(body, "3. When")
+	local rewards = if #eventRewards > 0 then eventRewards else nil
+	local withText = if rewards then ` with {EventRewards.describe(rewards)}` else ""
+	button(whenCard, `▶ Start now ({lengthText(chosen)})`, 240, "gold", function()
+		if eventCall("Start", { Id = e.id, Minutes = chosen, Rewards = rewards }) then
+			setStatus(`✅ {e.name} started for {lengthText(chosen)}{withText}.`)
+			eventRewards = {}
+			eventsFetched = nil
+			refresh()
+		end
+	end)
+	label(
+		whenCard,
+		"Or schedule it: pick a day, type the start time (your local time, 24-hour, e.g. 14:30).",
+		12,
+		Theme.Colors.TextDim
+	)
+	local days = row(whenCard)
 	for day = 0, 6 do
 		local text = if day == 0
 			then "Today"
@@ -1398,10 +1716,27 @@ local function drawEvents(area: Frame)
 			refresh()
 		end)
 	end
-	local later = row(options)
-	label(later, "Start time (HH:MM):", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(140, 0)
+	local later = row(whenCard)
+	label(later, "Start time:", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(80, 0)
 	local timeBox = field(later, "eventTime", "e.g. 14:30", 100)
-	local preview = label(options, "", 12, Theme.Colors.TextDim)
+	local schedule = button(later, "📅 Schedule", 140, nil, function()
+		local startsAt, problem = scheduledStart()
+		if startsAt == nil then
+			setStatus(`❌ {problem}`, true)
+			return
+		end
+		if startsAt <= os.time() then
+			setStatus(`❌ {localText(startsAt)} is already past: pick a later time or another day.`, true)
+			return
+		end
+		if eventCall("Schedule", { Id = e.id, Minutes = chosen, StartsAt = startsAt, Rewards = rewards }) then
+			setStatus(`✅ {e.name} scheduled for {localText(startsAt)} your time{withText}.`)
+			eventRewards = {}
+			eventsFetched = nil
+			refresh()
+		end
+	end)
+	local preview = label(whenCard, "", 12, Theme.Colors.TextDim)
 	local function updatePreview()
 		local startsAt, problem = scheduledStart()
 		if startsAt == nil then
@@ -1413,77 +1748,27 @@ local function drawEvents(area: Frame)
 			preview.Text = `{localText(startsAt)} is already past: pick a later time or another day.`
 			preview.TextColor3 = BAD_TEXT
 		else
-			preview.Text = `Schedule starts {localText(startsAt)} your time (in {span(startsAt - now)}).`
+			preview.Text = `Starts {localText(startsAt)} your time (in {span(startsAt - now)}).`
 			preview.TextColor3 = Theme.Colors.Safe
 		end
+		schedule.AutoButtonColor = startsAt ~= nil
 	end
 	timeBox:GetPropertyChangedSignal("Text"):Connect(updatePreview)
 	updatePreview()
+end
 
-	local templates = card(
-		body,
-		"Events",
-		"Rewards multiply only while an event runs; nothing earned changes when it ends."
-	)
-	for _, e in EventDefinitions.List do
-		local ready = EventDefinitions.isReady(e)
-		local entry = Kit.new("Frame", {
-			BackgroundColor3 = Theme.Colors.Ink,
-			BackgroundTransparency = 0.6,
-			Size = UDim2.fromScale(1, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = templates,
-		})
-		Kit.corner(entry, 8)
-		Kit.padding(entry, 6, 8)
-		Kit.list(entry, Enum.FillDirection.Vertical, 4, Enum.HorizontalAlignment.Left)
-		label(
-			entry,
-			`{e.icon} {e.name}`,
-			13,
-			if ready then Theme.Colors.GoldBright else Theme.Colors.TextMuted,
-			true
-		)
-		label(
-			entry,
-			`{e.blurb}  ·  {e.zone}  ·  up to {lengthText(e.maxMinutes)}, cooldown {lengthText(
-				e.cooldownMinutes
-			)}`,
-			11,
-			Theme.Colors.TextDim
-		)
-		if not ready then
-			label(entry, `Arrives in Phase 18 stage {e.stage}.`, 11, Theme.Colors.TextMuted)
-			continue
-		end
-		local actions = row(entry)
-		local minutes = math.min(EVENT_MINUTES[minutesIndex], e.maxMinutes)
-		button(actions, `Start now ({lengthText(minutes)})`, 170, "gold", function()
-			if eventCall("Start", { Id = e.id, Minutes = minutes }) then
-				setStatus(`✅ {e.name} started for {lengthText(minutes)}.`)
-				eventsFetched = nil
-				refresh()
-			end
-		end)
-		button(actions, "Schedule", 110, nil, function()
-			local startsAt, problem = scheduledStart()
-			if startsAt == nil then
-				setStatus(`❌ {problem}`, true)
-				return
-			end
-			if startsAt <= os.time() then
-				setStatus(
-					`❌ {localText(startsAt)} is already past: pick a later time or another day.`,
-					true
-				)
-				return
-			end
-			if eventCall("Schedule", { Id = e.id, Minutes = minutes, StartsAt = startsAt }) then
-				setStatus(`✅ {e.name} scheduled for {localText(startsAt)} your time.`)
-				eventsFetched = nil
-				refresh()
-			end
-		end)
+local function drawEvents(area: Frame)
+	local body = scroller(area, `events:{eventPage or "list"}`, UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1))
+	local listed = eventsFetched or eventCall("List", {})
+	if listed == nil then
+		return
+	end
+	eventsFetched = listed
+	local e = if eventPage then EventDefinitions.get(eventPage) else nil
+	if e then
+		drawEventPage(body, listed, e)
+	else
+		drawEventList(body, listed)
 	end
 end
 
@@ -1555,6 +1840,7 @@ function refresh()
 		if id ~= tab then
 			tab = id
 			eventsFetched = nil
+			eventPage = nil
 			setStatus("")
 			refresh()
 		end

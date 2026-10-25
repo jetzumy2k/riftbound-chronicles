@@ -164,7 +164,11 @@ local function onInspect(actor: Player, userId: number): { [string]: any }
 	}
 	if can(actor, "player.inspectFull") then
 		view.Full = true
-		view.Wallet = { Gold = data.Wallet.Gold, PvPMarks = data.Wallet.PvPMarks }
+		view.Wallet = {
+			Gold = data.Wallet.Gold,
+			PvPMarks = data.Wallet.PvPMarks,
+			MallPoints = data.Wallet.MallPoints or 0,
+		}
 		view.Stackables = table.clone(data.Stackables)
 		local equipped = {}
 		for _, guid in data.Equipment do
@@ -270,7 +274,7 @@ local function onPlayerAction(actor: Player, userId: number, action: string, arg
 		if currency == nil or number == nil or number == 0 then
 			return fail("value")
 		end
-		before = data.Wallet[currency]
+		before = data.Wallet[currency] or 0
 		data.Wallet[currency] = math.max(before + number, 0)
 		after = data.Wallet[currency]
 	elseif action == "SetVictories" then
@@ -449,7 +453,14 @@ local function onEvents(actor: Player, action: string, args: { [string]: any }):
 	if type(startsAt) ~= "number" then
 		return fail("time")
 	end
-	local ok, reason, window = EventService:Schedule(id, startsAt, minutes, actor.UserId)
+	-- Rewards are economy: Owner / Admin (items.grant), never a Moderator's
+	-- event grant alone (CLAUDE.md §21).
+	local rewards = args.Rewards
+	if rewards and #rewards > 0 and not can(actor, "items.grant") then
+		AuditLogService:Audit({ actorUserId = actor.UserId, action = "AdminDenied", target = "items.grant" })
+		return fail("rewardsPermission")
+	end
+	local ok, reason, window = EventService:Schedule(id, startsAt, minutes, actor.UserId, rewards)
 	if not ok or window == nil then
 		return fail(reason or "schedule")
 	end
@@ -457,7 +468,7 @@ local function onEvents(actor: Player, action: string, args: { [string]: any }):
 		actor,
 		if action == "Start" then "EventStart" else "EventSchedule",
 		id,
-		{ startsAt = window.StartsAt, endsAt = window.EndsAt }
+		{ startsAt = window.StartsAt, endsAt = window.EndsAt, rewards = window.Rewards }
 	)
 	return { ok = true, window = window }
 end

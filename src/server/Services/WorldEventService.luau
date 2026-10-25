@@ -102,6 +102,16 @@ local function sync(running: { EventRules.Window })
 	end
 end
 
+-- The world event a creature belongs to (nil if none; D-93 rewards).
+function WorldEventService:EventOf(mob: MobService.Mob): string?
+	for id, spawned in active do
+		if table.find(spawned.creatures, mob) or table.find(spawned.bosses, mob) then
+			return id
+		end
+	end
+	return nil
+end
+
 function WorldEventService:Start()
 	EventService.Changed:Connect(sync)
 	sync(EventService:GetRunning())

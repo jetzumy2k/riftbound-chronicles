@@ -31,6 +31,8 @@ local ItemRules = require(script.Parent.Parent.Logic.ItemRules)
 local QuestDefinitions = require(script.Parent.Parent.Definitions.QuestDefinitions)
 local EventDefinitions = require(script.Parent.Parent.Definitions.EventDefinitions)
 local AttributeRules = require(script.Parent.Parent.Logic.AttributeRules)
+local BuffRules = require(script.Parent.Parent.Logic.BuffRules)
+local MallDefinitions = require(script.Parent.Parent.Definitions.MallDefinitions)
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
 
@@ -84,7 +86,9 @@ return function(S: any)
 	})
 	local equipment = S.map(S.enum(Enums.ItemSlot), guid, 12)
 	local stackables = S.map(S.enum(STACKABLE_IDS), S.int(0), 16)
-	local wallet = S.struct({ Gold = S.int(0), PvPMarks = S.int(0) })
+	local wallet = S.struct({ Gold = S.int(0), PvPMarks = S.int(0), MallPoints = S.optional(S.int(0)) })
+	-- D-93: running buffs, id -> seconds left.
+	local buffsView = S.map(S.enum(table.clone(BuffRules.IDS)), S.int(0, 6 * 3600), 16)
 	-- D-74: moved HUD pieces, centre as a screen fraction.
 	local hudLayout = S.map(
 		S.enum(table.clone(HudSlots.IDS)),
@@ -322,6 +326,15 @@ return function(S: any)
 			rate = { capacity = 10, refillPerSecond = 4 },
 			states = { "ProfileLoaded", "HasJob" },
 		},
+		-- D-93: buy a Mall entry with Mall Points (price and grant from
+		-- MallDefinitions on the server; the client only names the entry).
+		BuyMallItem = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = { S.enum(table.clone(MallDefinitions.IDS)) },
+			rate = { capacity = 4, refillPerSecond = 1 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
 		ResetAttributes = {
 			direction = "ClientToServer",
 			kind = "Event",
@@ -367,7 +380,7 @@ return function(S: any)
 				S.enum(AdminRules.ACTIONS),
 				S.struct({
 					Number = S.optional(S.int(-AdminRules.MAX_CURRENCY_STEP, AdminRules.MAX_CURRENCY_STEP)),
-					Currency = S.optional(S.enum({ "Gold", "PvPMarks" })),
+					Currency = S.optional(S.enum({ "Gold", "PvPMarks", "MallPoints" })),
 					DefId = S.optional(S.enum(ITEM_IDS)),
 					Rarity = S.optional(S.enum(Enums.Rarity)),
 					Stackable = S.optional(S.enum(STACKABLE_IDS)),
@@ -428,6 +441,16 @@ return function(S: any)
 					Id = S.optional(S.enum(table.clone(EventDefinitions.IDS))),
 					Minutes = S.optional(S.int(1, 30 * 24 * 60)),
 					StartsAt = S.optional(S.int(0, 4102444800)),
+					-- D-93 stage 2: rewards for playing during the run (needs
+					-- items.grant; EventRewards checks the content).
+					Rewards = S.optional(S.array(
+						S.struct({
+							Kind = S.enum({ "MallPoints", "Item", "Set" }),
+							Id = S.optional(S.string(32, 1, "^[%w_]+$")),
+							Count = S.int(1, 10000),
+						}),
+						4
+					)),
 				}),
 			},
 			rate = { capacity = 10, refillPerSecond = 1 },
@@ -839,8 +862,17 @@ return function(S: any)
 					HudLayout = hudLayout,
 					-- D-90.
 					Attributes = attributesView,
+					-- D-93.
+					Buffs = buffsView,
 				}),
 			},
+		},
+
+		-- Server -> owning client: running buffs after a change (D-93).
+		BuffsUpdate = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = { buffsView },
 		},
 
 		-- Server -> owning client: attribute points after a change (D-90).

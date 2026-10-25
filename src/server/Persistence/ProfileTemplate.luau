@@ -56,7 +56,10 @@ function ProfileTemplate.new(): { [string]: any }
 		Inventory = {},
 		Equipment = {},
 		Stackables = {},
-		Wallet = { Gold = 0, PvPMarks = 0 },
+		-- D-93: MallPoints bought with Robux (MallService) or given by events.
+		Wallet = { Gold = 0, PvPMarks = 0, MallPoints = 0 },
+		-- D-93: running Mall buffs, buff id -> expiry (UTC seconds; BuffRules).
+		Buffs = {},
 
 		-- Quests and story (Phase 11)
 		QuestState = {},

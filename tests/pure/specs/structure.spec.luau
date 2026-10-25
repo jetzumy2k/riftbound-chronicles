@@ -253,6 +253,7 @@ return function(t)
 				AdminEvents = true,
 				SpendAttributes = true,
 				ResetAttributes = true,
+				BuyMallItem = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

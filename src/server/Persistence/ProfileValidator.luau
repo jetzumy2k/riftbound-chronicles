@@ -19,6 +19,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Constants = require(Shared.Constants)
 local Enums = require(Shared.Enums)
 local XPTable = require(Shared.Logic.XPTable)
+local BuffRules = require(Shared.Logic.BuffRules)
 local AttributeRules = require(Shared.Logic.AttributeRules)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
@@ -319,9 +320,16 @@ local function repairItems(data: Data, note: (string) -> ())
 	end)
 
 	local wallet = data.Wallet
-	dropUnknownKeys(wallet, { Gold = true, PvPMarks = true }, "Wallet", note)
+	dropUnknownKeys(wallet, { Gold = true, PvPMarks = true, MallPoints = true }, "Wallet", note)
 	fixInt(wallet, "Gold", 0, MAX_CURRENCY, 0, "Wallet.Gold", note)
 	fixInt(wallet, "PvPMarks", 0, MAX_CURRENCY, 0, "Wallet.PvPMarks", note)
+	fixInt(wallet, "MallPoints", 0, MAX_CURRENCY, 0, "Wallet.MallPoints", note)
+	-- D-93: known buffs, still running.
+	local buffs, buffsChanged = BuffRules.repair(data.Buffs, os.time())
+	if buffsChanged then
+		note("Buffs: repaired")
+	end
+	data.Buffs = buffs
 end
 
 local function repairQuestsAndCosmetics(data: Data, note: (string) -> ())

@@ -26,6 +26,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local EventRules = require(Shared.Logic.EventRules)
+local EventRewards = require(Shared.Logic.EventRewards)
+local EventDefinitions = require(Shared.Definitions.EventDefinitions)
+local BuffRules = require(Shared.Logic.BuffRules)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
 
@@ -53,7 +56,7 @@ local function refresh()
 	running = EventRules.active(windows(), os.time())
 	local view = {}
 	for _, w in running do
-		table.insert(view, { Id = w.Id, EndsAt = w.EndsAt })
+		table.insert(view, { Id = w.Id, EndsAt = w.EndsAt, Rewards = w.Rewards })
 	end
 	local encoded = HttpService:JSONEncode(view)
 	if encoded ~= signature then
@@ -100,10 +103,13 @@ local function contextFor(player: Player?, zone: string?): EventRules.Context
 end
 
 local function factor(category: string, player: Player?, zone: string?): number
-	if #running == 0 then
+	-- D-93: the player's Mall buffs add to the same categories (and caps).
+	local data = if player then PlayerDataService:GetData(player) else nil
+	local extra = if data then BuffRules.rewardBonus(data.Buffs, category, os.time()) else 0
+	if #running == 0 and extra == 0 then
 		return 1
 	end
-	return EventRules.factor(category, running, contextFor(player, zone))
+	return EventRules.factor(category, running, contextFor(player, zone), extra)
 end
 
 function EventService:ZoneOf(player: Player): string?
@@ -120,9 +126,6 @@ end
 	use QuestXP, dungeon boss / class bonuses BossXP, everything else XP.
 ]]
 function EventService:ScaleXp(player: Player, amount: number, source: string): number
-	if #running == 0 then
-		return amount
-	end
 	local category = if string.sub(source, 1, 6) == "Quest:"
 		then "QuestXP"
 		elseif string.sub(source, 1, 5) == "Boss:" then "BossXP"
@@ -131,18 +134,34 @@ function EventService:ScaleXp(player: Player, amount: number, source: string): n
 end
 
 -- Loot table `t` with the running events applied for `player`.
+-- The player's Mall buffs as a pseudo-window for loot (D-93).
+local function withBuffs(player: Player): { EventRules.Window }
+	local data = PlayerDataService:GetData(player)
+	local buffs: { string } = if data then BuffRules.active(data.Buffs, os.time()) else {}
+	if #buffs == 0 then
+		return running
+	end
+	local list = table.clone(running)
+	for _, id in buffs do
+		table.insert(list, { Id = `Buff:{id}`, StartsAt = 0, EndsAt = math.huge, By = 0 })
+	end
+	return list
+end
+
 function EventService:LootTable(t: any, player: Player): any
-	if #running == 0 then
+	local list = withBuffs(player)
+	if #list == 0 then
 		return t
 	end
-	return EventRules.lootTable(t, running, contextFor(player))
+	return EventRules.lootTable(t, list, contextFor(player))
 end
 
 function EventService:StoneTable(t: any, player: Player): any
-	if #running == 0 then
+	local list = withBuffs(player)
+	if #list == 0 then
 		return t
 	end
-	return EventRules.stoneTable(t, running, contextFor(player))
+	return EventRules.stoneTable(t, list, contextFor(player))
 end
 
 -- Saves `list` as Events.Windows (other override values kept).
@@ -166,7 +185,8 @@ function EventService:Schedule(
 	id: string,
 	startsAt: number,
 	minutes: number,
-	actorUserId: number
+	actorUserId: number,
+	rewards: { any }?
 ): (boolean, string?, EventRules.Window?)
 	local now = os.time()
 	local list = EventRules.prune(windows(), now)
@@ -174,11 +194,17 @@ function EventService:Schedule(
 	if not ok then
 		return false, reason, nil
 	end
+	local def = EventDefinitions.get(id)
+	local valid, problem = EventRewards.validate(rewards, def and def.rewards)
+	if not valid then
+		return false, `rewards:{problem}`, nil
+	end
 	local window = {
 		Id = id,
 		StartsAt = math.max(startsAt, now),
 		EndsAt = math.max(startsAt, now) + minutes * 60,
 		By = actorUserId,
+		Rewards = if rewards and #rewards > 0 then rewards else nil,
 	}
 	table.insert(list, window)
 	local saved, why = save(list, actorUserId)
@@ -201,7 +227,10 @@ function EventService:Stop(id: string, actorUserId: number): (boolean, string?)
 		if w.Id == id and w.EndsAt > now then
 			found = true
 			if w.StartsAt <= now then
-				table.insert(out, { Id = w.Id, StartsAt = w.StartsAt, EndsAt = now, By = w.By })
+				table.insert(
+					out,
+					{ Id = w.Id, StartsAt = w.StartsAt, EndsAt = now, By = w.By, Rewards = w.Rewards }
+				)
 			end
 		else
 			table.insert(out, w)

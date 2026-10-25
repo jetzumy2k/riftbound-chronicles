@@ -325,6 +325,38 @@ function ItemRules.roll(
 	return out
 end
 
+--[[
+	Fixed attributes (Item Mall sets, D-93): no randomness. The piece gets
+	its pool's ROLLS[rarity] most likely stats (highest weight first, pool
+	order on ties), each at `quality` (0..1) of its range. Shown before
+	buying, so what you see is what you get.
+]]
+ItemRules.FIXED_QUALITY = 0.85
+
+function ItemRules.fixedRoll(def: ItemDef, rarity: string, itemLevel: number, quality: number?): { Attribute }
+	local ranked = table.clone(ItemRules.poolFor(def))
+	local order = {}
+	for index, entry in ranked do
+		order[entry] = index
+	end
+	table.sort(ranked, function(a, b)
+		if a.weight ~= b.weight then
+			return a.weight > b.weight
+		end
+		return order[a] < order[b]
+	end)
+	local q = quality or ItemRules.FIXED_QUALITY
+	local out: { Attribute } = {}
+	for i = 1, math.min(ItemRules.ROLLS[rarity], #ranked) do
+		local entry = ranked[i]
+		local spec = ItemRules.STATS[entry.stat]
+		local lo, hi = ItemRules.bounds(entry.stat, rarity, itemLevel)
+		local value = math.clamp(clean(roundStep(lo + (hi - lo) * q, spec.step), spec.step), lo, hi)
+		table.insert(out, { Stat = entry.stat, Value = value })
+	end
+	return out
+end
+
 --------------------------------------------------------------------------------
 -- Validation
 --------------------------------------------------------------------------------

@@ -210,6 +210,16 @@ function PlayerDataService:ClaimReward(
 	return status
 end
 
+-- Saves the player's profile now (after a Robux purchase, D-93).
+function PlayerDataService:SaveNow(player: Player)
+	local session = sessions[player]
+	if session and (session :: any).save then
+		pcall(function()
+			(session :: any):save()
+		end)
+	end
+end
+
 -- Re-sends the snapshot (used by later phases after identity changes).
 function PlayerDataService:PushSnapshot(player: Player)
 	sendSnapshot(player)

@@ -47,8 +47,10 @@ export type StackableDef = {
 	description: string,
 	glyph: string,
 	maxStack: number,
-	-- Consumables: what using one does (applied by the server).
-	use: { kind: "HealPct", pct: number, cooldown: number }?,
+	-- Consumables: what using one does (applied by the server). HealPct
+	-- restores `pct` of max HP; Buff starts BuffRules `buff` (D-93);
+	-- AttributeReset returns every attribute point (Scroll of Rebirth).
+	use: { kind: string, pct: number?, buff: string?, cooldown: number }?,
 }
 
 local ItemDefinitions = {}
@@ -309,6 +311,71 @@ local stackables: { [string]: StackableDef } = {
 		maxStack = 999,
 		use = { kind = "HealPct", pct = 30, cooldown = 15 },
 	},
+	-- Item Mall consumables (D-93): buffs (BuffRules) and the Scroll of Rebirth.
+	Buff_Insight = {
+		id = "Buff_Insight",
+		name = "Scroll of Insight",
+		description = "+50% EXP for 60 minutes. Using another adds 60 minutes.",
+		glyph = "📜",
+		maxStack = 99,
+		use = { kind = "Buff", buff = "Insight", cooldown = 1 },
+	},
+	Buff_Fortune = {
+		id = "Buff_Fortune",
+		name = "Fortune Charm",
+		description = "Gear drops 50% more often for 60 minutes.",
+		glyph = "🍀",
+		maxStack = 99,
+		use = { kind = "Buff", buff = "Fortune", cooldown = 1 },
+	},
+	Buff_StoneSeeker = {
+		id = "Buff_StoneSeeker",
+		name = "Stone Seeker's Lantern",
+		description = "War-zone creatures drop stones 50% more often for 60 minutes.",
+		glyph = "🏮",
+		maxStack = 99,
+		use = { kind = "Buff", buff = "StoneSeeker", cooldown = 1 },
+	},
+	Buff_Might = {
+		id = "Buff_Might",
+		name = "Draught of Might",
+		description = "+10% damage for 30 minutes.",
+		glyph = "💪",
+		maxStack = 99,
+		use = { kind = "Buff", buff = "Might", cooldown = 1 },
+	},
+	Buff_Iron = {
+		id = "Buff_Iron",
+		name = "Draught of Iron",
+		description = "+10% Defense for 30 minutes.",
+		glyph = "🛡️",
+		maxStack = 99,
+		use = { kind = "Buff", buff = "Iron", cooldown = 1 },
+	},
+	Buff_Vigor = {
+		id = "Buff_Vigor",
+		name = "Draught of Vigor",
+		description = "+10% Max HP for 30 minutes.",
+		glyph = "💗",
+		maxStack = 99,
+		use = { kind = "Buff", buff = "Vigor", cooldown = 1 },
+	},
+	Buff_Clarity = {
+		id = "Buff_Clarity",
+		name = "Draught of Clarity",
+		description = "+30 max Focus for 30 minutes.",
+		glyph = "🔷",
+		maxStack = 99,
+		use = { kind = "Buff", buff = "Clarity", cooldown = 1 },
+	},
+	RebirthScroll = {
+		id = "RebirthScroll",
+		name = "Scroll of Rebirth",
+		description = "Returns all your attribute points at once, even inside the 24-hour wait.",
+		glyph = "🔄",
+		maxStack = 99,
+		use = { kind = "AttributeReset", cooldown = 2 },
+	},
 }
 
 local stackableIds = {}
@@ -321,8 +388,20 @@ table.sort(stackableIds)
 ItemDefinitions.Stackables = table.freeze(stackables)
 ItemDefinitions.STACKABLE_IDS = table.freeze(stackableIds)
 -- Display order in the inventory.
-ItemDefinitions.STACKABLE_ORDER =
-	table.freeze({ "HealingPotion", "EnhancementStone", "PerfectStone", "StoneFragment" })
+ItemDefinitions.STACKABLE_ORDER = table.freeze({
+	"HealingPotion",
+	"Buff_Insight",
+	"Buff_Fortune",
+	"Buff_StoneSeeker",
+	"Buff_Might",
+	"Buff_Iron",
+	"Buff_Vigor",
+	"Buff_Clarity",
+	"RebirthScroll",
+	"EnhancementStone",
+	"PerfectStone",
+	"StoneFragment",
+})
 
 -- Ids of usable stackables (consumables).
 local consumables = {}

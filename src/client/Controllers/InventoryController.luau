@@ -120,7 +120,10 @@ local CANT_WEAR: { [string]: string } = {
 local BULK_RARITIES = { Standard = true, Uncommon = true }
 local CONFIRM_SECONDS = 3
 
-local InventoryController = {}
+local InventoryController = {
+	-- D-93: opens the Item Mall (set by MallController).
+	OpenMall = nil :: (() -> ())?,
+}
 
 local gui: ScreenGui
 local toggle: TextButton
@@ -961,7 +964,7 @@ function render()
 	title.Parent = header
 	local wallet = state().Wallet
 	local sub = Kit.label(
-		`{count(state().Inventory)}/{ItemRules.INVENTORY_CAP} items  ·  Gold {wallet.Gold}  ·  PvP Marks {wallet.PvPMarks}`,
+		`{count(state().Inventory)}/{ItemRules.INVENTORY_CAP} items  ·  Gold {wallet.Gold}  ·  PvP Marks {wallet.PvPMarks}  ·  Mall Points {wallet.MallPoints or 0}`,
 		12,
 		Theme.Fonts.Body,
 		Theme.Colors.TextDim
@@ -976,6 +979,19 @@ function render()
 	close.AnchorPoint = Vector2.new(1, 0)
 	close.Position = UDim2.fromScale(1, 0)
 	close.Parent = header
+	-- D-93: the Item Mall (MallController sets OpenMall).
+	local mall = button("🛒 Mall", 84)
+	mall.AnchorPoint = Vector2.new(1, 0)
+	mall.Position = UDim2.new(1, -82, 0, 0)
+	mall.Parent = header
+	mall.Activated:Connect(function()
+		local openMall = InventoryController.OpenMall
+		if openMall then
+			openMall()
+		end
+	end)
+	title.Size = UDim2.new(1, -172, 0, 22)
+	sub.Size = UDim2.new(1, -172, 0, 18)
 	close.Activated:Connect(function()
 		InventoryController.setOpen(false)
 	end)

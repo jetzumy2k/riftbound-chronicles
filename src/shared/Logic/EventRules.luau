@@ -20,10 +20,12 @@
 
 local EventDefinitions = require(script.Parent.Parent.Definitions.EventDefinitions)
 local WorldLayout = require(script.Parent.Parent.Definitions.WorldLayout)
+local BuffRules = require(script.Parent.BuffRules)
 
 local EventRules = {}
 
-export type Window = { Id: string, StartsAt: number, EndsAt: number, By: number }
+-- Rewards (D-93 stage 2): Logic/EventRewards entries for playing during it.
+export type Window = { Id: string, StartsAt: number, EndsAt: number, By: number, Rewards: { any }? }
 export type Context = { zone: string?, race: string?, job: string?, level: number? }
 
 -- mode: "boost" or "reduce".
@@ -144,13 +146,23 @@ end
 	The combined multiplier of `category` from the running windows that
 	apply in `ctx` (1 when none). Unknown categories are 1.
 ]]
-function EventRules.factor(category: string, running: { Window }, ctx: Context): number
+function EventRules.factor(category: string, running: { Window }, ctx: Context, extra: number?): number
 	local spec = EventRules.CATEGORIES[category]
 	if spec == nil then
 		return 1
 	end
-	local sum = 0
+	-- `extra`: the player's Mall buffs' share (BuffRules.rewardBonus, D-93).
+	local sum = extra or 0
 	for _, w in running do
+		local buffId = string.match(w.Id, "^Buff:(%w+)$")
+		if buffId then
+			-- A Mall buff (loot tables, D-93): applies everywhere.
+			local buff = BuffRules.get(buffId)
+			if buff and buff.category == category then
+				sum += buff.amount - 1
+			end
+			continue
+		end
 		local e = EventDefinitions.get(w.Id)
 		local m = e and e.modifiers[category]
 		if e and m and EventRules.applies(e, ctx) then

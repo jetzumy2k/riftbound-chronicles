@@ -43,7 +43,13 @@ export type Event = {
 	eligible: Eligible?,
 	modifiers: { [string]: number },
 	spawns: { [string]: any }?,
-	rewards: { [string]: any }?,
+	-- D-93: reward groups an admin may attach (EventRewards.GROUPS) and who
+	-- receives them (EventRewards.RECIPIENTS); nil = the event takes no
+	-- extra rewards (its boost is the reward).
+	rewards: { string }?,
+	rewardTo: string?,
+	-- Panel grouping: "Boosts", "World", "Hunts", "Challenges".
+	group: string,
 }
 
 -- Stages built so far: events above this can't be started yet.
@@ -64,6 +70,11 @@ local function event(id: string, name: string, icon: string, blurb: string, spec
 	e.cooldownMinutes = e.cooldownMinutes or 60
 	e.zone = e.zone or "All"
 	e.modifiers = e.modifiers or {}
+	e.group = if e.kind == "Modifier"
+		then "Boosts"
+		elseif e.kind == "World" then "World"
+		elseif e.kind == "Hunt" then "Hunts"
+		else "Challenges"
 	return e :: Event
 end
 
@@ -84,6 +95,8 @@ EventDefinitions.List = {
 		modifiers = { LegendaryWeight = 2 },
 	}),
 	event("MythicalInvasion", "Mythical Boss Invasion", "👑", "Mythical bosses invade the war zones.", {
+		rewards = { "MallPoints", "Stones", "Sets" },
+		rewardTo = "Fighters",
 		kind = "World",
 		stage = 2,
 		zone = "WarZones",
@@ -113,6 +126,8 @@ EventDefinitions.List = {
 		spawns = { weather = "Flood" },
 	}),
 	event("RiftBeastInvasion", "Rift Beast Invasion", "🐺", "Rift beasts pour into the war zones.", {
+		rewards = { "MallPoints", "Stones", "Buffs" },
+		rewardTo = "Fighters",
 		kind = "World",
 		stage = 2,
 		zone = "WarZones",
@@ -125,39 +140,53 @@ EventDefinitions.List = {
 		modifiers = { BossRespawn = 0.25 },
 	}),
 	event("EliteSwarm", "Elite Mob Swarm", "⭐", "Elite creatures join the war-zone camps.", {
+		rewards = { "MallPoints", "Stones", "Buffs" },
+		rewardTo = "Fighters",
 		kind = "World",
 		stage = 2,
 		zone = "WarZones",
 		spawns = { elites = true },
 	}),
 	event("TreasureHunt", "Treasure Hunt", "🗺️", "Follow the clues to buried treasure.", {
+		rewards = { "MallPoints", "Stones", "Buffs" },
+		rewardTo = "Finders",
 		kind = "Hunt",
 		stage = 3,
 		spawns = { chests = 5 },
 	}),
 	event("HiddenChestHunt", "Hidden Chest Hunt", "🧰", "Chests are hidden around the realms.", {
+		rewards = { "MallPoints", "Stones", "Buffs" },
+		rewardTo = "Finders",
 		kind = "Hunt",
 		stage = 3,
 		spawns = { chests = 12 },
 	}),
 	event("RaceChallenge", "Race Challenge", "🏁", "Angels and Devils race for the most victories.", {
+		rewards = { "MallPoints", "Stones", "Sets" },
+		rewardTo = "RaceWinners",
 		kind = "Challenge",
 		stage = 3,
 		zone = "WarZones",
 	}),
 	event("AngelDefense", "Angel Defense Event", "🛡️", "Defend Skyreach from the Rift.", {
+		rewards = { "MallPoints", "Stones", "Buffs" },
+		rewardTo = "Defenders",
 		kind = "Challenge",
 		stage = 3,
 		zone = "Capitals",
 		eligible = { race = "Angel" },
 	}),
 	event("DevilDefense", "Devil Defense Event", "🔥", "Defend Emberdeep from the Rift.", {
+		rewards = { "MallPoints", "Stones", "Buffs" },
+		rewardTo = "Defenders",
 		kind = "Challenge",
 		stage = 3,
 		zone = "Capitals",
 		eligible = { race = "Devil" },
 	}),
 	event("CrossRaceTournament", "Cross-Race Tournament", "🏆", "A tournament between the realms.", {
+		rewards = { "MallPoints", "Stones", "Sets" },
+		rewardTo = "TopPlayer",
 		kind = "Challenge",
 		stage = 3,
 		zone = "WarZones",
@@ -200,6 +229,8 @@ EventDefinitions.List = {
 		"🌑",
 		"The Nullborn Herald descends. Every realm must fight.",
 		{
+			rewards = { "MallPoints", "Stones", "Sets" },
+			rewardTo = "Fighters",
 			kind = "World",
 			stage = 2,
 			zone = "WarZones",
@@ -233,6 +264,8 @@ EventDefinitions.List = {
 		}
 	),
 	event("CosmeticParade", "Cosmetic Parade", "🎉", "Show off your look in the capitals.", {
+		rewards = { "MallPoints", "Buffs" },
+		rewardTo = "Parade",
 		kind = "Challenge",
 		stage = 3,
 		zone = "Capitals",

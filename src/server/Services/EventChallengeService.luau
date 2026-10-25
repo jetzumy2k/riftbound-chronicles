@@ -31,6 +31,7 @@ local EventChallenges = require(Shared.Logic.EventChallenges)
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local EventRules = require(Shared.Logic.EventRules)
 local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
+local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local WarZoneTerrain = require(Shared.Logic.WarZoneTerrain)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local Log = require(Shared.Util.Log)
@@ -42,6 +43,9 @@ local EventService = require(script.Parent.EventService)
 local InventoryService = require(script.Parent.InventoryService)
 local MobService = require(script.Parent.MobService)
 local PvPService = require(script.Parent.PvPService)
+local MallService = require(script.Parent.MallService)
+local WorldEventService = require(script.Parent.WorldEventService)
+local EventRewards = require(Shared.Logic.EventRewards)
 
 local log = Log.new("EventChallengeService")
 
@@ -53,6 +57,8 @@ local PARADE_TICK = 10
 type Run = {
 	id: string,
 	startsAt: number,
+	-- The event window (its admin rewards, D-93 stage 2).
+	window: EventRules.Window,
 	-- Hunts.
 	chests: { Instance },
 	-- Contests: score per realm / per player, and when each last scored.
@@ -138,6 +144,67 @@ local function grantTitle(player: Player, run: Run, title: string)
 		notify(player, "Info", "quest.title", { title = QuestDefinitions.Titles[title] or title })
 		PlayerDataService:PushSnapshot(player)
 	end
+end
+
+--------------------------------------------------------------------------------
+-- Admin rewards for an event run (D-93 stage 2): to whoever did the event's
+-- thing (EventDefinitions rewardTo), once per run
+--------------------------------------------------------------------------------
+
+-- Gives the run's admin rewards to `player` once (false while there's no
+-- room in the bag; the next qualifying moment tries again).
+local function payPrize(player: Player, window: EventRules.Window): boolean
+	local data = PlayerDataService:GetData(player)
+	if data == nil or data.Job == nil then
+		return false
+	end
+	local rewards: { any } = window.Rewards or {}
+	if #rewards == 0 then
+		return true
+	end
+	local claim = EventChallenges.claimId(window.Id, window.StartsAt, "prize")
+	if data.ClaimedRewardIds[claim] ~= nil then
+		return true
+	end
+	-- Room first, so a claim is never spent on rewards that can't fit.
+	if
+		InventoryService:FreeSlots(player) < EventRewards.slotsNeeded(rewards, MallService:SetSize(player))
+	then
+		notify(player, "Warning", "event.prizeRoom")
+		return false
+	end
+	for _, entry in rewards do
+		if entry.Kind == "Item" then
+			local def = ItemDefinitions.stackable(entry.Id)
+			if def == nil or (data.Stackables[entry.Id] or 0) + entry.Count > def.maxStack then
+				notify(player, "Warning", "event.prizeRoom")
+				return false
+			end
+		end
+	end
+	local source = `Event:{window.Id}`
+	local status = (PlayerDataService :: any):ClaimReward(player, claim, function(d: any)
+		for _, entry in rewards do
+			if entry.Kind == "MallPoints" then
+				d.Wallet.MallPoints = (d.Wallet.MallPoints or 0) + entry.Count
+			elseif entry.Kind == "Item" then
+				InventoryService:GrantStackable(player, entry.Id, entry.Count, source)
+			elseif entry.Kind == "Set" then
+				MallService:GrantSet(player, entry.Id, source)
+			end
+		end
+	end)
+	if status == "granted" then
+		AuditLogService:Audit({
+			actorUserId = player.UserId,
+			action = "EventReward",
+			target = window.Id,
+			details = { what = "prize", rewards = rewards },
+		})
+		notify(player, "Info", "event.prize", { rewards = EventRewards.describe(rewards) })
+		PlayerDataService:PushSnapshot(player)
+	end
+	return true
 end
 
 --------------------------------------------------------------------------------
@@ -271,6 +338,7 @@ local function makeChest(run: Run, index: number, spec: EventChallenges.Chest): 
 			return
 		end
 		pay(player, run, `chest{index}`, if spec.treasure then "TreasureChest" else "HiddenChest")
+		payPrize(player, run.window)
 		local found = foundBy(player, run)
 		local total = #run.chests
 		notify(player, "Info", "event.chestFound", { found = tostring(found), total = tostring(total) })
@@ -333,6 +401,7 @@ local function start(window: EventRules.Window)
 	local run: Run = {
 		id = id,
 		startsAt = window.StartsAt,
+		window = window,
 		chests = {},
 		realm = {},
 		players = {},
@@ -368,6 +437,7 @@ local function start(window: EventRules.Window)
 						run.seconds[player] = seconds
 						if seconds >= EventChallenges.PARADE_SECONDS then
 							pay(player, run, "parade", "Parade")
+							payPrize(player, run.window)
 						end
 					end
 				end
@@ -399,6 +469,9 @@ local function finish(id: string)
 				local data = PlayerDataService:GetData(player)
 				local won = data ~= nil and data.Race == winner
 				pay(player, run, "result", if won then "RaceWinner" else "RaceTaking")
+				if won then
+					payPrize(player, run.window)
+				end
 			end
 		end
 	elseif id == "CrossRaceTournament" then
@@ -408,12 +481,16 @@ local function finish(id: string)
 			end
 			if player.Parent == Players then
 				pay(player, run, "place", `Tournament{place}`)
+				if place == 1 then
+					payPrize(player, run.window)
+				end
 			end
 		end
 	elseif id == "AngelDefense" or id == "DevilDefense" then
 		for player, kills in run.players do
 			if player.Parent == Players and kills > 0 then
 				pay(player, run, "defender", "Defender")
+				payPrize(player, run.window)
 				if kills >= EventChallenges.DEFENDER_TITLE_KILLS then
 					grantTitle(player, run, EventChallenges.DEFENDER_TITLE)
 				end
@@ -462,6 +539,21 @@ function EventChallengeService:Start()
 		publish()
 	end)
 	MobService.MobDefeated:Connect(function(mob, contributors: { [Player]: number }?)
+		-- World events (D-93 stage 2): everyone who helped defeat one of the
+		-- event's creatures or bosses gets the run's admin rewards.
+		local eventId = WorldEventService:EventOf(mob)
+		if eventId then
+			for _, w in EventService:GetRunning() do
+				if w.Id == eventId then
+					local helped: { [Player]: number } = contributors or {}
+					for player in helped do
+						if player.Parent == Players then
+							payPrize(player, w)
+						end
+					end
+				end
+			end
+		end
 		for _, run in runs do
 			if run.mobs[mob] then
 				run.mobs[mob] = nil

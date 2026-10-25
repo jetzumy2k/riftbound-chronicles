@@ -34,6 +34,11 @@ local MAX_WIDTH = 420
 
 local STRINGS: { [string]: string } = {
 	["system.welcome"] = "Welcome to Riftbound Chronicles",
+	-- D-93 Item Mall and buffs.
+	["mall.bought"] = "Bought: {name}",
+	["mall.points"] = "{points} Mall Points added. Thank you!",
+	["inventory.use.buff"] = "{name} is active",
+	["inventory.use.noAttributes"] = "No attribute points spent yet",
 	-- D-90 attribute points.
 	["attributes.available"] = "{points} attribute points to spend: open 🌟 Skills, then 📊 Stats",
 	["attributes.noPoints"] = "No attribute points left to spend",
@@ -46,6 +51,8 @@ local STRINGS: { [string]: string } = {
 	["event.worldBoss"] = "The Nullborn Herald has descended on both war zones!",
 	["event.invasion"] = "Mythical bosses invade the war zones!",
 	["event.reward"] = "Event reward: {gold} Gold, {stones} Enhancement Stone(s)",
+	["event.prize"] = "Event reward: {rewards}",
+	["event.prizeRoom"] = "Make room in your bag to receive your event reward",
 	["event.chestFound"] = "Chest opened: {found} of {total} found",
 	["event.chestOpened"] = "You already opened this chest",
 	["event.wave"] = "Defend the training yard! Wave {wave} of {waves}",
@@ -203,6 +210,7 @@ local TOPIC_ICONS: { [string]: string } = {
 	system = "🔧",
 	event = "🎉",
 	attributes = "📊",
+	mall = "🛒",
 }
 -- Keys whose meaning has a better icon than their topic's.
 local KEY_ICONS: { [string]: string } = {

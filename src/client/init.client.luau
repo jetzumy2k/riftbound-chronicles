@@ -42,6 +42,7 @@ local CONTROLLER_ORDER = {
 	"DungeonController",
 	"PartyController",
 	"EventController",
+	"MallController",
 }
 
 Log.setLevel(if RunService:IsStudio() then "Debug" else "Info")

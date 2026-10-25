@@ -199,6 +199,27 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Item Mall stage 1 (D-93)
+
+1. Admin panel > Players > you > Progress: Add Mall Points 10000 (Robux packs need the creator's Developer Product ids first).
+2. Open the bag: the header shows Mall Points; press 🛒 Mall (or key N). Tabs Buffs / Stones / Sets / Points; the title shows your MP.
+3. Buy a Scroll of Insight: first tap shows "Confirm 60 MP?", second buys; MP go down, the scroll is in the bag. Use it: "Scroll of Insight is active", a 📜 60m chip appears under the event chip; creature EXP is 1.5x (2.5x with Double EXP running, never above 3x).
+4. Draught of Might / Iron / Vigor / Clarity: damage, Defense, Max HP (HP bar), max Focus rise for 30 minutes and go back when they run out (chip disappears).
+5. Scroll of Rebirth with attribute points spent: all points come back at once (even right after a free reset).
+6. Stones tab: buy Enhancement / Perfect Stones; they appear in the bag.
+7. Sets tab: each set lists every piece with its fixed attributes; buy one with a nearly full bag: refused ("not enough room"); with room: every piece arrives with exactly the listed attributes.
+8. Points tab: packs show "Not on sale yet" until product ids are set. After the creator sets them: a Studio test purchase adds the points once (re-test a purchase: no double points).
+9. Not enough MP: Buy is refused with "Not enough Mall Points".
+
+Mall layout (reworked): ← Bag returns to the bag; Get MP opens the 💠 tab; tabs show cards under headings; tapping a card shows its details and Buy (narrow screen: details replace the cards, ← Back to list returns).
+
+Event rewards (stage 2, reworked), 🛠 > 🎉 Events:
+
+10. The tab lists events under ⚡ Boosts, 🌍 World events, 🗺️ Hunts, 🏆 Challenges. Tap Double EXP: its page shows About, 1. How long, 2. Bonus rewards ("This event's boost is the reward, so it takes no bonus rewards."), 3. When. ← All events goes back.
+11. Open Nullborn World Boss: 2. Bonus rewards says who gets them ("everyone who helps defeat one of the event's creatures or bosses") and offers only 💠 Mall Points, 💎 Stones, 🔶 Gear sets. Add 500 Mall Points (quick button 500, + Add) and a Legendary set; ▶ Start now. The list's "Live now" card shows "🎁 500 Mall Points, Legendary Set"; the players' 🎉 board says who gets them.
+12. Help defeat the Herald (its summoned Abyssal Knights don't count): toast "Event reward: ..."; paid once per run. Treasure Hunt with a reward: paid on opening the first chest.
+13. As a Moderator with the event grant: 2. Bonus rewards says only an Owner or Admin can add them.
+
 ## Phase 18 stage 3: hunts and challenges (D-92)
 
 Studio Play as Player1 (Owner), 🛠 > 🎉 Events (every event now has Start / Schedule).

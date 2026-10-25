@@ -44,6 +44,8 @@ local EventService = require(script.Parent.EventService)
 local RaceService = require(script.Parent.RaceService)
 local JobService = require(script.Parent.JobService)
 local CombatService = require(script.Parent.CombatService)
+local AttributeService = require(script.Parent.AttributeService)
+local BuffService = require(script.Parent.BuffService)
 
 type Item = ItemRules.Item
 
@@ -142,6 +144,15 @@ end
 	Returns the item, or nil and a reason ("unknown", "rarity", "level",
 	"source", "noProfile", "full").
 ]]
+-- Free bag slots for gear (D-93: a Mall set needs room for every piece).
+function InventoryService:FreeSlots(player: Player): number
+	local data = PlayerDataService:GetData(player)
+	if data == nil then
+		return 0
+	end
+	return ItemRules.INVENTORY_CAP - countItems(data)
+end
+
 -- Rolls per attribute value (best kept): Rare Attribute Weekend (D-89) on
 -- earned gear, never on staff grants or gifts.
 local function valueRolls(player: Player, source: string): number
@@ -157,7 +168,9 @@ function InventoryService:GrantItem(
 	defId: string,
 	rarity: string,
 	itemLevel: number,
-	source: string
+	source: string,
+	-- D-93: fixed attributes (Mall sets) instead of a roll.
+	attributes: { ItemRules.Attribute }?
 ): (Item?, string?)
 	local def = ItemDefinitions.get(defId)
 	if def == nil then
@@ -198,7 +211,7 @@ function InventoryService:GrantItem(
 		DefId = defId,
 		Rarity = rarity,
 		ItemLevel = itemLevel,
-		Attributes = ItemRules.roll(def, rarity, itemLevel, function()
+		Attributes = attributes or ItemRules.roll(def, rarity, itemLevel, function()
 			return random:NextNumber()
 		end, valueRolls(player, source)),
 		Enhancement = 0,
@@ -473,6 +486,26 @@ local function onUseConsumable(player: Player, id: string)
 		notify(player, "Warning", "use.cooldown", { seconds = tostring(math.ceil(own[id] - t)) })
 		return
 	end
+	-- D-93: Mall buffs and the Scroll of Rebirth.
+	if use.kind == "Buff" then
+		if not BuffService:Activate(player, use.buff :: string) then
+			return
+		end
+		data.Stackables[id] -= 1
+		own[id] = t + use.cooldown
+		push(player, data, nil, nil)
+		notify(player, "Info", "use.buff", { name = def.name })
+		return
+	elseif use.kind == "AttributeReset" then
+		if not AttributeService:ResetNow(player) then
+			notify(player, "Info", "use.noAttributes")
+			return
+		end
+		data.Stackables[id] -= 1
+		own[id] = t + use.cooldown
+		push(player, data, nil, nil)
+		return
+	end
 	local entity = CombatService:GetPlayerEntity(player)
 	if entity == nil or entity.defeated then
 		return
@@ -484,7 +517,7 @@ local function onUseConsumable(player: Player, id: string)
 	-- Synchronous: consume, start the cooldown, heal.
 	data.Stackables[id] -= 1
 	own[id] = t + use.cooldown
-	CombatService:RestoreHpPct(player, use.pct)
+	CombatService:RestoreHpPct(player, use.pct :: number)
 	push(player, data, nil, nil)
 end
 

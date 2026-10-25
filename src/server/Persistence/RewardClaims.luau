@@ -32,6 +32,7 @@ RewardClaims.RETENTION_SECONDS = table.freeze({
 	PB = 7 * DAY, -- PvP boss (spawnId)
 	E = 14 * DAY, -- event reward (event expiry + buffer)
 	A = 30 * DAY, -- admin grant (auditId)
+	R = false, -- Robux purchase receipt (PurchaseId, D-93): never paid twice
 } :: { [string]: number | false })
 
 local MAX_ID_LENGTH = 128

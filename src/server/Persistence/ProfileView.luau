@@ -97,7 +97,19 @@ end
 
 function ProfileView.wallet(data: { [string]: any }): { Gold: number, PvPMarks: number }
 	local wallet = if type(data.Wallet) == "table" then data.Wallet else {}
-	return { Gold = wallet.Gold or 0, PvPMarks = wallet.PvPMarks or 0 }
+	return { Gold = wallet.Gold or 0, PvPMarks = wallet.PvPMarks or 0, MallPoints = wallet.MallPoints or 0 }
+end
+
+-- D-93: running buffs, id -> seconds left.
+function ProfileView.buffs(data: { [string]: any }): { [string]: number }
+	local out = {}
+	local now = os.time()
+	for id, expires in data.Buffs or {} do
+		if type(expires) == "number" and expires > now then
+			out[id] = math.min(expires - now, 6 * 3600)
+		end
+	end
+	return out
 end
 
 -- D-90: the attribute points spent and seconds until the next free reset.
@@ -195,6 +207,8 @@ function ProfileView.snapshot(data: { [string]: any }): { [string]: any }
 		Quests = ProfileView.quests(data),
 		-- D-90.
 		Attributes = ProfileView.attributes(data),
+		-- D-93.
+		Buffs = ProfileView.buffs(data),
 		-- D-74: where the player moved their HUD pieces.
 		HudLayout = if type(data.Settings) == "table" and type(data.Settings.HudLayout) == "table"
 			then table.clone(data.Settings.HudLayout)

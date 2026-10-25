@@ -84,6 +84,24 @@ local function onReset(player: Player)
 	push(player, data)
 end
 
+--[[
+	Returns every point now, ignoring the 24 h wait (Scroll of Rebirth,
+	D-93). The free reset's timer is left as it is. False if nothing was
+	spent.
+]]
+function AttributeService:ResetNow(player: Player): boolean
+	local data = PlayerDataService:GetData(player)
+	if data == nil or AttributeRules.spent(data.Attributes) == 0 then
+		return false
+	end
+	data.Attributes = AttributeRules.empty()
+	AuditLogService:Audit({ actorUserId = player.UserId, action = "AttributeReset", target = "RebirthScroll" })
+	CombatService:RefreshStats(player)
+	notify(player, "Info", "attributes.reset")
+	push(player, data)
+	return true
+end
+
 function AttributeService:Init()
 	NetService:Handle("SpendAttributes", onSpend)
 	NetService:Handle("ResetAttributes", onReset)

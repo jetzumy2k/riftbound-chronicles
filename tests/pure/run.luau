@@ -38,6 +38,7 @@ local specs = {
 	{ "events", require("./specs/events.spec") },
 	{ "attributes", require("./specs/attributes.spec") },
 	{ "event_challenges", require("./specs/event_challenges.spec") },
+	{ "mall", require("./specs/mall.spec") },
 	{ "race_select_layout", require("./specs/race_select_layout.spec") },
 	{ "motion_math", require("./specs/motion_math.spec") },
 	{ "job_definitions", require("./specs/job_definitions.spec") },
