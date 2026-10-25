@@ -199,6 +199,15 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 16 stage 3: Jungle Rift art (D-84)
+
+1. Play, check the Output: `[WorldBudget] Jungle Rift [WarZone]` should be under 7,000 parts (expected about 6,300) with no warning. Send the line.
+2. Grass terrain should show animated grass blades swaying in the wind (both war zones). If it doesn't, select Workspace > Terrain in Studio and tick **Decoration** (Rojo live sync may not apply Terrain properties).
+3. In the Jungle Rift: the waterfall cliff and the rock outcrops show grey / slate / earthy rock layers; stones break the river surface and boulders sit on the banks, never on a bridge.
+4. The forest is denser; a few giant trees rise well above the canopy; mossy logs lie on the floor.
+5. Under the canopy, faint light motes drift past the camera, the water looks emerald, and sun rays show when looking toward the sun. Back in the desert the sand drifts and the water turns turquoise; in the capitals both stop.
+6. Check the frame rate in the jungle on the device emulator (phone).
+
 ## Phase 16 stage 2: Desert Rift art (D-83)
 
 1. Play, check the Output: the `[WorldBudget] Desert Rift [WarZone]` line should show about 1,800 parts, still 31 lights, and no warning. Note the build time on the `Desert Rift built` line (was 0.2 s).

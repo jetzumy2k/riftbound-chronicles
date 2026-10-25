@@ -421,6 +421,44 @@ return function(t)
 		local zone = WorldLayout.WarZones.JungleRift
 		local T = JungleTerrain
 
+		-- D-84: cliff faces show rock bands; every zone's extras are valid.
+		t.it("jungle rock strata alternate by height through WarZoneTerrain", function()
+			local seen, kinds = {}, 0
+			for y = -15, 80 do
+				local band = WarZoneTerrain.band(zone, y, WarZoneTerrain.strataShift(zone, -60, 30) :: number)
+				if not seen[band] then
+					seen[band] = true
+					kinds += 1
+				end
+				t.ok(band == "Rock" or band == "Slate" or band == "Ground", band)
+			end
+			t.ok(kinds >= 3, `bands: {kinds}`)
+			t.eq(WarZoneTerrain.band(zone, 10, T.strataShift(5, 5)), T.band(10, T.strataShift(5, 5)))
+		end)
+
+		t.it("every zone atmosphere has valid extras", function()
+			local names = { "Neutral", "Dungeon" }
+			for _, z in WorldLayout.WarZones do
+				table.insert(names, z.atmosphere)
+			end
+			for _, name in names do
+				local extras = ZoneAtmosphere.Extras[name]
+				t.ok(extras ~= nil, `extras for {name}`)
+				t.ok(
+					extras.particles == nil or extras.particles == "Sand" or extras.particles == "Motes",
+					name
+				)
+				t.ok(extras.sunRays >= 0 and extras.sunRays <= 0.3, `{name} sun rays`)
+				for i = 1, 3 do
+					t.ok(extras.water[i] >= 0 and extras.water[i] <= 255, `{name} water`)
+					t.ok(math.abs(extras.wind[i]) <= 20, `{name} wind`)
+				end
+			end
+			t.eq(ZoneAtmosphere.extras("Nowhere"), ZoneAtmosphere.Extras.Neutral)
+			t.eq(ZoneAtmosphere.extras("Desert").particles, "Sand")
+			t.eq(ZoneAtmosphere.extras("Jungle").particles, "Motes")
+		end)
+
 		t.it("uses the jungle terrain, atmosphere and plateau height", function()
 			t.eq(zone.terrain, "Jungle")
 			t.eq(zone.atmosphere, "Jungle")

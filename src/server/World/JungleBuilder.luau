@@ -17,7 +17,10 @@
 	  Bridges    stone and rope bridges over the river (JungleTerrain.BRIDGES)
 	  Forest     a seeded grid of rainforest trees and palms, ferns and bushes,
 	             vines down the cliff; kept off the water, paths, camps and
-	             steep ground
+	             steep ground; a few emergent giants tower over the canopy
+	             and mossy logs lie on the floor (D-84)
+	  River rocks  stones breaking the river's surface and boulders on its
+	             banks (Terrain fills: no parts; D-84)
 	  Camps      each realm's base (WarZoneKit) with stilt huts
 	  Creature camps  overgrown shrines (storytelling)
 	  Bounds     invisible walls just inside the rim cliffs
@@ -26,6 +29,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local JungleTerrain = require(Shared.Logic.JungleTerrain)
@@ -671,7 +675,7 @@ local function forest(model: Model, zone: WorldLayout.WarZone): number
 	local half = zone.size / 2 - 12
 	local planted = 0
 	-- Trees: a jittered grid; the plaza stays open for fighting.
-	local spacing = 50
+	local spacing = 46
 	for gx = -half, half, spacing do
 		for gz = -half, half, spacing do
 			local x = gx + rng:NextNumber(-spacing * 0.35, spacing * 0.35)
@@ -715,8 +719,103 @@ local function forest(model: Model, zone: WorldLayout.WarZone): number
 			end
 		end
 	end
+	-- Emergent giants: a few trees far above the canopy (D-84).
+	local giants: { Vector2 } = {}
+	for _ = 1, 400 do
+		if #giants >= 16 then
+			break
+		end
+		local x, z = rng:NextNumber(-half, half), rng:NextNumber(-half, half)
+		local spot = Vector2.new(x, z)
+		local crowded = math.sqrt(x * x + z * z) < T.PLAZA_RADIUS + 40
+		for _, other in giants do
+			if (other - spot).Magnitude < 90 then
+				crowded = true
+				break
+			end
+		end
+		if crowded or not plantable(zone, x, z, 10) then
+			continue
+		end
+		table.insert(giants, spot)
+		Flora.jungleTree(
+			trees,
+			CFrame.new(at(zone, x, ground(zone, x, z) - 0.8, z)),
+			rng:NextNumber(74, 90),
+			7000 + #giants
+		)
+		planted += 1
+	end
+	-- Fallen mossy logs on the forest floor (decor: walk-through).
+	local logs = 0
+	for _ = 1, 400 do
+		if logs >= 20 then
+			break
+		end
+		local x, z = rng:NextNumber(-half, half), rng:NextNumber(-half, half)
+		if math.sqrt(x * x + z * z) < T.PLAZA_RADIUS + 10 or not plantable(zone, x, z, 6) then
+			continue
+		end
+		logs += 1
+		local length = rng:NextNumber(12, 20)
+		local radius = rng:NextNumber(0.9, 1.4)
+		local cf = CFrame.new(at(zone, x, ground(zone, x, z) + radius * 0.5, z))
+			* CFrame.Angles(0, rng:NextNumber(0, math.pi), 0)
+		A.part(
+			trees,
+			Vector3.new(length, radius * 2, radius * 2),
+			cf,
+			Color3.fromRGB(96, 78, 58),
+			Enum.Material.Wood,
+			{ decor = true, shape = Enum.PartType.Cylinder }
+		)
+		A.part(
+			trees,
+			Vector3.new(length * 0.7, 0.3, radius * 1.3),
+			cf * CFrame.new(rng:NextNumber(-2, 2), radius * 0.9, 0),
+			MOSS,
+			Enum.Material.Grass,
+			{ decor = true }
+		)
+	end
 	trees.Parent = model
 	return planted
+end
+
+-- Stones breaking the river's surface and boulders on its banks: Terrain
+-- fills, so they cost no parts. Kept off the bridges, the falls and the ends.
+local function riverRocks(zone: WorldLayout.WarZone)
+	local terrain = Workspace.Terrain
+	local rng = Random.new(8404)
+	local poolEdge = T.POOL_CENTER[1] + T.POOL_RADIUS
+	for x = T.SPRING_X + 40, T.RIVER_END_X - 50, 13 do
+		if x > T.LIP_X - 25 and x < poolEdge + 10 then
+			continue -- the falls and the pool
+		end
+		local nearBridge = false
+		for _, spec in T.BRIDGES do
+			if math.abs(x - spec.x) < 14 then
+				nearBridge = true
+			end
+		end
+		local riverZ, halfWidth, upper = T.riverAt(x)
+		if nearBridge or riverZ == nil then
+			continue
+		end
+		local level = if upper then T.HIGH_WATER else T.WATER_LEVEL
+		local side = if rng:NextNumber() < 0.5 then -1 else 1
+		-- A stone just breaking the surface near one bank.
+		local r = rng:NextNumber(1.8, 3)
+		local sz = riverZ + side * rng:NextNumber(halfWidth * 0.35, halfWidth - 2)
+		terrain:FillBall(at(zone, x + rng:NextNumber(-3, 3), level + 0.7 - r, sz), r, Enum.Material.Slate)
+		-- Now and then a mossy boulder on the far bank.
+		if rng:NextNumber() < 0.45 then
+			local br = rng:NextNumber(2.5, 4)
+			local bz = riverZ - side * (halfWidth + rng:NextNumber(2, 5))
+			local bx = x + rng:NextNumber(-4, 4)
+			terrain:FillBall(at(zone, bx, ground(zone, bx, bz) + br * 0.2, bz), br, Enum.Material.Rock)
+		end
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -765,6 +864,7 @@ export type Built = { portals: { [string]: BasePart }, parts: number, trees: num
 
 function JungleBuilder.build(root: Instance, zone: WorldLayout.WarZone): Built
 	TerrainWriter.write(zone, MATERIALS, Enum.Material.Rock)
+	riverRocks(zone)
 	local model = Instance.new("Model")
 	model.Name = zone.id
 	waterfall(model, zone)

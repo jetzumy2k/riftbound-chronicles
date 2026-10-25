@@ -34,12 +34,15 @@ end
 -- names the material at height y (relative to the plaza).
 function WarZoneTerrain.strataShift(zone: Zone, x: number, z: number): number?
 	if zone.terrain == "Jungle" then
-		return nil
+		return JungleTerrain.strataShift(x, z)
 	end
 	return DesertTerrain.strataShift(x, z)
 end
 
-function WarZoneTerrain.band(_zone: Zone, y: number, shift: number): string
+function WarZoneTerrain.band(zone: Zone, y: number, shift: number): string
+	if zone.terrain == "Jungle" then
+		return JungleTerrain.band(y, shift)
+	end
 	return DesertTerrain.band(y, shift)
 end
 

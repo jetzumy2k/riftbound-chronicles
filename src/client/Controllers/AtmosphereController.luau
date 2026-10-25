@@ -8,8 +8,10 @@
 	Local to this client only (Lighting changes on the client do not
 	replicate). Updated a few times per second and eased, never snapping.
 
-	In the Desert Rift a single client-only emitter blows thin sand around
-	the camera (D-83); it stops everywhere else.
+	Each zone's extras (ZoneAtmosphere.Extras, D-84) switch when the camera
+	enters it: one client-only particle emitter around the camera (blowing
+	sand in the Desert Rift, D-83; light motes in the Jungle Rift), the
+	wind that sways terrain grass, the water colour and the sun rays.
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -22,9 +24,11 @@ local WorldLayout = require(Shared.Definitions.WorldLayout)
 local ZoneAtmosphere = require(Shared.Definitions.ZoneAtmosphere)
 
 local EASE_PER_SECOND = 1.5
--- Blowing sand (D-83): particles per second around the camera, desert only.
+-- Camera particles per second: blowing sand (D-83), canopy motes (D-84).
 local SAND_RATE = 16
+local MOTE_RATE = 12
 local SAND_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
+local MOTE_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 
 local AtmosphereController = {}
 
@@ -32,8 +36,10 @@ local atmosphere: Atmosphere
 local correction: ColorCorrectionEffect
 local bloom: BloomEffect
 local current: ZoneAtmosphere.Preset = ZoneAtmosphere.get("Neutral")
-local sandBox: Part? = nil
-local sand: ParticleEmitter? = nil
+local particleBox: Part? = nil
+local emitters: { [string]: ParticleEmitter? } = {}
+local sunRays: SunRaysEffect
+local extrasName = ""
 
 local function rgb(t: { number }): Color3
 	return Color3.fromRGB(math.floor(t[1] + 0.5), math.floor(t[2] + 0.5), math.floor(t[3] + 0.5))
@@ -97,24 +103,29 @@ local function apply(preset: ZoneAtmosphere.Preset)
 	bloom.Threshold = preset.bloomThreshold
 end
 
--- A box of drifting sand that follows the camera; built on first use.
-local function sandAt(position: Vector3, on: boolean)
-	if sand == nil then
-		if not on then
-			return
-		end
-		local box = Instance.new("Part")
-		box.Name = "RC_BlowingSand"
-		box.Anchored = true
-		box.CanCollide = false
-		box.CanQuery = false
-		box.CanTouch = false
-		box.Transparency = 1
-		box.Size = Vector3.new(90, 14, 90)
-		local e = Instance.new("ParticleEmitter")
+local function box(): Part
+	if particleBox == nil then
+		local part = Instance.new("Part")
+		part.Name = "RC_ZoneParticles"
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Transparency = 1
+		part.Size = Vector3.new(90, 14, 90)
+		part.Parent = Workspace
+		particleBox = part
+	end
+	return particleBox :: Part
+end
+
+local function makeEmitter(kind: string): ParticleEmitter
+	local e = Instance.new("ParticleEmitter")
+	e.Shape = Enum.ParticleEmitterShape.Box
+	e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	e.Rotation = NumberRange.new(0, 360)
+	if kind == "Sand" then
 		e.Texture = SAND_TEXTURE
-		e.Shape = Enum.ParticleEmitterShape.Box
-		e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
 		e.Color = ColorSequence.new(Color3.fromRGB(226, 196, 146))
 		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 3), NumberSequenceKeypoint.new(1, 7) })
 		e.Transparency = NumberSequence.new({
@@ -125,20 +136,53 @@ local function sandAt(position: Vector3, on: boolean)
 		e.Lifetime = NumberRange.new(3, 5)
 		e.Speed = NumberRange.new(1, 3)
 		e.Acceleration = Vector3.new(9, -0.5, 5)
-		e.Rotation = NumberRange.new(0, 360)
 		e.RotSpeed = NumberRange.new(-20, 20)
 		e.LightInfluence = 1
 		e.Rate = SAND_RATE
-		e.Parent = box
-		box.Parent = Workspace
-		sandBox, sand = box, e
+	else
+		-- Motes: tiny warm specks catching the light under the canopy.
+		e.Texture = MOTE_TEXTURE
+		e.Color = ColorSequence.new(Color3.fromRGB(236, 240, 170))
+		e.Size =
+			NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0.3) })
+		e.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.3, 0.3),
+			NumberSequenceKeypoint.new(0.7, 0.4),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		e.Lifetime = NumberRange.new(4, 7)
+		e.Speed = NumberRange.new(0.3, 1)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Acceleration = Vector3.new(0.4, 0.15, 0.25)
+		e.LightEmission = 0.8
+		e.LightInfluence = 0.3
+		e.Rate = MOTE_RATE
 	end
-	local e = sand :: ParticleEmitter
-	e.Enabled = on
-	if on then
-		-- Upwind of the camera, so the drift passes through the view.
-		(sandBox :: Part).CFrame = CFrame.new(position + Vector3.new(-25, 3, -15))
+	e.Parent = box()
+	return e
+end
+
+-- The extras' zone name for a camera position.
+local function zoneName(position: Vector3): string
+	if WorldLayout.isInDungeonRegion(position.X) then
+		return "Dungeon"
 	end
+	local warZone = WorldLayout.warZoneAt(position.X, position.Z)
+	return if warZone then warZone.atmosphere else "Neutral"
+end
+
+local function applyExtras(name: string)
+	local extras = ZoneAtmosphere.extras(name)
+	for kind, e in emitters :: { [string]: ParticleEmitter } do
+		e.Enabled = kind == extras.particles
+	end
+	if extras.particles and emitters[extras.particles] == nil then
+		emitters[extras.particles] = makeEmitter(extras.particles)
+	end
+	Workspace.GlobalWind = Vector3.new(extras.wind[1], extras.wind[2], extras.wind[3])
+	Workspace.Terrain.WaterColor = rgb(extras.water)
+	sunRays.Intensity = extras.sunRays
 end
 
 function AtmosphereController:Start()
@@ -146,6 +190,8 @@ function AtmosphereController:Start()
 	correction = ensure("ColorCorrectionEffect", "RC_ColorCorrection")
 	bloom = ensure("BloomEffect", "RC_Bloom")
 	bloom.Size = 28
+	sunRays = ensure("SunRaysEffect", "RC_SunRays")
+	sunRays.Spread = 0.6
 	apply(current)
 
 	local elapsed = 0
@@ -161,8 +207,15 @@ function AtmosphereController:Start()
 		local camera = Workspace.CurrentCamera
 		if camera then
 			local position = camera.Focus.Position
-			local zone = WorldLayout.warZoneAt(position.X, position.Z)
-			sandAt(position, zone ~= nil and zone.atmosphere == "Desert")
+			local name = zoneName(position)
+			if name ~= extrasName then
+				extrasName = name
+				applyExtras(name)
+			end
+			if particleBox then
+				-- Upwind of the camera, so the drift passes through the view.
+				particleBox.CFrame = CFrame.new(position + Vector3.new(-25, 3, -15))
+			end
 		end
 	end)
 end

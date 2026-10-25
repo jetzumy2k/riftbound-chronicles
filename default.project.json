@@ -34,7 +34,13 @@
     "Workspace": {
       "$properties": {
         "StreamingEnabled": true,
-        "StreamingTargetRadius": 1024
+        "StreamingTargetRadius": 1024,
+        "GlobalWind": [6.0, 0.0, 4.0]
+      },
+      "Terrain": {
+        "$properties": {
+          "Decoration": true
+        }
       }
     },
     "Players": {

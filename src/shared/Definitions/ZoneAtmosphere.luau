@@ -152,6 +152,42 @@ ZoneAtmosphere.Presets = table.freeze({
 	} :: Preset),
 })
 
+--[[
+	Zone extras (D-84), switched (not blended) when the camera enters a zone:
+	  particles  a client-only emitter around the camera ("Sand", "Motes")
+	  wind       Workspace.GlobalWind (sways terrain grass, drifts particles)
+	  water      Terrain.WaterColor
+	  sunRays    SunRaysEffect intensity
+]]
+export type Extras = {
+	particles: string?,
+	wind: { number },
+	water: { number },
+	sunRays: number,
+}
+
+ZoneAtmosphere.Extras = table.freeze({
+	Neutral = table.freeze({ wind = { 6, 0, 4 }, water = { 40, 110, 140 }, sunRays = 0.04 } :: Extras),
+	Desert = table.freeze({
+		particles = "Sand",
+		wind = { 12, 0, 7 },
+		water = { 48, 156, 168 },
+		sunRays = 0.05,
+	} :: Extras),
+	-- Light motes drifting under the canopy, emerald water, strong sun shafts.
+	Jungle = table.freeze({
+		particles = "Motes",
+		wind = { 4, 0, 3 },
+		water = { 36, 112, 96 },
+		sunRays = 0.16,
+	} :: Extras),
+	Dungeon = table.freeze({ wind = { 0, 0, 0 }, water = { 40, 70, 110 }, sunRays = 0 } :: Extras),
+})
+
+function ZoneAtmosphere.extras(name: string): Extras
+	return (ZoneAtmosphere.Extras :: any)[name] or ZoneAtmosphere.Extras.Neutral
+end
+
 -- Studs from a capital's centre within which its preset applies fully, and
 -- the extra distance over which it blends out to Neutral.
 ZoneAtmosphere.FULL_RADIUS = 420

@@ -20,6 +20,8 @@
 	            builder spans it with bridges (BRIDGES)
 	  hills     rolling jungle ground and mossy rock outcrops elsewhere
 	  rim       rock cliffs along the edge (a natural boundary)
+	  strata    grey and slate rock bands with earthy seams by height on
+	            the cliff, outcrop and rim faces (D-84)
 	  camps     each realm's flat plateau at opposite edges (Angels north,
 	            Devils south; WorldLayout.WarZones.JungleRift.bases)
 
@@ -90,9 +92,24 @@ JungleTerrain.BRIDGES = table.freeze({
 
 export type Material = "Grass" | "LeafyGrass" | "Ground" | "Mud" | "Rock" | "Slate" | "Pebble"
 
+-- Rock bands on every steep face (D-84): band thickness and order.
+JungleTerrain.STRATA_STEP = 6
+local STRATA: { Material } = { "Rock", "Slate", "Rock", "Ground", "Slate", "Rock" }
+
 local function smoothstep(e0: number, e1: number, x: number): number
 	local t = math.clamp((x - e0) / (e1 - e0), 0, 1)
 	return t * t * (3 - 2 * t)
+end
+
+-- Rock band shift for the column at (x, z) (one noise per column) and the
+-- band at height y (relative to the plaza) for that shift.
+function JungleTerrain.strataShift(x: number, z: number): number
+	return 2.5 * math.noise(x / 60, z / 60, JungleTerrain.SEED + 19) - (x - z) * 0.01
+end
+
+function JungleTerrain.band(y: number, shift: number): Material
+	local band = math.floor((y + shift) / JungleTerrain.STRATA_STEP) % #STRATA
+	return STRATA[band + 1]
 end
 
 -- x of the cliff edge at depth z: a shallow amphitheatre around the falls,
