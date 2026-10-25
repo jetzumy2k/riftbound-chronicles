@@ -19,6 +19,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Constants = require(Shared.Constants)
 local Enums = require(Shared.Enums)
 local XPTable = require(Shared.Logic.XPTable)
+local AttributeRules = require(Shared.Logic.AttributeRules)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
@@ -182,6 +183,16 @@ local function repairProgression(data: Data, note: (string) -> ())
 	-- Lifetime total can never be below what the current level/XP implies.
 	local minimumTotal = XPTable.totalToReach(data.Level) + data.Experience
 	fixInt(data, "TotalExperience", minimumTotal, math.huge, minimumTotal, "TotalExperience", note)
+end
+
+-- D-90: whole points on the five attributes, never more than the level gives.
+local function repairAttributes(data: Data, note: (string) -> ())
+	local attributes, changed = AttributeRules.repair(data.Attributes, data.Level)
+	if changed then
+		note("Attributes: repaired")
+	end
+	data.Attributes = attributes
+	fixInt(data, "AttributeResetAt", 0, math.huge, 0, "AttributeResetAt", note)
 end
 
 local function repairSkills(data: Data, note: (string) -> ())
@@ -417,6 +428,7 @@ function ProfileValidator.repair(data: Data): { string }
 	data.SchemaVersion = ProfileTemplate.SCHEMA_VERSION
 	repairIdentity(data, note)
 	repairProgression(data, note)
+	repairAttributes(data, note)
 	repairSkills(data, note)
 	repairItems(data, note)
 	repairQuestsAndCosmetics(data, note)

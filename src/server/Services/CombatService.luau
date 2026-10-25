@@ -52,6 +52,7 @@ local CombatMath = require(Shared.Logic.CombatMath)
 local PvPRules = require(Shared.Logic.PvPRules)
 local ComboMath = require(Shared.Logic.ComboMath)
 local SkillRules = require(Shared.Logic.SkillRules)
+local AttributeRules = require(Shared.Logic.AttributeRules)
 local StatFormulas = require(Shared.Logic.StatFormulas)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
@@ -153,6 +154,15 @@ export type Entity = {
 	healingPowerPct: number,
 	mitigationPct: number,
 	focusEfficiencyPct: number,
+	-- D-90 attributes (players) / element bosses (magicHit): % more damage
+	-- dealt, whether its hits are magic, % less magic damage taken, dodge
+	-- points removed from targets against its magic, % dodge, max Focus.
+	damagePct: number,
+	magicHit: boolean,
+	magicResistPct: number,
+	magicAccuracyPct: number,
+	evasionPct: number,
+	focusMax: number,
 	defeated: boolean,
 	protectedUntil: number,
 	lastHostileAt: number,
@@ -286,6 +296,10 @@ local function mirror(entity: Entity)
 	if model:GetAttribute("Focus") ~= focus then
 		model:SetAttribute("Focus", focus)
 	end
+	local focusMax = math.floor(entity.focusMax)
+	if model:GetAttribute("MaxFocus") ~= focusMax then
+		model:SetAttribute("MaxFocus", focusMax)
+	end
 	model:SetAttribute("Defeated", entity.defeated)
 	model:SetAttribute("Protected", isProtected(entity))
 
@@ -349,6 +363,16 @@ local function applyStats(entity: Entity, stats: StatFormulas.BaseStats, level: 
 	entity.healingPowerPct = extras.HealingPowerPct or 0
 	entity.mitigationPct = extras.MitigationPct or 0
 	entity.focusEfficiencyPct = extras.FocusEfficiencyPct or 0
+	-- Attribute points (D-90; players). Creatures keep their spec's magic.
+	entity.damagePct = extras.DamagePct or 0
+	if extras.MagicHit ~= nil then
+		entity.magicHit = extras.MagicHit
+	end
+	entity.magicResistPct = extras.MagicResistPct or 0
+	entity.magicAccuracyPct = extras.MagicAccuracyPct or 0
+	entity.evasionPct = extras.EvasionPct or 0
+	entity.focusMax = combatConfig().FocusMax + (extras.FocusBonus or 0)
+	entity.focus = math.min(entity.focus, entity.focusMax)
 end
 
 local function newEntity(
@@ -379,6 +403,12 @@ local function newEntity(
 		healingPowerPct = 0,
 		mitigationPct = 0,
 		focusEfficiencyPct = 0,
+		damagePct = 0,
+		magicHit = false,
+		magicResistPct = 0,
+		magicAccuracyPct = 0,
+		evasionPct = 0,
+		focusMax = 100,
 		defeated = false,
 		protectedUntil = 0,
 		lastHostileAt = -math.huge,
@@ -465,6 +495,10 @@ local function applyDamage(
 	-- shield soaks up what it can.
 	if target.mitigationPct > 0 then
 		rawAmount = math.max(1, rawAmount * (1 - target.mitigationPct / 100))
+	end
+	-- D-90: Wisdom's magic resistance against magic hits.
+	if attacker.magicHit and target.magicResistPct > 0 then
+		rawAmount = math.max(1, rawAmount * (1 - target.magicResistPct / 100))
 	end
 	local mark, guard, shield =
 		statusOf(target, "Mark"), statusOf(target, "Guard"), statusOf(target, "Shield")
@@ -569,7 +603,7 @@ local function setupCharacter(player: Player, character: Model)
 	entity.player = player
 	entity.race = data.Race
 	applyStats(entity, stats, data.Level, false)
-	entity.focus = combatConfig().FocusMax
+	entity.focus = entity.focusMax
 	entity.protectedUntil = now() + combatConfig().SpawnProtectSeconds
 
 	if entityByPlayer[player] then
@@ -679,6 +713,26 @@ local function offense(attacker: Entity, target: Entity): (number, number)
 	return attacker.attack, attacker.level
 end
 
+--[[
+	D-90: whether `target` dodges a hit from `attacker` (Agility, less the
+	attacker's magic accuracy on a magic hit). A dodge is shown to nearby
+	players and still counts as a fight.
+]]
+local function dodged(attacker: Entity, target: Entity): boolean
+	if target.evasionPct <= 0 then
+		return false
+	end
+	local chance = AttributeRules.dodgeChance(target.evasionPct, attacker.magicAccuracyPct, attacker.magicHit)
+	if rng:NextNumber() >= chance then
+		return false
+	end
+	local t = now()
+	target.lastHostileAt = t
+	attacker.lastHostileAt = t
+	broadcast(target, { kind = "Dodge", target = target.model, source = attacker.model })
+	return true
+end
+
 -- Computes and applies one hit (callers have validated it).
 local function strike(
 	attacker: Entity,
@@ -688,11 +742,15 @@ local function strike(
 	heavy: boolean?,
 	extra: HitExtra?
 )
+	if dodged(attacker, target) then
+		return
+	end
 	local attackStat, attackLevel = offense(attacker, target)
 	local amount, crit = CombatMath.damage({
 		attack = attackOf(attacker, attackStat),
 		attackerLevel = attackLevel,
-		coefficient = coefficient,
+		-- D-90: Strength (physical) / Intelligence (magic).
+		coefficient = coefficient * (1 + attacker.damagePct / 100),
 		critChancePct = attacker.critChancePct + critBonusPct,
 		critMultiplier = attacker.critMultiplier,
 		roll = rng:NextNumber(),
@@ -707,7 +765,7 @@ local function tickDamage(attacker: Entity, target: Entity, coefficient: number)
 	local amount = CombatMath.damage({
 		attack = attackOf(attacker, attackStat),
 		attackerLevel = attackLevel,
-		coefficient = coefficient,
+		coefficient = coefficient * (1 + attacker.damagePct / 100),
 		critChancePct = 0,
 		critMultiplier = 1,
 		roll = 1,
@@ -940,7 +998,7 @@ local function tick(dt: number)
 			entity.model:SetAttribute("Resting", nil)
 		end
 		entity.hp = math.min(entity.hp, entity.maxHp)
-		entity.focus = math.min(config.FocusMax, entity.focus + config.FocusRegenPerSecond * dt)
+		entity.focus = math.min(entity.focusMax, entity.focus + config.FocusRegenPerSecond * dt)
 		if entity.hp ~= before or entity.kind == "Player" then
 			mirror(entity)
 		end
@@ -1023,6 +1081,8 @@ export type NpcSpec = {
 	-- Default true (training dummies). Mobs pass false: MobService owns them.
 	autoRevive: boolean?,
 	regen: boolean?,
+	-- D-90: its hits are magic (element bosses; Wisdom resists them).
+	magic: boolean?,
 }
 
 --[[
@@ -1043,6 +1103,7 @@ function CombatService:RegisterNpc(model: Model, spec: NpcSpec): boolean
 	entity.defense *= spec.defenseScale or 1
 	entity.autoRevive = spec.autoRevive ~= false
 	entity.regen = spec.regen ~= false
+	entity.magicHit = spec.magic == true
 	entitiesByModel[model] = entity
 	humanoid.BreakJointsOnDeath = false
 	mirror(entity)
@@ -1113,6 +1174,9 @@ function CombatService:NpcStrike(
 		if distance > range + config.RangeToleranceStuds then
 			return false
 		end
+	end
+	if dodged(attacker, target) then
+		return true
 	end
 	local amount, crit = CombatMath.damage({
 		attack = attackOf(attacker, attacker.attack),

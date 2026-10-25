@@ -273,7 +273,10 @@ local function renderVitals(character: Model?)
 		)
 	Kit.tween(hpFill, Kit.Tween.Quick, { Size = UDim2.fromScale(math.clamp(hp / maxHp, 0, 1), 1) })
 	if type(focus) == "number" then
-		focusFill.Size = UDim2.fromScale(math.clamp(focus / 100, 0, 1), 1)
+		-- Max Focus grows with Wisdom (D-90).
+		local maxFocus = if character then character:GetAttribute("MaxFocus") else nil
+		local cap = if type(maxFocus) == "number" and maxFocus > 0 then maxFocus else 100
+		focusFill.Size = UDim2.fromScale(math.clamp(focus / cap, 0, 1), 1)
 	end
 	protectedBadge.Visible = character ~= nil and character:GetAttribute("Protected") == true
 end
@@ -285,7 +288,7 @@ local function bindCharacter(character: Model?)
 	table.clear(characterConnections)
 	renderVitals(character)
 	if character then
-		for _, name in { "HP", "MaxHP", "Focus", "Protected", "Shield", "Resting" } do
+		for _, name in { "HP", "MaxHP", "Focus", "MaxFocus", "Protected", "Shield", "Resting" } do
 			table.insert(
 				characterConnections,
 				character:GetAttributeChangedSignal(name):Connect(function()

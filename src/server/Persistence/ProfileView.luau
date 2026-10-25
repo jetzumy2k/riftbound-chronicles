@@ -100,6 +100,21 @@ function ProfileView.wallet(data: { [string]: any }): { Gold: number, PvPMarks: 
 	return { Gold = wallet.Gold or 0, PvPMarks = wallet.PvPMarks or 0 }
 end
 
+-- D-90: the attribute points spent and seconds until the next free reset.
+function ProfileView.attributes(data: { [string]: any }): { [string]: any }
+	local a = data.Attributes or {}
+	return {
+		Attributes = {
+			REC = a.REC or 0,
+			INT = a.INT or 0,
+			WIS = a.WIS or 0,
+			STR = a.STR or 0,
+			AGI = a.AGI or 0,
+		},
+		ResetIn = math.max(0, (data.AttributeResetAt or 0) + 24 * 3600 - os.time()),
+	}
+end
+
 function ProfileView.progression(data: { [string]: any }, levelsGained: number?): { [string]: any }
 	return {
 		Level = data.Level,
@@ -178,6 +193,8 @@ function ProfileView.snapshot(data: { [string]: any }): { [string]: any }
 			Defeats = if type(data.PvPStats) == "table" then data.PvPStats.Defeats or 0 else 0,
 		},
 		Quests = ProfileView.quests(data),
+		-- D-90.
+		Attributes = ProfileView.attributes(data),
 		-- D-74: where the player moved their HUD pieces.
 		HudLayout = if type(data.Settings) == "table" and type(data.Settings.HudLayout) == "table"
 			then table.clone(data.Settings.HudLayout)

@@ -199,6 +199,17 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Attribute points (D-90)
+
+0. Attack a creature: damage numbers appear and it loses HP (the first build broke combat setup).
+1. On joining (and on each level-up) a toast says "N attribute points to spend: open 🌟 Skills, then 📊 Stats". Open the skill screen (🌟 or K): with no skill points left it opens straight on Attributes; otherwise the green "📊 Stats (N)" button switches to it. "Points to spend" shows 5 x your level (a level-12 character: 60). The 🌟 toggle counts skill + attribute points.
+2. Press +1 / +5 on each attribute: the value rises, the effect line updates (e.g. "+6% Max HP · +6% Defense"), points go down; buttons grey out at 0 points.
+3. REC: the HP bar's maximum rises. WIS: the Focus bar fills higher (it regenerates up to the new max). STR on a Warrior / Archer, INT on a Mage / Healer: hits do more damage. The "wrong" damage attribute says it does nothing for your class.
+4. AGI: put points in, let a creature hit you: sometimes "💨 DODGE" shows and no damage is taken (at 60 points about 3.6% of hits).
+5. Reset: all points come back; a second Reset says how many hours until the next free one.
+6. Leave and rejoin: the points are still spent. Admin panel: set your level lower than your spent points allow: all points come back.
+7. Phone emulator: the Attributes page fits, buttons are easy to tap, the 📊 / 🌟 switch works.
+
 ## Phase 18 stage 1: event engine and reward events (D-89)
 
 Studio Play (Player1 is Owner); open 🛠 > 🎉 Events.

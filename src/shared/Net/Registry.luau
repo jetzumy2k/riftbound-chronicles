@@ -30,6 +30,7 @@ local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions
 local ItemRules = require(script.Parent.Parent.Logic.ItemRules)
 local QuestDefinitions = require(script.Parent.Parent.Definitions.QuestDefinitions)
 local EventDefinitions = require(script.Parent.Parent.Definitions.EventDefinitions)
+local AttributeRules = require(script.Parent.Parent.Logic.AttributeRules)
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
 
@@ -90,6 +91,12 @@ return function(S: any)
 		S.struct({ X = S.number(0, 1), Y = S.number(0, 1) }),
 		#HudSlots.IDS
 	)
+	-- D-90: attribute points spent and seconds to the next free reset.
+	local points = S.int(0, 10000)
+	local attributesView = S.struct({
+		Attributes = S.struct({ REC = points, INT = points, WIS = points, STR = points, AGI = points }),
+		ResetIn = S.int(0, 24 * 3600),
+	})
 	-- Phase 11 (D-73): the owner's quests and story state (ProfileView.quests).
 	local questsView = S.struct({
 		Quests = S.map(
@@ -298,6 +305,30 @@ return function(S: any)
 		-- and whether to use a Perfect Stone. The server checks ownership,
 		-- the +10 cap and stones, then consumes one stone, rolls and applies
 		-- in one synchronous step (SECURITY_MODEL T-11).
+		-- D-90: spend attribute points ({ REC = 2, ... }; the server checks
+		-- the total against the level) and the free daily reset.
+		SpendAttributes = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = {
+				S.struct({
+					REC = S.optional(S.int(0, AttributeRules.MAX_STEP)),
+					INT = S.optional(S.int(0, AttributeRules.MAX_STEP)),
+					WIS = S.optional(S.int(0, AttributeRules.MAX_STEP)),
+					STR = S.optional(S.int(0, AttributeRules.MAX_STEP)),
+					AGI = S.optional(S.int(0, AttributeRules.MAX_STEP)),
+				}),
+			},
+			rate = { capacity = 10, refillPerSecond = 4 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
+		ResetAttributes = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = {},
+			rate = { capacity = 2, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded", "HasJob" },
+		},
 		EnhanceItem = {
 			direction = "ClientToServer",
 			kind = "Event",
@@ -692,7 +723,17 @@ return function(S: any)
 					-- clip every nearby client plays on it, `step` its combo step.
 					-- "Skill": `target` is the caster, `skill` the skill, `aim` its
 					-- target and `point` where an area skill lands.
-					kind = S.enum({ "Damage", "Heal", "Defeat", "Revive", "Attack", "MobAttack", "Skill" }),
+					-- "Dodge" (D-90): `target` evaded a hit from `source`.
+					kind = S.enum({
+						"Damage",
+						"Heal",
+						"Defeat",
+						"Revive",
+						"Attack",
+						"MobAttack",
+						"Skill",
+						"Dodge",
+					}),
 					target = S.instance("Model"),
 					amount = S.optional(S.int(0)),
 					crit = S.optional(S.boolean()),
@@ -796,8 +837,17 @@ return function(S: any)
 					Quests = questsView,
 					-- D-74.
 					HudLayout = hudLayout,
+					-- D-90.
+					Attributes = attributesView,
 				}),
 			},
+		},
+
+		-- Server -> owning client: attribute points after a change (D-90).
+		AttributesUpdate = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = { attributesView },
 		},
 
 		-- Server -> owning client: level/XP changed (display only).

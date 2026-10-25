@@ -34,6 +34,12 @@ local MAX_WIDTH = 420
 
 local STRINGS: { [string]: string } = {
 	["system.welcome"] = "Welcome to Riftbound Chronicles",
+	-- D-90 attribute points.
+	["attributes.available"] = "{points} attribute points to spend: open 🌟 Skills, then 📊 Stats",
+	["attributes.noPoints"] = "No attribute points left to spend",
+	["attributes.nothingToReset"] = "No attribute points spent yet",
+	["attributes.resetWait"] = "Free attribute reset ready in {hours} h",
+	["attributes.reset"] = "Attribute points returned: spend them again",
 	-- Phase 18 live events (D-89, EventController).
 	["event.started"] = "Event started: {name}. {blurb}",
 	["event.ended"] = "Event ended: {name}",
@@ -190,6 +196,7 @@ local TOPIC_ICONS: { [string]: string } = {
 	movement = "🏃",
 	system = "🔧",
 	event = "🎉",
+	attributes = "📊",
 }
 -- Keys whose meaning has a better icon than their topic's.
 local KEY_ICONS: { [string]: string } = {

@@ -41,6 +41,10 @@ export type State = {
 	Quests: QuestsView,
 	-- D-74: HUD pieces the player moved (id -> centre fraction).
 	HudLayout: { [string]: { X: number, Y: number } },
+	-- D-90: attribute points spent, and when the free reset is ready
+	-- (os.clock()).
+	Attributes: { REC: number, INT: number, WIS: number, STR: number, AGI: number },
+	AttributeResetAt: number,
 }
 
 export type QuestProgress = {
@@ -73,7 +77,7 @@ export type Item = {
 }
 
 local PlayerDataController = {
-	-- (state, reason: "snapshot" | "progression" | "inventory" | "quests", levelsGained: number)
+	-- (state, reason: "snapshot" | "progression" | "inventory" | "quests" | "attributes", levelsGained: number)
 	Changed = Signal.new(),
 }
 
@@ -94,7 +98,16 @@ local state: State = {
 	ReadyAt = {},
 	Quests = emptyQuests(),
 	HudLayout = {},
+	Attributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
+	AttributeResetAt = 0,
 }
+
+local function readAttributes(view: any)
+	if type(view) == "table" and type(view.Attributes) == "table" then
+		state.Attributes = view.Attributes
+		state.AttributeResetAt = os.clock() + (view.ResetIn or 0)
+	end
+end
 
 function PlayerDataController:Init()
 	NetClient.on("ProfileSnapshot", function(snapshot)
@@ -120,9 +133,17 @@ function PlayerDataController:Init()
 			ReadyAt = state.ReadyAt,
 			Quests = snapshot.Quests or emptyQuests(),
 			HudLayout = snapshot.HudLayout or {},
+			Attributes = state.Attributes,
+			AttributeResetAt = state.AttributeResetAt,
 		}
+		readAttributes(snapshot.Attributes)
 		log:Debug("snapshot: L%d %d/%d XP", state.Level, state.Experience, state.XPToNext)
 		PlayerDataController.Changed:Fire(state, "snapshot", 0)
+	end)
+
+	NetClient.on("AttributesUpdate", function(update)
+		readAttributes(update)
+		PlayerDataController.Changed:Fire(state, "attributes", 0)
 	end)
 
 	NetClient.on("QuestUpdate", function(update)

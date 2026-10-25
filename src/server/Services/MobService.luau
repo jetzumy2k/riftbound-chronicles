@@ -198,6 +198,8 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 		defenseScale = enemy.defenseScale,
 		autoRevive = false,
 		regen = false,
+		-- D-90: bosses' element attacks are magic (D-88 element).
+		magic = enemy.element ~= nil,
 	})
 
 	nextId += 1

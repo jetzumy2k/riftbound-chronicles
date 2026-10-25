@@ -97,15 +97,17 @@ local function showNumber(
 	label.FontFace = Theme.Fonts.DisplayHeavy
 	label.TextScaled = false
 	label.TextSize = if crit then 34 elseif shielded or tick then 19 else 24
-	label.Text = if shielded
-		then `🛡 {formatNumber(amount)}`
+	label.Text = if tick == "Dodge"
+		then "💨 DODGE"
+		elseif shielded then `🛡 {formatNumber(amount)}`
 		elseif tick == "Poison" then `💀 {formatNumber(amount)}`
 		elseif tick == "Burn" then `🔥 {formatNumber(amount)}`
 		elseif heal then `+{formatNumber(amount)}`
 		elseif crit then `💥 {formatNumber(amount)}`
 		else formatNumber(amount)
-	label.TextColor3 = if shielded
-		then Color3.fromRGB(150, 210, 255)
+	label.TextColor3 = if tick == "Dodge"
+		then Color3.fromRGB(200, 230, 255)
+		elseif shielded then Color3.fromRGB(150, 210, 255)
 		elseif tick == "Poison" then Color3.fromRGB(150, 240, 110)
 		elseif tick == "Burn" then Color3.fromRGB(255, 160, 70)
 		elseif heal then Color3.fromRGB(140, 255, 170)
@@ -415,6 +417,9 @@ local function onEvent(payload: any)
 		)
 	elseif kind == "Damage" then
 		onDamage(model, payload)
+	elseif kind == "Dodge" then
+		-- D-90: Agility dodged the hit.
+		showNumber(model, 0, false, false, false, "Dodge")
 	elseif kind == "Heal" then
 		showNumber(model, payload.amount or 0, payload.crit == true, true)
 		local skill = SkillDefinitions.get(payload.skill)

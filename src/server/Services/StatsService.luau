@@ -3,13 +3,15 @@
 	StatsService (Layer 2)
 	Server-authoritative character stats. Phase 2: base stats from level
 	(CLAUDE.md §5 via shared StatFormulas). Phase 7 (D-64) layers gear
-	(and Phase 8 enhancement, via ItemRules) on top; combat uses GetStats.
+	(and Phase 8 enhancement, via ItemRules) on top, then D-90 attribute
+	points (Logic/AttributeRules); combat uses GetStats.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local StatFormulas = require(ReplicatedStorage.Shared.Logic.StatFormulas)
 local ItemRules = require(ReplicatedStorage.Shared.Logic.ItemRules)
+local AttributeRules = require(ReplicatedStorage.Shared.Logic.AttributeRules)
 
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
@@ -37,7 +39,11 @@ function StatsService:GetStats(player: Player): ItemRules.Stats?
 		return nil
 	end
 	local gear = ItemRules.gearTotals(data.Equipment, data.Inventory)
-	return ItemRules.withGear(StatFormulas.forLevel(data.Level), gear)
+	local stats = ItemRules.withGear(StatFormulas.forLevel(data.Level), gear)
+	-- D-90: attribute points on top, as a new table (the gear stats are
+	-- frozen; writing into them stopped combat setup, creator report
+	-- 2026-10-25 "no damage").
+	return AttributeRules.applyTo(stats, data.Attributes or AttributeRules.empty(), data.Job)
 end
 
 return StatsService

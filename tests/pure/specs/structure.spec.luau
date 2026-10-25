@@ -251,6 +251,8 @@ return function(t)
 				AdminBoss = true,
 				AdminAudit = true,
 				AdminEvents = true,
+				SpendAttributes = true,
+				ResetAttributes = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

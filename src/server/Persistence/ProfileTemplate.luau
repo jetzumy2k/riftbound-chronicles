@@ -3,8 +3,9 @@
 	ProfileTemplate — player profile schema v2 (docs/DATA_MODEL.md §2).
 	v2 (Phase 5, D-45): OwnedSkills maps skill id -> rank (skill tree).
 	v3 (equipment overhaul, D-68): the "Accessory" equipment slot is "Necklace".
-	HeadStyle (D-72) needs no migration: a missing field is filled with the
-	default on load (ProfileValidator).
+	HeadStyle (D-72) and Attributes / AttributeResetAt (D-90) need no
+	migration: a missing field is filled with the default on load
+	(ProfileValidator).
 
 	`new()` returns a fresh deep copy. Fields owned by later phases ship as empty
 	defaults so those phases can fill them without a migration.
@@ -41,6 +42,11 @@ function ProfileTemplate.new(): { [string]: any }
 		Level = 0,
 		Experience = 0,
 		TotalExperience = 0,
+
+		-- D-90: attribute points spent (Logic/AttributeRules; 5 per level),
+		-- and when they were last reset (UTC seconds; one free reset a day).
+		Attributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
+		AttributeResetAt = 0,
 
 		-- Skills (Phase 5, D-45): learned skill id -> rank, and the 6 + 1 bar (D-75).
 		OwnedSkills = {},

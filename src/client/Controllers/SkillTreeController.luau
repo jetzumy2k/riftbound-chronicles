@@ -17,6 +17,10 @@
 	    every class (no point, no rank); tap it to put it in a slot.
 	  - Header: skill points left and Reset (refunds every point; only in a
 	    safe zone, out of combat).
+	  - D-90: a "📊 Stats" button switches to the Attributes page
+	    (UI/AttributePanel: spend the 5 points a level on REC / INT / WIS /
+	    STR / AGI; Reset there is the free daily attribute reset) and
+	    "🌟 Skills" back. The toggle counts skill and attribute points.
 
 	Every action is an intent (`LearnSkill`, `ResetSkills`, `SetLoadout`);
 	the server validates it and answers with a fresh snapshot, which is what
@@ -43,6 +47,8 @@ local Panels = require(UI.Panels)
 local HudLayout = require(UI.HudLayout)
 local SkillInfo = require(UI.SkillInfo)
 local SkillIcon = require(UI.SkillIcon)
+local AttributePanel = require(UI.AttributePanel)
+local AttributeRules = require(Shared.Logic.AttributeRules)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
 local NotificationController = require(script.Parent.NotificationController)
@@ -93,6 +99,13 @@ end
 
 local function pointsLeft(): number
 	return SkillRules.available(owned(), state().Level, bonus())
+end
+
+-- D-90: the page shown ("Skills" or "Attributes") and the points left.
+local page = "Skills"
+local function attributePoints(): number
+	local s = state()
+	return math.max(0, AttributeRules.unspent(s.Attributes, s.Level))
 end
 
 -- Why a skill can't be learned / ranked right now (nil = it can).
@@ -584,7 +597,7 @@ end
 
 function render()
 	toggle.Visible = state().Job ~= nil
-	local points = pointsLeft()
+	local points = pointsLeft() + attributePoints()
 	if toggleCompact() then
 		toggle.Text = if points > 0 then `🌟{points}` else "🌟"
 		toggle.TextSize = 20
@@ -619,6 +632,13 @@ function render()
 	})
 	panel = frame
 
+	local attributesPage = page == "Attributes"
+	if attributesPage then
+		points = attributePoints()
+	else
+		points = pointsLeft()
+	end
+
 	-- Header.
 	local job = JobDefinitions.get(state().Job)
 	local header = Kit.new("Frame", {
@@ -627,14 +647,31 @@ function render()
 		Size = UDim2.fromOffset(layout.header.w, layout.header.h - 4),
 		Parent = frame,
 	})
+	-- D-90: switch between the skill tree and the attributes.
+	local unspentAttributes = attributePoints()
+	local switch = smallButton(
+		if attributesPage
+			then "🌟 Skills"
+			elseif unspentAttributes > 0 then `📊 Stats ({unspentAttributes})`
+			else "📊 Stats",
+		112,
+		if not attributesPage and unspentAttributes > 0 then LEARNABLE else nil
+	)
+	switch.Parent = header
+	switch.Activated:Connect(function()
+		page = if attributesPage then "Skills" else "Attributes"
+		render()
+	end)
 	local title = Kit.label(
-		if job then `{job.displayName} Skill Tree` else "Skill Tree",
+		if attributesPage then "Attributes" elseif job then `{job.displayName} Skill Tree` else "Skill Tree",
 		17,
 		Theme.Fonts.Display,
 		Theme.Colors.GoldBright
 	)
 	title.AutomaticSize = Enum.AutomaticSize.None
-	title.Size = UDim2.new(1, -250, 1, 0)
+	title.Position = UDim2.fromOffset(118, 0)
+	title.Size = UDim2.new(1, -368, 1, 0)
+	title.Visible = layout.header.w >= 480
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextTruncate = Enum.TextTruncate.AtEnd
 	title.TextWrapped = false
@@ -662,7 +699,7 @@ function render()
 	reset.LayoutOrder = 2
 	reset.Parent = right
 	reset.Activated:Connect(function()
-		NetClient.fire("ResetSkills")
+		NetClient.fire(if attributesPage then "ResetAttributes" else "ResetSkills")
 	end)
 	local close = smallButton("Close", 72)
 	close.LayoutOrder = 3
@@ -670,6 +707,29 @@ function render()
 	close.Activated:Connect(function()
 		SkillTreeController.setOpen(false)
 	end)
+
+	if attributesPage then
+		local top = layout.bar.y
+		local pageArea = Kit.new("Frame", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(layout.header.x, top),
+			Size = UDim2.fromOffset(layout.header.w, layout.panel.h - top - 8),
+			Parent = frame,
+		})
+		local s = state()
+		AttributePanel.draw(
+			pageArea,
+			Vector2.new(layout.header.w, layout.panel.h - top - 8),
+			s.Attributes,
+			s.Level,
+			s.Job,
+			s.AttributeResetAt - os.clock(),
+			function(id: string, n: number)
+				NetClient.fire("SpendAttributes", { [id] = n })
+			end
+		)
+		return
+	end
 
 	-- Skill bar row.
 	local bar = Kit.new("Frame", {
@@ -732,6 +792,10 @@ function render()
 end
 
 function SkillTreeController.setOpen(value: boolean)
+	-- Attribute points but no skill points: open on the Attributes page.
+	if value and not open and pointsLeft() == 0 and attributePoints() > 0 then
+		page = "Attributes"
+	end
 	open = value
 	if value then
 		Panels.opened("skills")
@@ -782,8 +846,16 @@ function SkillTreeController:Start()
 		SkillTreeController.setOpen(true)
 	end
 	render()
-	PlayerDataController.Changed:Connect(function()
+	-- D-90: tell the player where unspent attribute points go (on joining
+	-- and when a level brings new ones).
+	local told = false
+	PlayerDataController.Changed:Connect(function(s, reason, levelsGained)
 		render()
+		local left = attributePoints()
+		if s.Job ~= nil and left > 0 and ((reason == "snapshot" and not told) or (levelsGained or 0) > 0) then
+			told = true
+			NotificationController:ShowKey("Info", "attributes.available", { points = tostring(left) })
+		end
 	end)
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		if open then
