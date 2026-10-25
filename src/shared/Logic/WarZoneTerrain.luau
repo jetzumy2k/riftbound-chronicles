@@ -29,6 +29,20 @@ function WarZoneTerrain.sample(zone: Zone, x: number, z: number): (number, strin
 	return height, material, DesertTerrain.WATER_LEVEL
 end
 
+-- Rock bands for buried rock: the column's shift at (x, z), or nil when
+-- the zone uses the writer's single bedrock material. band(y, shift) then
+-- names the material at height y (relative to the plaza).
+function WarZoneTerrain.strataShift(zone: Zone, x: number, z: number): number?
+	if zone.terrain == "Jungle" then
+		return nil
+	end
+	return DesertTerrain.strataShift(x, z)
+end
+
+function WarZoneTerrain.band(_zone: Zone, y: number, shift: number): string
+	return DesertTerrain.band(y, shift)
+end
+
 function WarZoneTerrain.groundY(zone: Zone, worldX: number, worldZ: number): number
 	local c = zone.center
 	local height = WarZoneTerrain.sample(zone, worldX - c[1], worldZ - c[3])

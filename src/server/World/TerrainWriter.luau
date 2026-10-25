@@ -4,7 +4,8 @@
 	(Phases 12-13). Shared by DesertBuilder and JungleBuilder.
 
 	For every 4-stud column it samples Logic/WarZoneTerrain: the surface
-	material covers the top layers, `bedrock` fills below, and water fills
+	material covers the top layers, `bedrock` (or the zone's rock band at
+	that height, WarZoneTerrain.strataShift / band) fills below, and water fills
 	any air below the column's water surface. Written in 32×32-column chunks
 	so no single WriteVoxels call gets too large.
 ]]
@@ -60,12 +61,19 @@ function TerrainWriter.write(
 					local surface = c[2] + height
 					local water = if waterLevel then c[2] + waterLevel else -math.huge
 					local top = materials[materialName] or bedrock
+					local shift = WarZoneTerrain.strataShift(zone, wx - c[1], wz - c[3])
 					for j = 1, layers do
 						local yb = yBottom + (j - 1) * VOXEL
 						local fill = math.clamp((surface - yb) / VOXEL, 0, 1)
 						if fill > 0 then
 							oi[j][k] = fill
-							mi[j][k] = if surface - yb < TOPSOIL then top else bedrock
+							if surface - yb < TOPSOIL then
+								mi[j][k] = top
+							elseif shift then
+								mi[j][k] = materials[WarZoneTerrain.band(zone, yb - c[2], shift)] or bedrock
+							else
+								mi[j][k] = bedrock
+							end
 						elseif yb < water then
 							oi[j][k] = math.clamp((water - yb) / VOXEL, 0, 1)
 							mi[j][k] = Enum.Material.Water

@@ -199,6 +199,14 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 16 stage 2: Desert Rift art (D-83)
+
+1. Play, check the Output: the `[WorldBudget] Desert Rift [WarZone]` line should show about 1,800 parts, still 31 lights, and no warning. Note the build time on the `Desert Rift built` line (was 0.2 s).
+2. Enter the Desert Rift. Look at the buttes: a sheer top cliff, stepped ledges below, and coloured rock layers across the faces. Check the hoodoo spires have a darker cap stone and the three stone arches stand (you can walk under them).
+3. Walk the dunes: cacti, dry shrubs and small boulders; nothing stands in a creature camp, on a boss, or inside either realm's camp. The ruins sites have a fallen obelisk and broken columns.
+4. At the oasis: reeds at the water's edge, lily pads, an outer ring of palms, and a wooden pier on the east side.
+5. Thin sand should drift past the camera in the desert only; it stops when you leave. Check the frame rate in the desert on the device emulator (phone).
+
 ## Phase 16 stage 1: zone budgets (D-82)
 
 1. Play in Studio and open the Output. For each capital, war zone and dungeon copy there is one `[WorldBudget]` line, like `Skyreach Citadel [Capital]: parts 812/1400 (58%), ...`.

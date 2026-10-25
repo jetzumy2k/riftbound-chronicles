@@ -14,6 +14,9 @@
 	  bush        a couple of leafy mounds
 	  lilyPad     a floating pad, sometimes with a flower
 	  vine        a hanging vine strand (cliffs, bridges)
+	  cactus      a ribbed column cactus with up to three arms (Desert)
+	  dryShrub    a low tangle of dry desert scrub (Desert)
+	  reeds       a clump of reeds for a pool's edge (Desert oasis)
 ]]
 
 local Architecture = require(script.Parent.Architecture)
@@ -258,6 +261,102 @@ function Flora.vine(parent: Instance, top: Vector3, length: number, seed: number
 		Enum.Material.Grass,
 		{ decor = true }
 	)
+end
+
+local CACTUS = Color3.fromRGB(78, 120, 64)
+
+-- Ribbed column cactus on `base`, `height` tall; plant decor that still
+-- casts a shadow. Arms bend up from the trunk on alternating sides.
+function Flora.cactus(parent: Instance, base: CFrame, height: number, seed: number)
+	local rng = Random.new(seed)
+	local color = CACTUS:Lerp(Color3.fromRGB(120, 140, 70), rng:NextNumber(0, 0.35))
+	local radius = height * 0.09
+	local cf = base * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+	local trunk = A.cylinder(parent, radius, height, cf, color, Enum.Material.Grass, { decor = true })
+	trunk.CastShadow = true
+	A.part(
+		parent,
+		Vector3.new(radius * 2, radius * 2, radius * 2),
+		cf * CFrame.new(0, height, 0),
+		color,
+		Enum.Material.Grass,
+		{ decor = true, shape = Enum.PartType.Ball }
+	)
+	local arms = rng:NextInteger(0, 3)
+	for i = 1, arms do
+		local side = if i % 2 == 0 then -1 else 1
+		local y = height * rng:NextNumber(0.35, 0.6)
+		local reach = radius * rng:NextNumber(2.2, 3.2)
+		local rise = height * rng:NextNumber(0.25, 0.4)
+		local armCf = cf * CFrame.Angles(0, (i - 1) * 2.1, 0)
+		local r = radius * 0.7
+		-- Out from the trunk, then up.
+		A.part(
+			parent,
+			Vector3.new(reach, r * 2, r * 2),
+			armCf * CFrame.new(side * reach / 2, y, 0),
+			color,
+			Enum.Material.Grass,
+			{ decor = true }
+		)
+		local up = A.cylinder(
+			parent,
+			r,
+			rise,
+			armCf * CFrame.new(side * reach, y - r, 0),
+			color,
+			Enum.Material.Grass,
+			{
+				decor = true,
+			}
+		)
+		up.CastShadow = true
+	end
+end
+
+function Flora.dryShrub(parent: Instance, base: CFrame, size: number, seed: number)
+	local rng = Random.new(seed)
+	local color = Color3.fromRGB(150, 128, 84):Lerp(Color3.fromRGB(112, 110, 66), rng:NextNumber())
+	for i = 0, 1 do
+		local s = size * (1 - i * 0.35)
+		blob(
+			parent,
+			Vector3.new(s, s * 0.55, s * rng:NextNumber(0.8, 1.1)),
+			base * CFrame.new(i * size * 0.4, s * 0.2, rng:NextNumber(-0.6, 0.6)),
+			color,
+			Enum.Material.Grass,
+			false
+		)
+	end
+end
+
+-- A clump of thin reeds (decor) leaning a little; some carry a seed head.
+function Flora.reeds(parent: Instance, base: CFrame, height: number, seed: number)
+	local rng = Random.new(seed)
+	for i = 1, 5 do
+		local h = height * rng:NextNumber(0.6, 1)
+		local cf = base
+			* CFrame.new(rng:NextNumber(-1.2, 1.2), 0, rng:NextNumber(-1.2, 1.2))
+			* CFrame.Angles(rng:NextNumber(-0.18, 0.18), 0, rng:NextNumber(-0.18, 0.18))
+		A.part(
+			parent,
+			Vector3.new(0.18, h, 0.18),
+			cf * CFrame.new(0, h / 2, 0),
+			Color3.fromRGB(96, 132, 60):Lerp(Color3.fromRGB(150, 150, 80), rng:NextNumber(0, 0.5)),
+			Enum.Material.Grass,
+			{ decor = true }
+		)
+		if i <= 2 then
+			A.part(
+				parent,
+				Vector3.new(0.4, 1.4, 0.4),
+				cf * CFrame.new(0, h + 0.3, 0),
+				Color3.fromRGB(112, 76, 48),
+				Enum.Material.Fabric,
+				{ decor = true }
+			)
+		end
+	end
 end
 
 return Flora

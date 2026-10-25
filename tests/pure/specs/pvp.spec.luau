@@ -202,6 +202,91 @@ return function(t)
 			t.eq(WorldLayout.basePoint(zone, "Nobody", 0, 0), nil)
 		end)
 
+		-- D-83: rock formations and ruins stay off the play spaces.
+		t.it("hoodoos, arches and ruins keep clear of camps, bosses, bases and paths", function()
+			local spots = {}
+			for _, h in DesertTerrain.HOODOOS do
+				table.insert(spots, { x = h[1], z = h[2], r = h[3], what = "hoodoo" })
+			end
+			for _, a in DesertTerrain.ARCHES do
+				local span = math.sqrt((a[3] - a[1]) ^ 2 + (a[4] - a[2]) ^ 2)
+				t.ok(span >= 25 and span <= 60, `arch span {span}`)
+				table.insert(
+					spots,
+					{ x = (a[1] + a[3]) / 2, z = (a[2] + a[4]) / 2, r = span / 2 + a[6], what = "arch" }
+				)
+			end
+			for _, ruin in DesertTerrain.RUINS do
+				table.insert(spots, { x = ruin[1], z = ruin[2], r = 18, what = "ruin" })
+			end
+			local inner = zone.size / 2 - DesertTerrain.RIM_WIDTH
+			for _, spot in spots do
+				local label = `{spot.what} at {spot.x},{spot.z}`
+				t.ok(
+					math.max(math.abs(spot.x), math.abs(spot.z)) + spot.r < inner + 30,
+					`{label} inside the rim`
+				)
+				t.ok(
+					math.sqrt(spot.x ^ 2 + spot.z ^ 2) > DesertTerrain.PLAZA_RADIUS + 60 + spot.r,
+					`{label} off the oasis`
+				)
+				t.ok(math.abs(spot.x) > 30 + spot.r, `{label} off the camp-to-oasis paths`)
+				for _, camp in zone.camps do
+					local d = math.sqrt((spot.x - camp.x) ^ 2 + (spot.z - camp.z) ^ 2)
+					t.ok(d > spot.r + 30, `{label} clear of the {camp.enemy} camp ({d})`)
+				end
+				for _, boss in zone.bosses do
+					local d = math.sqrt((spot.x - boss.x) ^ 2 + (spot.z - boss.z) ^ 2)
+					t.ok(d > spot.r + 50, `{label} clear of {boss.enemy} ({d})`)
+				end
+				for race, base in zone.bases do
+					local d = math.sqrt((spot.x - base.x) ^ 2 + (spot.z - base.z) ^ 2)
+					t.ok(d > DesertTerrain.BASE_RADIUS + 30 + spot.r, `{label} clear of the {race} camp`)
+				end
+			end
+		end)
+
+		t.it("hoodoos stand tall and mesas step up in ledges", function()
+			for _, h in DesertTerrain.HOODOOS do
+				local top = DesertTerrain.sample(h[1], h[2], zone.size)
+				t.ok(top > h[4] - 2, `hoodoo top at {h[1]},{h[2]}: {top}`)
+				local foot = DesertTerrain.sample(h[1] + h[3] + 10, h[2], zone.size)
+				t.ok(foot < top * 0.5, `hoodoo is a spire, not a hill: {foot}`)
+			end
+			-- Walking out from a mesa's centre the height falls in steps: several
+			-- flat runs (ledges) between the drops.
+			local m = DesertTerrain.MESAS[5]
+			local flats, last = 0, nil
+			for d = 0, m[3] + 10, 0.5 do
+				local h = DesertTerrain.sample(m[1] + d, m[2], zone.size)
+				if last and math.abs(h - last) < 0.05 and h > 1 then
+					flats += 1
+				end
+				last = h
+			end
+			t.ok(flats >= 10, `mesa ledges: {flats}`)
+		end)
+
+		t.it("rock strata alternate by height and every band has a terrain material", function()
+			local seen = {}
+			for y = -10, 80, 1 do
+				seen[DesertTerrain.strata(150, y, -40)] = true
+			end
+			local kinds = 0
+			for material in seen do
+				kinds += 1
+				t.ok(
+					material == "Sandstone"
+						or material == "Limestone"
+						or material == "Rock"
+						or material == "Ground",
+					material
+				)
+			end
+			t.ok(kinds >= 3, `bands: {kinds}`)
+			t.eq(DesertTerrain.strata(10, 20, 30), DesertTerrain.band(20, DesertTerrain.strataShift(10, 30)))
+		end)
+
 		t.it("creatures roam the oasis and the dunes, never inside a camp", function()
 			local half = zone.size / 2 - DesertTerrain.RIM_WIDTH
 			local inOasis = 0
