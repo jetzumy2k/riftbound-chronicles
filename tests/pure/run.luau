@@ -33,6 +33,7 @@ local specs = {
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },
 	{ "world_budget", require("./specs/world_budget.spec") },
+	{ "capital_terrain", require("./specs/capital_terrain.spec") },
 	{ "race_select_layout", require("./specs/race_select_layout.spec") },
 	{ "motion_math", require("./specs/motion_math.spec") },
 	{ "job_definitions", require("./specs/job_definitions.spec") },

@@ -56,6 +56,8 @@ local nodeMeta = {}
 -- Extra globals for dev tools that run engine modules with @lune/roblox
 -- (tools/world). Pure tests leave this empty.
 local extraGlobals: { [string]: any } = {}
+-- Stand-in services dev tools add (`load.services`); pure tests never do.
+local extraServices: { [string]: any } = {}
 local environmentFor: (proxy: any) -> { [string]: any }
 local cache: { [string]: any } = {}
 local loading: { [string]: boolean } = {}
@@ -105,6 +107,9 @@ nodeMeta.__index = function(proxy, key)
 	elseif key == "GetService" then
 		return function(self, serviceName)
 			local service = info(self).children and info(self).children[serviceName]
+			if service == nil then
+				service = extraServices[serviceName]
+			end
 			if service == nil then
 				error(`[loader] service '{serviceName}' is not available to pure modules`, 2)
 			end
@@ -201,8 +206,9 @@ local function load(fsPath: string): any
 	error(`[loader] {fsPath} is outside the mapped roots`, 2)
 end
 
--- `load(path)` as before; `load.globals` adds globals for dev tools.
-return setmetatable({ globals = extraGlobals }, {
+-- `load(path)` as before; `load.globals` / `load.services` add globals and
+-- stand-in services for dev tools.
+return setmetatable({ globals = extraGlobals, services = extraServices }, {
 	__call = function(_, fsPath: string): any
 		return load(fsPath)
 	end,

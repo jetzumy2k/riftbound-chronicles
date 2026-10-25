@@ -81,6 +81,20 @@ end)
 -- Engine-only behaviour the preview does not need.
 roblox.implementMethod("Humanoid", "SetStateEnabled", function() end)
 
+-- Terrain is not drawn by the preview (parts only); the builders' fills are no-ops.
+load.globals.Region3 = {
+	new = function()
+		return {}
+	end,
+}
+load.services.Workspace = {
+	Terrain = {
+		FillBall = function() end,
+		FillBlock = function() end,
+		WriteVoxels = function() end,
+	},
+}
+
 local WorldLayout = load("src/shared/Definitions/WorldLayout")
 local CapitalBuilder = load("src/server/World/CapitalBuilder")
 local DungeonBuilder = load("src/server/World/DungeonBuilder")

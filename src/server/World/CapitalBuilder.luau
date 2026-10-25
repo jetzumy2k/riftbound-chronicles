@@ -8,6 +8,11 @@
 	  Emberdeep Bastion (Devils)  black-crimson gothic keep over a lava sea,
 	                              jagged rock spires and a volcano
 
+	Their landforms are Roblox Terrain from Logic/CapitalTerrain (D-85):
+	Skyreach's craggy floating rock with hanging spires and waterfalls into
+	the clouds, Emberdeep's volcano with ridged flanks, a crater, lava
+	channels and a smoke plume.
+
 	Both: plaza with the spawn waystone and the safe-zone ring, corner towers,
 	colonnades with banners, lamps / braziers, portal gates (Desert Rift,
 	Jungle Rift, Rift Dungeons; sealed until their updates) and the training
@@ -16,9 +21,12 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local WorldLayout = require(ReplicatedStorage.Shared.Definitions.WorldLayout)
+local CapitalTerrain = require(ReplicatedStorage.Shared.Logic.CapitalTerrain)
 local Architecture = require(script.Parent.Architecture)
+local TerrainWriter = require(script.Parent.TerrainWriter)
 
 type Style = Architecture.Style
 
@@ -37,6 +45,13 @@ local function localCF(realm: WorldLayout.Realm, point: { number }, facing: numb
 	local position = v3(WorldLayout.toWorld(realm, point))
 	return CFrame.lookAt(position, position + look)
 end
+
+local TERRAIN_MATERIAL: { [string]: Enum.Material } = {
+	Slate = Enum.Material.Slate,
+	Rock = Enum.Material.Rock,
+	Basalt = Enum.Material.Basalt,
+	CrackedLava = Enum.Material.CrackedLava,
+}
 
 local function decor(part: BasePart)
 	part.CanCollide = false
@@ -338,35 +353,65 @@ local function skyIsland(parent: Instance, realm: WorldLayout.Realm, style: Styl
 	model.Name = "SkyIsland"
 	local center = v3(realm.platformCenter)
 	local bottom = center.Y - realm.platformSize[2] / 2
-	local rock = Color3.fromRGB(196, 188, 176)
-	-- Inverted rocky cone under the platform.
-	local tiers = 6
-	local y = bottom
-	for i = 0, tiers - 1 do
-		local t = i / tiers
-		local w = realm.platformSize[1] * (0.98 - t * 0.78)
-		local h = 18 - i * 1.5
+	local terrain = Workspace.Terrain
+	-- The floating rock: Terrain balls tapering down under the platform.
+	local balls, tips = CapitalTerrain.island(center.X, bottom, center.Z, realm.platformSize[1] / 2)
+	for _, b in balls do
+		terrain:FillBall(Vector3.new(b.x, b.y, b.z), b.r, TERRAIN_MATERIAL[b.material])
+	end
+	-- Crystals glowing at the tips of the hanging spires.
+	for _, tip in tips do
+		A.crystals(model, CFrame.new(tip[1], tip[2], tip[3]) * CFrame.Angles(math.pi, 0, 0), 9, style.window)
+	end
+	-- Three waterfalls spilling off the rock into the clouds, with mist.
+	local topRadius = realm.platformSize[1] / 2 * CapitalTerrain.ISLAND_TOP_SHARE
+	for i = 0, 2 do
+		local a = (i + 0.25) / 3 * math.pi * 2
+		local out = Vector3.new(math.cos(a), 0, math.sin(a))
+		local fall = 95
+		local lip = center + out * (topRadius + 3) + Vector3.new(0, -realm.platformSize[2] / 2 - 4, 0)
+		local face = CFrame.lookAt(lip, lip + out)
 		A.part(
 			model,
-			Vector3.new(w, h, w * 0.96),
-			CFrame.new(center.X, y - h / 2, center.Z) * CFrame.Angles(0, math.rad(i * 17), 0),
-			rock,
-			Enum.Material.Slate,
-			{ decor = true }
+			Vector3.new(10, fall, 1.2),
+			face * CFrame.new(0, -fall / 2, 0),
+			Color3.fromRGB(196, 228, 248),
+			Enum.Material.Glass,
+			{ decor = true, transparency = 0.35 }
 		)
-		y -= h * 0.92
-	end
-	-- Hanging crystals beneath.
-	for i = 0, 5 do
-		local a = i / 6 * math.pi * 2
-		A.crystals(
+		A.part(
 			model,
-			CFrame.new(
-				center + Vector3.new(math.cos(a) * 60, -(realm.platformSize[2] + 30), math.sin(a) * 60)
-			) * CFrame.Angles(math.pi, 0, 0),
-			14,
-			style.window
+			Vector3.new(4, fall * 0.9, 1.4),
+			face * CFrame.new(0, -fall * 0.45, -0.2),
+			Color3.fromRGB(245, 250, 255),
+			Enum.Material.SmoothPlastic,
+			{ decor = true, transparency = 0.25 }
 		)
+		if i < 2 then
+			local mist = A.part(
+				model,
+				Vector3.new(14, 2, 14),
+				face * CFrame.new(0, -fall, 0),
+				Color3.new(1, 1, 1),
+				Enum.Material.SmoothPlastic,
+				{ decor = true, transparency = 1 }
+			)
+			local e = Instance.new("ParticleEmitter")
+			e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+			e.Color = ColorSequence.new(Color3.fromRGB(240, 248, 255))
+			e.Size =
+				NumberSequence.new({ NumberSequenceKeypoint.new(0, 6), NumberSequenceKeypoint.new(1, 14) })
+			e.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.6),
+				NumberSequenceKeypoint.new(1, 1),
+			})
+			e.Lifetime = NumberRange.new(3, 5)
+			e.Rate = 6
+			e.Speed = NumberRange.new(2, 4)
+			e.SpreadAngle = Vector2.new(60, 60)
+			e.EmissionDirection = Enum.NormalId.Top
+			e.Parent = mist
+		end
 	end
 	-- Cloud sea around and below.
 	for i = 0, 13 do
@@ -391,22 +436,10 @@ local function skyIsland(parent: Instance, realm: WorldLayout.Realm, style: Styl
 			style.stoneMaterial,
 			{ decor = true }
 		)
-		A.part(
-			model,
-			Vector3.new(26, 10, 22),
-			CFrame.new(p - Vector3.new(0, 8, 0)) * CFrame.Angles(0, 0.4, 0),
-			rock,
-			Enum.Material.Slate,
-			{ decor = true }
-		)
-		A.part(
-			model,
-			Vector3.new(12, 10, 10),
-			CFrame.new(p - Vector3.new(0, 16, 0)) * CFrame.Angles(0, 1, 0),
-			rock,
-			Enum.Material.Slate,
-			{ decor = true }
-		)
+		-- A small rock beneath, as Terrain.
+		terrain:FillBall(p - Vector3.new(0, 9, 0), 13, Enum.Material.Slate)
+		terrain:FillBall(p - Vector3.new(2, 19, 1), 8, Enum.Material.Rock)
+		terrain:FillBall(p - Vector3.new(0, 27, -1), 4, Enum.Material.Basalt)
 		local tower = A.tower(model, CFrame.new(p + Vector3.new(0, 3, 0)), 4, 26, style)
 		for _, d in tower:GetDescendants() do
 			if d:IsA("BasePart") then
@@ -489,28 +522,34 @@ local function volcanicLand(parent: Instance, realm: WorldLayout.Realm, style: S
 	-- concave slopes, a glowing crater and lava streams.
 	local _, forward = WorldLayout.axes(realm)
 	local volcanoBase = center + v3(forward) * 700 + Vector3.new(0, lavaY - center.Y, 0)
-	local tiers, baseWidth, tierHeight = 11, 440, 24
-	local y = 0
-	for i = 0, tiers - 1 do
-		local t = i / tiers
-		local w = baseWidth * (1 - 0.82 * t ^ 0.7)
-		A.part(
-			model,
-			Vector3.new(w, tierHeight, w * 0.94),
-			CFrame.new(volcanoBase + Vector3.new(0, y + tierHeight / 2, 0))
-				* CFrame.Angles(0, math.rad(i * 19), 0),
-			style.stoneDark,
-			Enum.Material.Basalt,
-			{ decor = true }
-		)
-		y += tierHeight * 0.92
+	local v = CapitalTerrain.VOLCANO
+	local columns = math.ceil(v.radius * 2 / 4) + 2
+	TerrainWriter.writeField(
+		volcanoBase.X - v.radius - 4,
+		volcanoBase.Z - v.radius - 4,
+		columns,
+		lavaY - 12,
+		lavaY + v.height + 12,
+		function(wx: number, wz: number)
+			local height, material = CapitalTerrain.volcano(wx - volcanoBase.X, wz - volcanoBase.Z)
+			-- Outside the cone: nothing above the lava sea's floor.
+			local surface = if height > 0 then lavaY + height else lavaY - 12
+			return surface, TERRAIN_MATERIAL[material]
+		end,
+		Enum.Material.Basalt
+	)
+	local function surfaceAt(dx: number, dz: number): Vector3
+		local height = CapitalTerrain.volcano(dx, dz)
+		return volcanoBase + Vector3.new(dx, height, dz)
 	end
-	local topWidth = baseWidth * (1 - 0.82 * ((tiers - 1) / tiers) ^ 0.7)
+	-- Glowing lake in the crater, its light and a smoke plume.
+	local craterFloor = surfaceAt(0, 0)
 	local crater = A.disc(
 		model,
-		topWidth * 0.38,
-		3,
-		CFrame.new(volcanoBase + Vector3.new(0, y - 1, 0)),
+		v.craterRadius * 0.45,
+		2,
+		-- Partly filling the bowl: the walls rise around the lake.
+		CFrame.new(craterFloor + Vector3.new(0, 7, 0)),
 		style.glow,
 		Enum.Material.Neon,
 		{ decor = true }
@@ -520,20 +559,43 @@ local function volcanicLand(parent: Instance, realm: WorldLayout.Realm, style: S
 	craterLight.Range = 60
 	craterLight.Brightness = 3
 	craterLight.Parent = crater
-	for i = 0, 5 do
-		local a = (i + 0.3) / 6 * math.pi * 2
-		local dirVec = Vector3.new(math.cos(a), 0, math.sin(a))
-		local from = volcanoBase + Vector3.new(0, y - 2, 0) + dirVec * topWidth * 0.42
-		local to = volcanoBase + Vector3.new(0, tierHeight * 0.6, 0) + dirVec * baseWidth * 0.47
-		local length = (to - from).Magnitude
-		A.part(
-			model,
-			Vector3.new(3 + (i % 2) * 2, 1.2, length),
-			CFrame.lookAt((from + to) / 2, to) * CFrame.new(0, 1.5, 0),
-			style.glow,
-			Enum.Material.Neon,
-			{ decor = true }
-		)
+	local smoke = Instance.new("ParticleEmitter")
+	smoke.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	smoke.Color = ColorSequence.new(Color3.fromRGB(70, 56, 52), Color3.fromRGB(120, 100, 96))
+	smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 20), NumberSequenceKeypoint.new(1, 60) })
+	smoke.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.5),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	smoke.Lifetime = NumberRange.new(10, 14)
+	smoke.Rate = 3
+	smoke.Speed = NumberRange.new(10, 16)
+	smoke.Acceleration = Vector3.new(4, 0, 2)
+	smoke.SpreadAngle = Vector2.new(12, 12)
+	smoke.EmissionDirection = Enum.NormalId.Top
+	smoke.RotSpeed = NumberRange.new(-10, 10)
+	smoke.Parent = crater
+	-- Lava streams down each channel: glowing segments lying on the surface.
+	for n = 0, v.channels - 1 do
+		local segments = 6
+		local from = v.craterRadius + 4
+		local to = v.radius * 0.75
+		local function point(r: number): Vector3
+			local a = CapitalTerrain.channelAngle(n, r)
+			return surfaceAt(math.cos(a) * r, math.sin(a) * r) + Vector3.new(0, 0.4, 0)
+		end
+		for k = 0, segments - 1 do
+			local p0 = point(from + (to - from) * k / segments)
+			local p1 = point(from + (to - from) * (k + 1) / segments)
+			A.part(
+				model,
+				Vector3.new(4 * (1.1 - k / segments), 1, (p1 - p0).Magnitude + 1),
+				CFrame.lookAt((p0 + p1) / 2, p1),
+				style.glow,
+				Enum.Material.Neon,
+				{ decor = true }
+			)
+		end
 	end
 	-- Drifting embers over the city.
 	local emberSource = A.part(

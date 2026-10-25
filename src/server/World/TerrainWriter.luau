@@ -90,4 +90,62 @@ function TerrainWriter.write(
 	end
 end
 
+--[[
+	A free-standing heightfield (D-85: Emberdeep's volcano): `columns` x
+	`columns` 4-stud columns from world (x0, z0), filled from yBottom up to
+	each column's surface. sample(wx, wz) returns the surface world Y and
+	its material; rock below the topsoil is `bedrock`.
+]]
+function TerrainWriter.writeField(
+	x0: number,
+	z0: number,
+	columns: number,
+	yBottom: number,
+	yTop: number,
+	sample: (number, number) -> (number, Enum.Material),
+	bedrock: Enum.Material
+)
+	local terrain = Workspace.Terrain
+	x0 = math.floor(x0 / VOXEL) * VOXEL
+	z0 = math.floor(z0 / VOXEL) * VOXEL
+	yBottom = math.floor(yBottom / VOXEL) * VOXEL
+	local layers = math.ceil((yTop - yBottom) / VOXEL)
+	for ci = 0, columns - 1, CHUNK do
+		for ck = 0, columns - 1, CHUNK do
+			local nx = math.min(CHUNK, columns - ci)
+			local nz = math.min(CHUNK, columns - ck)
+			local mats = table.create(nx)
+			local occupancy = table.create(nx)
+			for i = 1, nx do
+				local mi = table.create(layers)
+				local oi = table.create(layers)
+				for j = 1, layers do
+					mi[j] = table.create(nz, Enum.Material.Air)
+					oi[j] = table.create(nz, 0)
+				end
+				mats[i] = mi
+				occupancy[i] = oi
+				local wx = x0 + (ci + i - 0.5) * VOXEL
+				for k = 1, nz do
+					local wz = z0 + (ck + k - 0.5) * VOXEL
+					local surface, top = sample(wx, wz)
+					for j = 1, layers do
+						local yb = yBottom + (j - 1) * VOXEL
+						local fill = math.clamp((surface - yb) / VOXEL, 0, 1)
+						if fill > 0 then
+							oi[j][k] = fill
+							mi[j][k] = if surface - yb < TOPSOIL then top else bedrock
+						end
+					end
+				end
+			end
+			local region = Region3.new(
+				Vector3.new(x0 + ci * VOXEL, yBottom, z0 + ck * VOXEL),
+				Vector3.new(x0 + (ci + nx) * VOXEL, yBottom + layers * VOXEL, z0 + (ck + nz) * VOXEL)
+			)
+			terrain:WriteVoxels(region, VOXEL, mats, occupancy)
+		end
+	end
+end
+
 return TerrainWriter
