@@ -38,6 +38,7 @@ return {
 	{ name = "DungeonService", layer = 5 },
 	{ name = "PvPService", layer = 5 },
 	{ name = "QuestService", layer = 6 },
+	{ name = "WorldEventService", layer = 6 },
 	-- Phase 17 (D-77): the admin panel uses the services below it.
 	{ name = "AdminService", layer = 7 },
 }

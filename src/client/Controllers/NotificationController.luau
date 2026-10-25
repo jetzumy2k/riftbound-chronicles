@@ -43,6 +43,8 @@ local STRINGS: { [string]: string } = {
 	-- Phase 18 live events (D-89, EventController).
 	["event.started"] = "Event started: {name}. {blurb}",
 	["event.ended"] = "Event ended: {name}",
+	["event.worldBoss"] = "The Nullborn Herald has descended on both war zones!",
+	["event.invasion"] = "Mythical bosses invade the war zones!",
 	["event.running"] = "Event running: {name} ({left} left)",
 	-- Phase 11 quests (D-73).
 	["quest.accepted"] = "New quest: {name}",

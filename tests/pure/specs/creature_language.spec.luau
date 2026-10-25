@@ -64,7 +64,7 @@ return function(t)
 					t.ok(enemy.element == nil, `{id} is not a boss`)
 				end
 			end
-			t.eq(count, 44)
+			t.eq(count, 45)
 		end)
 
 		t.it("no two bosses share body, anatomy, element and weight", function()

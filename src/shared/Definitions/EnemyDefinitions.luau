@@ -636,6 +636,18 @@ local roster: { Enemy } = {
 		{ 90, 200, 255 },
 		field(50)
 	),
+	-- The Nullborn World Boss event (D-91): one in each war zone.
+	boss(
+		"NullbornHerald",
+		"The Nullborn Herald",
+		"Guardian",
+		50,
+		"Boss",
+		4.2,
+		{ 52, 38, 72 },
+		{ 185, 105, 255 },
+		field(50)
+	),
 }
 
 -- Floor 4: thirty mini bosses, levels 31-40 (three per level), one per
@@ -691,6 +703,7 @@ local ELEMENT: { [string]: CreatureLanguage.Element } = {
 	Mapinguari = "Wild",
 	JungleHydra = "Wild",
 	Leviathan = "Tide",
+	NullbornHerald = "Void",
 	Minotaur = "Fire",
 	Gorgon = "Wild",
 	HarpyQueen = "Sky",
@@ -789,6 +802,7 @@ local LOOKS: { [string]: { Trait } } = {
 	Echidna = { "Crest" },
 	Nian = { "Horns", "Mane" },
 	Peryton = { "Wings", "Horns" },
+	NullbornHerald = { "Horns" },
 	Cadejo = { "Spikes" },
 	BlackShuck = { "Mane" },
 }

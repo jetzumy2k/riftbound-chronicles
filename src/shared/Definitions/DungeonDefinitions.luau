@@ -355,6 +355,8 @@ makeBoss("Ahuizotl", { enemy = "JungleProwler", level = 29, count = 2 })
 makeBoss("Mapinguari", { enemy = "Thorncrawler", level = 30, count = 2 })
 makeBoss("JungleHydra", { enemy = "Thorncrawler", level = 30, count = 3 })
 makeBoss("Leviathan", { enemy = "MossbackGolem", level = 30, count = 2 })
+-- The Nullborn World Boss event (D-91).
+makeBoss("NullbornHerald", { enemy = "AbyssalKnight", level = 40, count = 3 })
 
 --------------------------------------------------------------------------------
 -- Floor layouts

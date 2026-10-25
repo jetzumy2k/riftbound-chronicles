@@ -190,6 +190,121 @@ ZoneAtmosphere.Extras = table.freeze({
 	} :: Extras),
 })
 
+--[[
+	Event weather (Phase 18 stage 2, D-91): while the event runs, the sky of
+	its zone (`zone`: an extras name; nil = everywhere but the dungeons)
+	blends WEATHER_WEIGHT of the way to `preset`, and the camera particles
+	become `particles` at `rate` per second with `wind`.
+]]
+export type Weather = {
+	zone: string?,
+	preset: Preset,
+	particles: string,
+	rate: number,
+	wind: { number },
+}
+
+ZoneAtmosphere.WEATHER_WEIGHT = 0.85
+
+ZoneAtmosphere.Weather = table.freeze({
+	-- A sandstorm: thick ochre haze, dim sun, sand driving across the view.
+	Sandstorm = table.freeze({
+		zone = "Desert",
+		preset = table.freeze({
+			clockTime = 15,
+			brightness = 1.4,
+			ambient = { 150, 124, 92 },
+			outdoorAmbient = { 160, 132, 98 },
+			colorShiftTop = { 230, 180, 120 },
+			exposure = -0.2,
+			density = 0.62,
+			haze = 3,
+			glare = 0,
+			atmosphereColor = { 214, 170, 112 },
+			decay = { 170, 120, 70 },
+			tint = { 255, 232, 196 },
+			saturation = -0.05,
+			contrast = 0.05,
+			bloomIntensity = 0.2,
+			bloomThreshold = 2.2,
+		} :: Preset),
+		particles = "Sand",
+		rate = 90,
+		wind = { 36, 0, 22 },
+	} :: Weather),
+	-- The flood: heavy rain, grey-green gloom, low cloud.
+	Flood = table.freeze({
+		zone = "Jungle",
+		preset = table.freeze({
+			clockTime = 16,
+			brightness = 1.1,
+			ambient = { 92, 104, 104 },
+			outdoorAmbient = { 104, 118, 120 },
+			colorShiftTop = { 180, 196, 200 },
+			exposure = -0.3,
+			density = 0.5,
+			haze = 2.4,
+			glare = 0,
+			atmosphereColor = { 140, 158, 160 },
+			decay = { 90, 108, 112 },
+			tint = { 226, 238, 240 },
+			saturation = -0.15,
+			contrast = 0.08,
+			bloomIntensity = 0.2,
+			bloomThreshold = 2.2,
+		} :: Preset),
+		particles = "Rain",
+		rate = 120,
+		wind = { 10, 0, 6 },
+	} :: Weather),
+	-- The Rift Eclipse: a violet dusk over every realm.
+	Eclipse = table.freeze({
+		preset = table.freeze({
+			clockTime = 18.6,
+			brightness = 0.9,
+			ambient = { 86, 66, 110 },
+			outdoorAmbient = { 96, 74, 126 },
+			colorShiftTop = { 200, 140, 255 },
+			exposure = -0.2,
+			density = 0.4,
+			haze = 1.6,
+			glare = 0.4,
+			atmosphereColor = { 150, 110, 200 },
+			decay = { 90, 50, 140 },
+			tint = { 230, 214, 255 },
+			saturation = 0.05,
+			contrast = 0.18,
+			bloomIntensity = 0.6,
+			bloomThreshold = 1.6,
+		} :: Preset),
+		particles = "Motes",
+		rate = 16,
+		wind = { 4, 0, 3 },
+	} :: Weather),
+})
+
+-- Events that bring weather.
+ZoneAtmosphere.WEATHER_OF_EVENT = table.freeze({
+	DesertStorm = "Sandstorm",
+	JungleFlood = "Flood",
+	RiftEclipse = "Eclipse",
+})
+
+--[[
+	The weather showing in zone `name` (an extras name) while `running`
+	event ids are live, or nil. The first matching event wins.
+]]
+function ZoneAtmosphere.weatherFor(name: string, running: { string }): (string?, Weather?)
+	for _, id in running do
+		local weatherName = (ZoneAtmosphere.WEATHER_OF_EVENT :: any)[id]
+		local weather = weatherName and (ZoneAtmosphere.Weather :: any)[weatherName] :: Weather?
+		if weather and (weather.zone == name or (weather.zone == nil and name ~= "Dungeon")) then
+			return weatherName, weather
+		end
+	end
+	return nil, nil
+end
+
 function ZoneAtmosphere.extras(name: string): Extras
 	return (ZoneAtmosphere.Extras :: any)[name] or ZoneAtmosphere.Extras.Neutral
 end

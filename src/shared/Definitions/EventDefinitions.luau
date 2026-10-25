@@ -47,7 +47,7 @@ export type Event = {
 }
 
 -- Stages built so far: events above this can't be started yet.
-EventDefinitions.READY_STAGE = 1
+EventDefinitions.READY_STAGE = 2
 
 local DAY = 24 * 60
 
@@ -124,9 +124,10 @@ EventDefinitions.List = {
 		zone = "WarZones",
 		modifiers = { BossRespawn = 0.25 },
 	}),
-	event("EliteSwarm", "Elite Mob Swarm", "⭐", "Elite creatures join every camp.", {
+	event("EliteSwarm", "Elite Mob Swarm", "⭐", "Elite creatures join the war-zone camps.", {
 		kind = "World",
 		stage = 2,
+		zone = "WarZones",
 		spawns = { elites = true },
 	}),
 	event("TreasureHunt", "Treasure Hunt", "🗺️", "Follow the clues to buried treasure.", {

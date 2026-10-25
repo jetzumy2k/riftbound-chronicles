@@ -4,6 +4,10 @@ local EventRules = load("src/shared/Logic/EventRules")
 local LootRules = load("src/shared/Logic/LootRules")
 local AdminRules = load("src/shared/Logic/AdminRules")
 local WorldLayout = load("src/shared/Definitions/WorldLayout")
+local EventSpawns = load("src/shared/Logic/EventSpawns")
+local EnemyDefinitions = load("src/shared/Definitions/EnemyDefinitions")
+local DungeonDefinitions = load("src/shared/Definitions/DungeonDefinitions")
+local ZoneAtmosphere = load("src/shared/Definitions/ZoneAtmosphere")
 
 local NOW = 1800000000
 
@@ -24,6 +28,9 @@ local BUILT = {
 	Healing = true,
 	TrainingCooldown = true,
 	AttributeRolls = true,
+	-- Stage 2 (D-91).
+	MythicalWeight = true,
+	BossRespawn = true,
 }
 
 return function(t)
@@ -144,7 +151,7 @@ return function(t)
 			end
 			t.eq(can({}, "DoubleExp", 0, 60), "ok")
 			t.eq(can({}, "Nope", 0, 60), "unknown")
-			t.eq(can({}, "NullbornWorldBoss", 0, 30), "notReady")
+			t.eq(can({}, "TreasureHunt", 0, 30), "notReady")
 			t.eq(can({}, "DoubleExp", 0, 0), "duration")
 			t.eq(can({}, "DoubleExp", 0, 5 * 24 * 60), "duration")
 			t.eq(can({}, "DoubleExp", -3600, 60), "past")
@@ -179,6 +186,62 @@ return function(t)
 			local jungle = WorldLayout.WarZones.JungleRift.center
 			t.eq(EventRules.zoneAt(jungle[1], jungle[3]), "Jungle")
 			t.eq(EventRules.zoneAt(WorldLayout.DungeonSlots.origin[1], 0), "Dungeon")
+		end)
+
+		t.it("world events spawn real creatures clear of camps and boss posts", function()
+			for _, id in { "RiftBeastInvasion", "EliteSwarm", "MythicalInvasion", "NullbornWorldBoss" } do
+				for _, zoneId in EventSpawns.ZONES do
+					local zone = WorldLayout.WarZones[zoneId]
+					local plan = EventSpawns.plan(id, zoneId)
+					t.ok(#plan > 0, `{id} spawns nothing in {zoneId}`)
+					for _, spawn in plan do
+						local enemy = EnemyDefinitions.get(spawn.enemy)
+						t.ok(enemy ~= nil, `{id}: unknown enemy {spawn.enemy}`)
+						if spawn.kind == "Boss" then
+							t.ok(
+								enemy and enemy.tier ~= nil and DungeonDefinitions.boss(spawn.enemy) ~= nil,
+								`{spawn.enemy} boss`
+							)
+						else
+							t.ok(enemy and enemy.tier == nil, `{spawn.enemy} is a regular creature`)
+						end
+						local half = zone.size / 2 - 20
+						t.ok(
+							math.abs(spawn.x) <= half and math.abs(spawn.z) <= half,
+							`{id} {spawn.x},{spawn.z} inside`
+						)
+						for race, base in zone.bases do
+							local d = math.sqrt((spawn.x - base.x) ^ 2 + (spawn.z - base.z) ^ 2)
+							t.ok(
+								d >= base.radius + 40,
+								`{id} {spawn.enemy} {math.floor(d)} studs from the {race} camp`
+							)
+						end
+						if spawn.kind == "Boss" then
+							for _, post in zone.bosses do
+								local d = math.sqrt((spawn.x - post.x) ^ 2 + (spawn.z - post.z) ^ 2)
+								t.ok(d >= 60, `{spawn.enemy} {math.floor(d)} studs from {post.enemy}`)
+							end
+						end
+					end
+				end
+			end
+			t.eq(#EventSpawns.plan("DoubleExp", "DesertRift"), 0, "reward events spawn nothing")
+		end)
+
+		t.it("weather shows in its own zone only", function()
+			local name = ZoneAtmosphere.weatherFor("Desert", { "DesertStorm" })
+			t.eq(name, "Sandstorm")
+			t.eq(ZoneAtmosphere.weatherFor("Jungle", { "DesertStorm" }), nil)
+			t.eq(ZoneAtmosphere.weatherFor("Jungle", { "JungleFlood" }), "Flood")
+			t.eq(ZoneAtmosphere.weatherFor("Neutral", { "RiftEclipse" }), "Eclipse")
+			t.eq(ZoneAtmosphere.weatherFor("Dungeon", { "RiftEclipse" }), nil, "no eclipse underground")
+			t.eq(ZoneAtmosphere.weatherFor("Desert", {}), nil)
+			for weatherName, weather in ZoneAtmosphere.Weather do
+				for key in ZoneAtmosphere.Presets.Neutral do
+					t.ok(weather.preset[key] ~= nil, `{weatherName} preset has {key}`)
+				end
+			end
 		end)
 
 		t.it("a Moderator needs the grant to run events", function()

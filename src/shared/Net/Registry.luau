@@ -430,7 +430,7 @@ return function(S: any)
 					StartsAt = S.optional(S.int(0, 4102444800)),
 				}),
 			},
-			rate = { capacity = 4, refillPerSecond = 0.5 },
+			rate = { capacity = 10, refillPerSecond = 1 },
 			states = { "ProfileLoaded" },
 			permission = "events.activate",
 		},

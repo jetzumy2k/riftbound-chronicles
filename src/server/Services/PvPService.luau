@@ -70,6 +70,7 @@ local DungeonService = require(script.Parent.DungeonService)
 local BossService = require(script.Parent.BossService)
 local PartyService = require(script.Parent.PartyService)
 local LootService = require(script.Parent.LootService)
+local EventService = require(script.Parent.EventService)
 local DungeonRules = require(Shared.Logic.DungeonRules)
 local AntiExploitService = require(script.Parent.AntiExploitService)
 
@@ -407,16 +408,33 @@ local function formatDuration(seconds: number): string
 	return if m > 0 then string.format("%dm %02ds", m, s) else `{s}s`
 end
 
--- One war-zone boss: a camp of one that runs BossService while alive.
-local function spawnBoss(
-	zone: WorldLayout.WarZone,
-	spec: WorldLayout.ZoneBoss,
-	groundAt: (number, number) -> number
-)
-	local c = zone.center
-	local position = Vector3.new(c[1] + spec.x, c[2], c[3] + spec.z)
-	local attached: { [MobService.Mob]: BossService.Boss } = {}
-	local function announce(key: string, params: { [string]: string }?)
+-- Boss loot + Marks for everyone who earned it (once per spawn), then the
+-- boss's adds go and its ability loop stops.
+local function bossLoot(mob: MobService.Mob, boss: BossService.Boss, recipients: { Player }?)
+	bossCounter += 1
+	local spawnId = DungeonRules.runId(game.JobId, bossCounter)
+	LootService:DropFor(
+		recipients or {},
+		"WarZoneBoss",
+		mob.level,
+		`PvPBoss:{mob.enemy.id}`,
+		`B:{spawnId}:{mob.enemy.id}:L`,
+		{
+			capGap = true,
+			onClaim = function(player)
+				addMarks(player, config().MarksPerBoss, `boss:{mob.enemy.id}`)
+			end,
+		}
+	)
+	for _, add in boss.adds do
+		MobService:Despawn(add)
+	end
+	BossService:Detach(mob)
+end
+
+-- Announces `key` to players within reach of `position`.
+local function announcerAt(position: Vector3): (key: string, params: { [string]: string }?) -> ()
+	return function(key: string, params: { [string]: string }?)
 		for _, player in Players:GetPlayers() do
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -429,8 +447,27 @@ local function spawnBoss(
 			end
 		end
 	end
+end
+
+-- Event bosses (D-91: invasions, the world boss): no respawn.
+local eventBosses: { [MobService.Mob]: BossService.Boss } = {}
+
+-- One war-zone boss: a camp of one that runs BossService while alive.
+local function spawnBoss(
+	zone: WorldLayout.WarZone,
+	spec: WorldLayout.ZoneBoss,
+	groundAt: (number, number) -> number
+)
+	local c = zone.center
+	local position = Vector3.new(c[1] + spec.x, c[2], c[3] + spec.z)
+	local attached: { [MobService.Mob]: BossService.Boss } = {}
+	local announce = announcerAt(position)
+	local eventZone = if zone.id == "DesertRift" then "Desert" else "Jungle"
 	local slots = MobService:SpawnCamp(spec.enemy, position, 1, zone.id, groundAt, {
-		respawnSeconds = bossRespawnSeconds,
+		-- Boss Frenzy (D-91) shortens the wait while it runs.
+		respawnSeconds = function()
+			return bossRespawnSeconds() * EventService:Factor("BossRespawn", nil, eventZone)
+		end,
 		xpRecipients = groupRecipients,
 		onSpawn = function(mob)
 			local boss = BossService:Attach(mob, spec.enemy, zone.id, announce)
@@ -469,26 +506,7 @@ local function spawnBoss(
 		local boss = attached[mob]
 		if boss then
 			attached[mob] = nil
-			-- Boss loot + Marks: everyone who earned it, once per spawn.
-			bossCounter += 1
-			local spawnId = DungeonRules.runId(game.JobId, bossCounter)
-			LootService:DropFor(
-				recipients or {},
-				"WarZoneBoss",
-				mob.level,
-				`PvPBoss:{mob.enemy.id}`,
-				`B:{spawnId}:{mob.enemy.id}:L`,
-				{
-					capGap = true,
-					onClaim = function(player)
-						addMarks(player, config().MarksPerBoss, `boss:{mob.enemy.id}`)
-					end,
-				}
-			)
-			for _, add in boss.adds do
-				MobService:Despawn(add)
-			end
-			BossService:Detach(mob)
+			bossLoot(mob, boss, recipients)
 			log:Info(
 				"%s defeated in the %s; returns in %s",
 				mob.enemy.name,
@@ -510,6 +528,67 @@ local function spawnBoss(
 			task.wait(1)
 		end
 	end)
+end
+
+--[[
+	Live events (D-91): a boss `enemyId` at (x, z) relative to war zone
+	`zoneId`'s centre, with its abilities, war-zone boss loot and Marks; it
+	never respawns. Returns the mob (nil if it couldn't spawn).
+]]
+function PvPService:SpawnEventBoss(zoneId: string, enemyId: string, x: number, z: number): MobService.Mob?
+	local zone = (WorldLayout.WarZones :: any)[zoneId] :: WorldLayout.WarZone?
+	if zone == nil then
+		return nil
+	end
+	local c = zone.center
+	local px, pz = c[1] + x, c[3] + z
+	local ground = Vector3.new(px, WarZoneTerrain.groundY(zone, px, pz), pz)
+	local mob =
+		MobService:Spawn(enemyId, CFrame.new(ground), { owner = zone.id, xpRecipients = groupRecipients })
+	if mob == nil then
+		return nil
+	end
+	local boss = BossService:Attach(mob, enemyId, zone.id, announcerAt(ground))
+	if boss then
+		eventBosses[mob] = boss
+	end
+	return mob
+end
+
+-- Removes an event boss still standing when its event ends (and its adds).
+function PvPService:DespawnEventBoss(mob: MobService.Mob)
+	local boss = eventBosses[mob]
+	eventBosses[mob] = nil
+	if boss then
+		for _, add in boss.adds do
+			MobService:Despawn(add)
+		end
+		BossService:Detach(mob)
+	end
+	MobService:Despawn(mob)
+end
+
+-- War-zone creatures (D-91 invasions): `enemyId` at `level` around (x, z)
+-- relative to the zone centre; they pay stones like the zone's own.
+function PvPService:SpawnEventCreature(
+	zoneId: string,
+	enemyId: string,
+	level: number,
+	x: number,
+	z: number
+): MobService.Mob?
+	local zone = (WorldLayout.WarZones :: any)[zoneId] :: WorldLayout.WarZone?
+	if zone == nil then
+		return nil
+	end
+	local c = zone.center
+	local px, pz = c[1] + x, c[3] + z
+	local ground = Vector3.new(px, WarZoneTerrain.groundY(zone, px, pz), pz)
+	return MobService:Spawn(
+		enemyId,
+		CFrame.new(ground),
+		{ owner = zone.id, level = level, xpRecipients = groupRecipients }
+	)
 end
 
 -- Admin (bosses.manage): brings every fallen war-zone boss back now.
@@ -538,6 +617,11 @@ function PvPService:Start()
 		zoneIds[zone.id] = true
 	end
 	MobService.MobDefeated:Connect(function(mob, _contributors, recipients: { Player }?)
+		local eventBoss = eventBosses[mob]
+		if eventBoss then
+			eventBosses[mob] = nil
+			bossLoot(mob, eventBoss, recipients)
+		end
 		if zoneIds[mob.owner] and mob.model:GetAttribute("RC_Boss") == nil then
 			LootService:DropStonesFor(recipients or {}, "WarZoneMob", mob.level, `WarZone:{mob.enemy.id}`)
 		end

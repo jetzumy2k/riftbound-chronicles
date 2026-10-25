@@ -199,6 +199,18 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 18 stage 2: world events (D-91)
+
+Studio Play as Player1 (Owner), 🛠 > 🎉 Events; travel to a war zone (Studio min level 1).
+
+1. Rift Beast Invasion: six packs of Rift Wolves with a Rift Guardian appear round the oasis in both war zones (level 32-33). Defeating them gives EXP and sometimes stones. Stop the event: the remaining ones vanish.
+2. Elite Mob Swarm: a ⭐ golem stands beside every other creature camp.
+3. Mythical Boss Invasion: a warning toast; in the Desert Rift two Jungle bosses (Camazotz, Mapinguari), in the Jungle Rift two Desert bosses (Ammit, Sphinx), with their sigils, abilities and boss loot.
+4. Nullborn World Boss: a warning to everyone; the Nullborn Herald (violet, horned, 👑, two-ring sigil and shard crown) stands east of each oasis and summons Abyssal Knights. Defeat it or stop the event (it leaves).
+5. Boss Frenzy: a war-zone boss you defeat returns in a quarter of the time (its post's billboard shows the shorter wait).
+6. Desert Storm in the Desert Rift: thick sandy haze, dim light, sand blowing across. Jungle Flood in the Jungle Rift: rain and a grey gloom. Rift Eclipse anywhere outside the dungeons: violet dusk. Each eases back when stopped. Weather stays in its zone (no sandstorm in the jungle).
+7. Frame rate on the phone emulator in the storm, the flood and an invasion.
+
 ## Attribute points (D-90)
 
 0. Attack a creature: damage numbers appear and it loses HP (the first build broke combat setup).
@@ -220,7 +232,7 @@ Studio Play (Player1 is Owner); open 🛠 > 🎉 Events.
 4. No-Cooldown Training: in a capital's training yard skills recharge almost at once; outside the yard, normal cooldowns.
 5. Healing Festival (as a Healer): heals and shields are 50% bigger.
 6. Rare Attribute Weekend: new drops roll noticeably better attribute values. Legendary Hunt / Double Drops: more and rarer drops in the dungeon.
-7. Schedule Triple Quest EXP in 0.02 hours (about a minute): it appears under "starts in", then starts by itself; Cancel removes a scheduled one.
+7. Schedule (fixed 2026-10-25): pick Today, type a time 2 minutes from now (your local time, e.g. 14:32): the preview line turns green ("Schedule starts ... (in 2m)"); press Schedule on Triple Quest EXP: it appears under Running and scheduled as "starts ... your time", then starts by itself (toast and chip). A past time shows in red and is refused; Cancel removes a scheduled one. Pick Tomorrow / another day for later dates.
 8. Greyed events (e.g. Nullborn World Boss) say "Arrives in Phase 18 stage 2" and have no buttons.
 9. Local server test, 2 players: Player2 (not staff) has no 🛠 button but sees the chip and the toasts.
 10. Output: no errors; the Log tab shows EventStart / EventStop entries.

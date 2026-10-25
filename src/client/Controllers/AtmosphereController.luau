@@ -12,8 +12,14 @@
 	enters it: one client-only particle emitter around the camera (blowing
 	sand in the Desert Rift, D-83; light motes in the Jungle Rift), the
 	wind that sways terrain grass, the water colour and the sun rays.
+
+	Event weather (Phase 18 stage 2, D-91; ZoneAtmosphere.Weather): while
+	Desert Storm, Jungle Flood or Rift Eclipse runs (the RC_Events
+	attribute, EventService), the camera's zone eases toward that weather's
+	sky and its particles take over (driving sand, rain, motes).
 ]]
 
+local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -40,6 +46,22 @@ local particleBox: Part? = nil
 local emitters: { [string]: ParticleEmitter? } = {}
 local sunRays: SunRaysEffect
 local extrasName = ""
+-- Running event ids (RC_Events) and the weather on screen.
+local runningEvents: { string } = {}
+local RAIN_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
+
+local function readEvents()
+	local raw = ReplicatedStorage:GetAttribute("RC_Events")
+	local ok, list = pcall(HttpService.JSONDecode, HttpService, if type(raw) == "string" then raw else "[]")
+	runningEvents = {}
+	if ok and type(list) == "table" then
+		for _, entry in list do
+			if type(entry) == "table" and type(entry.Id) == "string" then
+				table.insert(runningEvents, entry.Id)
+			end
+		end
+	end
+end
 
 local function rgb(t: { number }): Color3
 	return Color3.fromRGB(math.floor(t[1] + 0.5), math.floor(t[2] + 0.5), math.floor(t[3] + 0.5))
@@ -56,6 +78,17 @@ local function ensure<T>(className: string, name: string): T
 	return created :: any
 end
 
+local baseTarget: (Vector3) -> ZoneAtmosphere.Preset
+
+-- The extras' zone name for a camera position.
+local function zoneName(position: Vector3): string
+	if WorldLayout.isInDungeonRegion(position.X) then
+		return "Dungeon"
+	end
+	local warZone = WorldLayout.warZoneAt(position.X, position.Z)
+	return if warZone then warZone.atmosphere else "Neutral"
+end
+
 -- The preset the camera should see now.
 local function target(): ZoneAtmosphere.Preset
 	local camera = Workspace.CurrentCamera
@@ -63,6 +96,16 @@ local function target(): ZoneAtmosphere.Preset
 		return ZoneAtmosphere.get("Neutral")
 	end
 	local position = camera.Focus.Position
+	local base = baseTarget(position)
+	local _, weather = ZoneAtmosphere.weatherFor(zoneName(position), runningEvents)
+	if weather then
+		return ZoneAtmosphere.blend(base, weather.preset, ZoneAtmosphere.WEATHER_WEIGHT)
+	end
+	return base
+end
+
+-- The zone's own preset at `position` (no weather).
+function baseTarget(position: Vector3): ZoneAtmosphere.Preset
 	if WorldLayout.isInDungeonRegion(position.X) then
 		return ZoneAtmosphere.get("Dungeon")
 	end
@@ -139,6 +182,19 @@ local function makeEmitter(kind: string): ParticleEmitter
 		e.RotSpeed = NumberRange.new(-20, 20)
 		e.LightInfluence = 1
 		e.Rate = SAND_RATE
+	elseif kind == "Rain" then
+		-- Rain (Jungle Flood, D-91): fast thin drops falling through the view.
+		e.Texture = RAIN_TEXTURE
+		e.Color = ColorSequence.new(Color3.fromRGB(200, 220, 230))
+		e.Size = NumberSequence.new(0.12)
+		e.Transparency = NumberSequence.new(0.35)
+		e.Orientation = Enum.ParticleOrientation.VelocityParallel
+		e.EmissionDirection = Enum.NormalId.Bottom
+		e.Lifetime = NumberRange.new(0.6, 0.8)
+		e.Speed = NumberRange.new(60, 75)
+		e.SpreadAngle = Vector2.new(6, 6)
+		e.LightInfluence = 0.6
+		e.Rate = 120
 	else
 		-- Motes: tiny warm specks catching the light under the canopy.
 		e.Texture = MOTE_TEXTURE
@@ -163,24 +219,24 @@ local function makeEmitter(kind: string): ParticleEmitter
 	return e
 end
 
--- The extras' zone name for a camera position.
-local function zoneName(position: Vector3): string
-	if WorldLayout.isInDungeonRegion(position.X) then
-		return "Dungeon"
-	end
-	local warZone = WorldLayout.warZoneAt(position.X, position.Z)
-	return if warZone then warZone.atmosphere else "Neutral"
-end
+local DEFAULT_RATE = { Sand = SAND_RATE, Motes = MOTE_RATE, Rain = 0 }
 
-local function applyExtras(name: string)
+local function applyExtras(name: string, weather: ZoneAtmosphere.Weather?)
 	local extras = ZoneAtmosphere.extras(name)
+	local particles = if weather then weather.particles else extras.particles
 	for kind, e in emitters :: { [string]: ParticleEmitter } do
-		e.Enabled = kind == extras.particles
+		e.Enabled = kind == particles
+		e.Rate = if weather and kind == particles then weather.rate else DEFAULT_RATE[kind] or e.Rate
 	end
-	if extras.particles and emitters[extras.particles] == nil then
-		emitters[extras.particles] = makeEmitter(extras.particles)
+	if particles and emitters[particles] == nil then
+		local e = makeEmitter(particles)
+		if weather then
+			e.Rate = weather.rate
+		end
+		emitters[particles] = e
 	end
-	Workspace.GlobalWind = Vector3.new(extras.wind[1], extras.wind[2], extras.wind[3])
+	local wind = if weather then weather.wind else extras.wind
+	Workspace.GlobalWind = Vector3.new(wind[1], wind[2], wind[3])
 	Workspace.Terrain.WaterColor = rgb(extras.water)
 	sunRays.Intensity = extras.sunRays
 end
@@ -193,6 +249,8 @@ function AtmosphereController:Start()
 	sunRays = ensure("SunRaysEffect", "RC_SunRays")
 	sunRays.Spread = 0.6
 	apply(current)
+	readEvents()
+	ReplicatedStorage:GetAttributeChangedSignal("RC_Events"):Connect(readEvents)
 
 	local elapsed = 0
 	RunService.Heartbeat:Connect(function(dt: number)
@@ -208,9 +266,11 @@ function AtmosphereController:Start()
 		if camera then
 			local position = camera.Focus.Position
 			local name = zoneName(position)
-			if name ~= extrasName then
-				extrasName = name
-				applyExtras(name)
+			local weatherName, weather = ZoneAtmosphere.weatherFor(name, runningEvents)
+			local key = `{name}|{weatherName or ""}`
+			if key ~= extrasName then
+				extrasName = key
+				applyExtras(name, weather)
 			end
 			if particleBox then
 				-- Upwind of the camera, so the drift passes through the view.

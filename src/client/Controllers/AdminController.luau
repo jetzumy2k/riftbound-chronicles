@@ -17,8 +17,10 @@
 	            sends the batch, "Reset" puts a value back to its default.
 	            Loot tables show their live total (must be 100).
 	  Events    (Phase 18, D-89) what is running and scheduled (stop any),
-	            and every event template: start now or in N hours for the
-	            chosen length. The server checks the template's longest
+	            and every event template: start now, or schedule it for a
+	            day (today ... +6) and a time (HH:MM, the admin's own local
+	            time; a live preview shows when that is), for the chosen
+	            length. The server checks the template's longest
 	            length and cooldown; events of later stages show greyed out
 	  World     respawn the war-zone bosses now
 	  Log       recent audit entries (Moderators: their own)
@@ -102,6 +104,10 @@ local banIndex = 1
 -- Events tab: chosen length (index into EVENT_MINUTES).
 local EVENT_MINUTES = { 30, 60, 120, 360, 1440, 2880, 4320 }
 local minutesIndex = 2
+-- Schedule: the day (0 = today) and the list fetched for this visit (only
+-- re-asked after an action or on opening the tab, not on every tap).
+local eventDay = 0
+local eventsFetched: any = nil
 
 -- Settings tab
 local config: any = nil
@@ -1265,6 +1271,7 @@ local EVENT_REASONS = {
 	full = "too many events are running or scheduled",
 	notRunning = "it is not running or scheduled",
 	stale = "another admin changed the settings meanwhile; try again",
+	RateLimited = "too many requests at once; wait a few seconds and try again",
 }
 
 local function span(seconds: number): string
@@ -1301,12 +1308,38 @@ local function eventCall(action: string, args: { [string]: any }): any
 	return result
 end
 
+-- A time as the admin's local "Sat 26 Oct 14:00".
+local function localText(unix: number): string
+	return DateTime.fromUnixTimestamp(unix):FormatLocalTime("ddd D MMM HH:mm", "en-us")
+end
+
+--[[
+	The schedule's start (UTC seconds) from the day chips and the time box
+	("14:30", "9:05" or "14"), read as the admin's local time; nil and a
+	reason when the box can't be read.
+]]
+local function scheduledStart(): (number?, string?)
+	local text = string.gsub(fields.eventTime or "", "%s", "")
+	local h, m = string.match(text, "^(%d%d?):(%d%d)$")
+	if h == nil then
+		h, m = string.match(text, "^(%d%d?)$"), "0"
+	end
+	local hour, minute = tonumber(h), tonumber(m)
+	if hour == nil or minute == nil or hour > 23 or minute > 59 then
+		return nil, "Type a time like 14:30 in the box."
+	end
+	local today = DateTime.now():ToLocalTime() :: any
+	local midnight = DateTime.fromLocalTime(today.Year, today.Month, today.Day, 0, 0, 0).UnixTimestamp
+	return midnight + eventDay * 86400 + hour * 3600 + minute * 60, nil
+end
+
 local function drawEvents(area: Frame)
 	local body = scroller(area, "events", UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1))
-	local listed = eventCall("List", {})
+	local listed = eventsFetched or eventCall("List", {})
 	if listed == nil then
 		return
 	end
+	eventsFetched = listed
 	local now = listed.now
 	local live = card(body, "Running and scheduled", "Every server follows this list (times in UTC).")
 	local any = false
@@ -1322,7 +1355,7 @@ local function drawEvents(area: Frame)
 			line,
 			`{e.icon} {e.name}: {if started
 				then `running, ends in {span(w.EndsAt - now)}`
-				else `starts in {span(w.StartsAt - now)} ({os.date("!%d %b %H:%M", w.StartsAt)} UTC), lasts {span(
+				else `starts {localText(w.StartsAt)} your time (in {span(w.StartsAt - now)}), lasts {span(
 					w.EndsAt - w.StartsAt
 				)}`}`,
 			13,
@@ -1333,6 +1366,7 @@ local function drawEvents(area: Frame)
 		button(line, if started then "Stop" else "Cancel", 96, "danger", function()
 			if eventCall("Stop", { Id = w.Id }) then
 				setStatus(`✅ {e.name} {if started then "stopped" else "cancelled"}.`)
+				eventsFetched = nil
 				refresh()
 			end
 		end)
@@ -1344,7 +1378,7 @@ local function drawEvents(area: Frame)
 	local options = card(
 		body,
 		"Length and start",
-		"Pick how long the event lasts. 'Start now' begins it at once; 'Schedule' starts it the number of hours from now typed in the box."
+		"Pick how long the event lasts. 'Start now' begins it at once. To schedule: pick the day, type the start time (your local time, 24-hour, e.g. 14:30), then press 'Schedule' on the event."
 	)
 	local lengths = row(options)
 	for index, minutes in EVENT_MINUTES do
@@ -1353,9 +1387,38 @@ local function drawEvents(area: Frame)
 			refresh()
 		end)
 	end
+	local days = row(options)
+	for day = 0, 6 do
+		local text = if day == 0
+			then "Today"
+			elseif day == 1 then "Tomorrow"
+			else DateTime.fromUnixTimestamp(os.time() + day * 86400):FormatLocalTime("ddd D", "en-us")
+		button(days, text, 86, if day == eventDay then "gold" else nil, function()
+			eventDay = day
+			refresh()
+		end)
+	end
 	local later = row(options)
-	label(later, "Schedule in (hours):", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(140, 0)
-	field(later, "eventHours", "e.g. 24", 100)
+	label(later, "Start time (HH:MM):", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(140, 0)
+	local timeBox = field(later, "eventTime", "e.g. 14:30", 100)
+	local preview = label(options, "", 12, Theme.Colors.TextDim)
+	local function updatePreview()
+		local startsAt, problem = scheduledStart()
+		if startsAt == nil then
+			preview.Text = if (fields.eventTime or "") == ""
+				then "No start time typed yet."
+				else problem or ""
+			preview.TextColor3 = Theme.Colors.TextDim
+		elseif startsAt <= now then
+			preview.Text = `{localText(startsAt)} is already past: pick a later time or another day.`
+			preview.TextColor3 = BAD_TEXT
+		else
+			preview.Text = `Schedule starts {localText(startsAt)} your time (in {span(startsAt - now)}).`
+			preview.TextColor3 = Theme.Colors.Safe
+		end
+	end
+	timeBox:GetPropertyChangedSignal("Text"):Connect(updatePreview)
+	updatePreview()
 
 	local templates = card(
 		body,
@@ -1398,18 +1461,26 @@ local function drawEvents(area: Frame)
 		button(actions, `Start now ({lengthText(minutes)})`, 170, "gold", function()
 			if eventCall("Start", { Id = e.id, Minutes = minutes }) then
 				setStatus(`✅ {e.name} started for {lengthText(minutes)}.`)
+				eventsFetched = nil
 				refresh()
 			end
 		end)
 		button(actions, "Schedule", 110, nil, function()
-			local hours = tonumber(fields.eventHours or "")
-			if hours == nil or hours <= 0 or hours > 720 then
-				setStatus("❌ Type the hours from now (up to 720) in the box above.", true)
+			local startsAt, problem = scheduledStart()
+			if startsAt == nil then
+				setStatus(`❌ {problem}`, true)
 				return
 			end
-			local startsAt = now + math.floor(hours * 3600)
+			if startsAt <= os.time() then
+				setStatus(
+					`❌ {localText(startsAt)} is already past: pick a later time or another day.`,
+					true
+				)
+				return
+			end
 			if eventCall("Schedule", { Id = e.id, Minutes = minutes, StartsAt = startsAt }) then
-				setStatus(`✅ {e.name} scheduled in {span(startsAt - now)}.`)
+				setStatus(`✅ {e.name} scheduled for {localText(startsAt)} your time.`)
+				eventsFetched = nil
 				refresh()
 			end
 		end)
@@ -1483,6 +1554,7 @@ function refresh()
 	pageButtons(strip, TABS, tab, 104, function(id)
 		if id ~= tab then
 			tab = id
+			eventsFetched = nil
 			setStatus("")
 			refresh()
 		end
