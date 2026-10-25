@@ -24,6 +24,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local EventRewards = require(Shared.Logic.EventRewards)
+local OverlayLayout = require(Shared.Layout.OverlayLayout)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -41,6 +42,8 @@ type Running = { Id: string, EndsAt: number, Rewards: { any }? }
 local running: { Running } = {}
 local seen: { [string]: boolean }? = nil
 local chip: TextButton? = nil
+-- Phase 19 (D-94): the chip's short form on crowded screens.
+local compact = false
 local board: Frame? = nil
 local drawBoard: () -> ()
 
@@ -143,7 +146,9 @@ local function render()
 		table.insert(icons, e.icon)
 		soonest = math.min(soonest, entry.EndsAt)
 	end
-	button.Text = `🎉 {table.concat(icons, " ")}  ·  {left(soonest)}`
+	button.Text = if compact
+		then `🎉{#running} {left(soonest)}`
+		else `🎉 {table.concat(icons, " ")}  ·  {left(soonest)}`
 	button.Visible = true
 end
 
@@ -200,10 +205,12 @@ local function build()
 	})
 	local button = Kit.new("TextButton", {
 		Name = "Events",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 6),
-		Size = UDim2.fromOffset(0, 30),
+		-- Placed by OverlayLayout (Phase 19, D-94): clear of the HUD, the
+		-- quest tracker and the buttons on every screen.
+		Position = UDim2.fromOffset(8, 6),
+		Size = UDim2.fromOffset(0, OverlayLayout.EVENT_CHIP_H),
 		AutomaticSize = Enum.AutomaticSize.X,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		BackgroundColor3 = Theme.Colors.Glass,
 		BackgroundTransparency = 0.15,
 		Text = "",
@@ -214,13 +221,20 @@ local function build()
 		Visible = false,
 		Parent = gui,
 	})
-	Kit.corner(button, 15)
+	Kit.corner(button, 22)
 	Kit.goldStroke(button, 1.5, 0.2)
 	Kit.padding(button, 0, 12)
-	local scale = Kit.new("UIScale", { Parent = button })
+	local limit = Kit.new("UISizeConstraint", { Parent = button })
 	local function fit()
-		local height = gui.AbsoluteSize.Y
-		scale.Scale = math.clamp((if height > 0 then height else 720) / 720, 0.85, 1.35)
+		local size = gui.AbsoluteSize
+		if size.X < 10 then
+			return
+		end
+		local layout = OverlayLayout.compute(size.X, size.Y)
+		button.Position = UDim2.fromOffset(layout.chips.x, layout.chips.y)
+		limit.MaxSize = Vector2.new(layout.chips.w, OverlayLayout.EVENT_CHIP_H)
+		compact = layout.compact
+		render()
 	end
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	fit()

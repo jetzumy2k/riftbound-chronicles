@@ -23,12 +23,14 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local DungeonDefinitions = require(Shared.Definitions.DungeonDefinitions)
 local Log = require(Shared.Util.Log)
 local NetClient = require(Shared.Net.Client)
+local OverlayLayout = require(Shared.Layout.OverlayLayout)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 
-local MAX_TOASTS = 2
+-- How many toasts at once (OverlayLayout: 1 on short screens, Phase 19).
+local maxToasts = 2
 local TOAST_SECONDS = 2.4
 local MAX_WIDTH = 420
 
@@ -249,20 +251,28 @@ local function build()
 		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
 		DisplayOrder = 20,
 	})
-	-- A thin strip at the top centre, clear of the character in the middle of
-	-- the screen; it grows downward only as far as its toasts need.
+	-- A strip placed by OverlayLayout (Phase 19, D-94): in a free spot near
+	-- the top, clear of the quest tracker, the chips and every button; it
+	-- grows downward only as far as its toasts need.
 	local holder = Kit.new("Frame", {
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 8),
-		Size = UDim2.fromScale(0.5, 0),
+		Position = UDim2.fromOffset(8, 8),
+		Size = UDim2.fromOffset(MAX_WIDTH, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = gui,
 	})
-	Kit.new(
-		"UISizeConstraint",
-		{ MinSize = Vector2.new(260, 0), MaxSize = Vector2.new(MAX_WIDTH, math.huge), Parent = holder }
-	)
+	local function fit()
+		local size = gui.AbsoluteSize
+		if size.X < 10 then
+			return
+		end
+		local layout = OverlayLayout.compute(size.X, size.Y)
+		holder.Position = UDim2.fromOffset(layout.toasts.x, layout.toasts.y)
+		holder.Size = UDim2.fromOffset(layout.toasts.w, 0)
+		maxToasts = layout.maxToasts
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	task.defer(fit)
 	local layout = Kit.list(holder, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center)
 	layout.VerticalAlignment = Enum.VerticalAlignment.Top
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
@@ -322,7 +332,7 @@ local function show(kind: string, key: string, message: string)
 			return
 		end
 	end
-	while #toasts >= MAX_TOASTS do
+	while #toasts >= maxToasts do
 		dismiss(toasts[1])
 	end
 

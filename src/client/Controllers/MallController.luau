@@ -34,6 +34,8 @@ local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local BuffRules = require(Shared.Logic.BuffRules)
 local ItemRules = require(Shared.Logic.ItemRules)
+local OverlayLayout = require(Shared.Layout.OverlayLayout)
+local MallLayout = require(Shared.Layout.MallLayout)
 local NetClient = require(Shared.Net.Client)
 
 local UI = script.Parent.Parent.UI
@@ -49,7 +51,6 @@ local MallController = {}
 local GOLD_TEXT = Color3.fromRGB(30, 20, 8)
 local TOO_DEAR = Color3.fromRGB(255, 140, 130)
 local CONFIRM_SECONDS = 4
-local WIDE = 620
 local REASONS = {
 	points = "Not enough Mall Points. Get more in the 💠 tab.",
 	full = "You can't carry more of that.",
@@ -70,6 +71,8 @@ local confirmUntil = 0
 local status = ""
 local statusBad = false
 local chip: TextLabel? = nil
+-- Phase 19 (D-94): the buff chip's short form (icons only) on crowded screens.
+local chipCompact = false
 
 local function state()
 	return PlayerDataController:Get()
@@ -410,24 +413,25 @@ function render()
 		Size = UDim2.fromScale(1, 1),
 		Parent = panel,
 	})
-	local width = (panel :: Frame).AbsoluteSize.X
-	local wide = width >= WIDE
+	-- Regions from MallLayout (Phase 19, D-94: tested on every device size).
+	local screen = Panels.layer().AbsoluteSize
+	local l = MallLayout.compute(screen.X, screen.Y)
+	local wide = l.wide
 
 	-- Header: back to the bag, title, balance, Get MP, Close.
 	local back = button(frame, "← Bag", 84, false, function()
 		close()
 		InventoryController.setOpen(true)
 	end)
-	back.Position = UDim2.fromOffset(10, 8)
+	back.Position = UDim2.fromOffset(l.back.x, l.back.y)
 	local title = Kit.label("🛒 Item Mall", 17, Theme.Fonts.Display, Theme.Colors.GoldBright)
-	title.Position = UDim2.fromOffset(104, 18)
-	title.Visible = width >= 480
+	title.Position = UDim2.fromOffset(l.back.x + l.back.w + 10, l.back.y + 10)
+	title.Visible = l.showTitle
 	title.Parent = frame
 	local right = Kit.new("Frame", {
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 8),
-		Size = UDim2.fromOffset(300, 44),
+		Position = UDim2.fromOffset(l.right.x, l.right.y),
+		Size = UDim2.fromOffset(l.right.w, l.right.h),
 		Parent = frame,
 	})
 	Kit.list(right, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Right)
@@ -442,15 +446,15 @@ function render()
 		render()
 	end)
 	get.LayoutOrder = 2
-	get.Visible = width >= 420
+	get.Visible = l.showGetMp
 	local shut = button(right, "Close", 70, false, close)
 	shut.LayoutOrder = 3
 
 	-- Tabs.
 	local tabs = Kit.new("ScrollingFrame", {
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(10, 60),
-		Size = UDim2.new(1, -20, 0, 48),
+		Position = UDim2.fromOffset(l.tabs.x, l.tabs.y),
+		Size = UDim2.fromOffset(l.tabs.w, l.tabs.h),
 		CanvasSize = UDim2.fromScale(0, 0),
 		AutomaticCanvasSize = Enum.AutomaticSize.X,
 		ScrollingDirection = Enum.ScrollingDirection.X,
@@ -462,7 +466,7 @@ function render()
 		button(
 			tabs,
 			MallDefinitions.TAB_NAMES[name],
-			if name == "Points" then 170 else 120,
+			if name == "Points" then (if l.short then 150 else 170) else (if l.short then 104 else 120),
 			name == tab,
 			function()
 				tab = name
@@ -487,15 +491,14 @@ function render()
 		selected[tab] = keyOf(chosen)
 	end
 
-	local top, bottom = 116, 34
 	local showGrid = wide or not detailOnly
 	local showDetail = wide or detailOnly
-	local gridW = if wide then math.floor((width - 30) * 0.58) else width - 20
+	local gridW = l.grid.w
 	if showGrid then
 		local grid = Kit.new("ScrollingFrame", {
 			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(10, top),
-			Size = UDim2.new(0, gridW, 1, -(top + bottom)),
+			Position = UDim2.fromOffset(l.grid.x, l.grid.y),
+			Size = UDim2.fromOffset(l.grid.w, l.grid.h),
 			CanvasSize = UDim2.fromScale(0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollBarThickness = 6,
@@ -516,7 +519,7 @@ function render()
 				Parent = grid,
 			})
 			local layout = Instance.new("UIGridLayout")
-			layout.CellSize = UDim2.fromOffset(cellW, 112)
+			layout.CellSize = UDim2.fromOffset(cellW, l.cardH)
 			layout.CellPadding = UDim2.fromOffset(8, 8)
 			layout.SortOrder = Enum.SortOrder.LayoutOrder
 			layout.Parent = cells
@@ -526,12 +529,11 @@ function render()
 		end
 	end
 	if showDetail and chosen then
-		local x = if wide then gridW + 20 else 10
 		local pane = Kit.new("ScrollingFrame", {
 			BackgroundColor3 = Theme.Colors.Ink,
 			BackgroundTransparency = 0.35,
-			Position = UDim2.fromOffset(x, top),
-			Size = UDim2.new(0, width - x - 10, 1, -(top + bottom)),
+			Position = UDim2.fromOffset(l.detail.x, l.detail.y),
+			Size = UDim2.fromOffset(l.detail.w, l.detail.h),
 			CanvasSize = UDim2.fromScale(0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollBarThickness = 6,
@@ -553,9 +555,8 @@ function render()
 	local footer =
 		Kit.label(status, 12, Theme.Fonts.BodyBold, if statusBad then TOO_DEAR else Theme.Colors.Safe)
 	footer.AutomaticSize = Enum.AutomaticSize.None
-	footer.AnchorPoint = Vector2.new(0, 1)
-	footer.Position = UDim2.new(0, 14, 1, -6)
-	footer.Size = UDim2.new(1, -28, 0, 22)
+	footer.Position = UDim2.fromOffset(l.footer.x, l.footer.y)
+	footer.Size = UDim2.fromOffset(l.footer.w, l.footer.h)
 	footer.TextXAlignment = Enum.TextXAlignment.Left
 	footer.TextTruncate = Enum.TextTruncate.AtEnd
 	footer.Parent = frame
@@ -569,12 +570,12 @@ function MallController.open()
 	Panels.opened("mall")
 	local layer = Panels.layer()
 	local screen = layer.AbsoluteSize
-	local w, h = math.min(screen.X - 16, 760), math.min(screen.Y - 16, 580)
+	local l = MallLayout.compute(screen.X, screen.Y)
 	panel = Kit.glassPanel({
 		Name = "Mall",
 		Active = true,
-		Position = UDim2.fromOffset((screen.X - w) / 2, (screen.Y - h) / 2),
-		Size = UDim2.fromOffset(w, h),
+		Position = UDim2.fromOffset(l.panel.x, l.panel.y),
+		Size = UDim2.fromOffset(l.panel.w, l.panel.h),
 		Parent = layer,
 	})
 	setStatus("")
@@ -594,11 +595,14 @@ local function renderChip()
 		local untilAt = state().BuffsUntil[id]
 		if type(untilAt) == "number" and untilAt > now then
 			local buff = BuffRules.get(id) :: BuffRules.Buff
-			table.insert(parts, `{buff.icon} {math.ceil((untilAt - now) / 60)}m`)
+			table.insert(
+				parts,
+				if chipCompact then buff.icon else `{buff.icon} {math.ceil((untilAt - now) / 60)}m`
+			)
 		end
 	end
 	label.Visible = #parts > 0
-	label.Text = table.concat(parts, "  ")
+	label.Text = table.concat(parts, if chipCompact then "" else "  ")
 end
 
 function MallController:Start()
@@ -611,10 +615,11 @@ function MallController:Start()
 		DisplayOrder = 8,
 	})
 	local label = Kit.new("TextLabel", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 40),
+		-- Under the event chip (OverlayLayout, Phase 19, D-94).
+		Position = UDim2.fromOffset(8, 40),
 		Size = UDim2.fromOffset(0, 26),
 		AutomaticSize = Enum.AutomaticSize.X,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		BackgroundColor3 = Theme.Colors.Glass,
 		BackgroundTransparency = 0.25,
 		TextSize = 13,
@@ -625,8 +630,22 @@ function MallController:Start()
 	})
 	Kit.corner(label, 13)
 	Kit.padding(label, 0, 10)
+	local limit = Kit.new("UISizeConstraint", { Parent = label })
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
 	chip = label
+	local function fit()
+		local size = gui.AbsoluteSize
+		if size.X < 10 then
+			return
+		end
+		local layout = OverlayLayout.compute(size.X, size.Y)
+		label.Position = UDim2.fromOffset(layout.chips.x, layout.chips.y + OverlayLayout.EVENT_CHIP_H + 4)
+		limit.MaxSize = Vector2.new(layout.chips.w, 26)
+		chipCompact = layout.compact
+		renderChip()
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	fit()
 	PlayerDataController.Changed:Connect(function()
 		renderChip()
 		if panel then

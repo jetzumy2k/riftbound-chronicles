@@ -199,6 +199,17 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 19: mobile / multi-device pass (D-94)
+
+Studio > Test > Device emulator. Start an event (e.g. Double EXP) and use a buff (Mall) so both chips show; have a quest active.
+
+1. iPhone SE / iPhone 8 / iPhone 14 in landscape: the 🎉 chip (short form "🎉1 59m") and the buff chip (icons) sit in a free spot: never over the HP / Focus bars, the quest card, SKILLS / BAG or the combat buttons. Tap the 🎉 chip: the board opens.
+2. Same phones: trigger toasts (open a chest, buy in the Mall): one toast at a time, not over the quest card or buttons, not over the chips.
+3. Portrait phones and tablets / desktop: chips at the top between the HUD and the quest card (full text on tablets and desktops); toasts in a free strip.
+4. Item Mall on a landscape phone: the tabs sit in the header row (← Bag, tabs, MP, Close), a row of cards fits fully; tap a card: details with ← Back to list. On a tablet: cards and details side by side.
+5. Rotate / resize the window: chips, toasts and the Mall re-place themselves.
+6. Walk through docs/MOBILE_CHECKLIST.md's "Studio check" column.
+
 ## Item Mall stage 1 (D-93)
 
 1. Admin panel > Players > you > Progress: Add Mall Points 10000 (Robux packs need the creator's Developer Product ids first).
