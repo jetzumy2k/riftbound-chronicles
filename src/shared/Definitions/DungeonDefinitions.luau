@@ -363,7 +363,7 @@ makeBoss("Leviathan", { enemy = "MossbackGolem", level = 30, count = 2 })
 local DOOR = DungeonDefinitions.DOOR_WIDTH
 local PASSAGE = DungeonDefinitions.PASSAGE_LENGTH
 -- Wide enough for two portal gates (30 studs each) side by side.
-local LANDING = { 84, 34, 40 }
+local LANDING = { 84, 42, 40 }
 
 type RoomSpec = { id: string, name: string, size: { number } }
 type FloorSpec = {

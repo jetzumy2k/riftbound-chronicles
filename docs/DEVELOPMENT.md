@@ -199,6 +199,15 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 16 stage 5: dungeon floors (D-87)
+
+1. Play, check the Output: both `RiftHollow_* [Dungeon]` lines about 6,100 parts, 160 lights, no warning.
+2. Enter the Rift Dungeons on each floor: every room has a stone ceiling with rib beams (no sky), corridors as before. Crypt rooms have crystals hanging from the ceiling, Ember rooms chains with glowing cages, Frost rooms icicles, the Nullborn floor shards floating in the air. The middle of each room stays clear.
+3. The rooms are darker but readable: candles and crystals light them. If anything is too dark, send a screenshot.
+4. Flying creatures (e.g. the Chimera in its den, Typhon) still take off and circle below the ceiling, never through it.
+5. The landing's portal gates and their name plates are fully visible under the ceiling. Dust motes drift in the air.
+6. Check the frame rate inside a dungeon on the device emulator (phone).
+
 ## Phone landscape controls (D-86)
 
 Use the device emulator (iPhone XR / iPhone 14 / iPhone SE, landscape):

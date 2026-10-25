@@ -181,7 +181,13 @@ ZoneAtmosphere.Extras = table.freeze({
 		water = { 36, 112, 96 },
 		sunRays = 0.16,
 	} :: Extras),
-	Dungeon = table.freeze({ wind = { 0, 0, 0 }, water = { 40, 70, 110 }, sunRays = 0 } :: Extras),
+	-- Dust motes hanging in the candlelight under the vaults (D-87).
+	Dungeon = table.freeze({
+		particles = "Motes",
+		wind = { 0, 0, 0 },
+		water = { 40, 70, 110 },
+		sunRays = 0,
+	} :: Extras),
 })
 
 function ZoneAtmosphere.extras(name: string): Extras

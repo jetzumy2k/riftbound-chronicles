@@ -12,8 +12,10 @@
 	  Frost    pale ice-stone, icicles, cold blue light         (floor 3)
 	  Void     violet-black stone, Nullborn crystals            (floor 4)
 
-	Rooms are rectangles with door openings in their walls; passages join
-	them (roofed corridors). Markers (invisible, non-colliding, named):
+	Rooms are rectangles with door openings in their walls under a vaulted
+	stone ceiling with rib beams and hanging theme dressing (D-87: crystals,
+	glowing chains, icicles, floating void shards); passages join them
+	(roofed corridors). Markers (invisible, non-colliding, named):
 	  Floor_<f>          the floor's Model
 	  Room_<f>_<i>       room volume
 	  Arrival_<f>        where players arrive on floor f
@@ -40,6 +42,8 @@ type Theme = {
 	stoneDark: Color3,
 	floor: Color3,
 	material: Enum.Material,
+	-- The walking surface (D-87): flagstones on the crypt and void floors.
+	floorMaterial: Enum.Material,
 	trim: Color3,
 	glow: Color3,
 	flame: Color3,
@@ -52,7 +56,8 @@ local function theme(
 	floor: Color3,
 	material: Enum.Material,
 	glow: Color3,
-	flame: Color3
+	flame: Color3,
+	floorMaterial: Enum.Material?
 ): Theme
 	local trim = Color3.fromRGB(186, 150, 92)
 	return {
@@ -60,6 +65,7 @@ local function theme(
 		stoneDark = stoneDark,
 		floor = floor,
 		material = material,
+		floorMaterial = floorMaterial or material,
 		trim = trim,
 		glow = glow,
 		flame = flame,
@@ -88,7 +94,8 @@ local THEMES: { [string]: Theme } = {
 		Color3.fromRGB(104, 98, 96),
 		Enum.Material.Slate,
 		Color3.fromRGB(110, 200, 255),
-		Color3.fromRGB(255, 190, 110)
+		Color3.fromRGB(255, 190, 110),
+		Enum.Material.Cobblestone
 	),
 	Ember = theme(
 		Color3.fromRGB(78, 64, 60),
@@ -112,7 +119,8 @@ local THEMES: { [string]: Theme } = {
 		Color3.fromRGB(52, 46, 64),
 		Enum.Material.Slate,
 		Color3.fromRGB(180, 110, 255),
-		Color3.fromRGB(220, 170, 255)
+		Color3.fromRGB(220, 170, 255),
+		Enum.Material.Cobblestone
 	),
 }
 
@@ -165,6 +173,95 @@ local function candelabra(parent: Instance, cf: CFrame, t: Theme, lit: boolean)
 		)
 		if lit and x == 0 then
 			light(flame, t.flame, 28, 1.6)
+		end
+	end
+end
+
+--[[
+	A vaulted ceiling over a room (D-87): the stone slab, rib beams across
+	the room every ~24 studs and hanging dressing by theme. The slab is
+	solid (flying creatures sense it as headroom); ribs and dressing are
+	decor.
+]]
+local function ceiling(parent: Instance, floor: Floor, room: Room, t: Theme, seed: number)
+	local rng = Random.new(seed)
+	local cx, cz = room.center[1], room.center[2]
+	local w, h, d = room.size[1], room.size[2], room.size[3]
+	A.part(
+		parent,
+		Vector3.new(w + WALL * 2, 3, d + WALL * 2),
+		at(floor, cx, h + 1.5, cz),
+		t.stoneDark,
+		t.material
+	)
+	local ribs = math.max(1, math.floor(d / 24))
+	for i = 1, ribs do
+		local z = cz - d / 2 + i * d / (ribs + 1)
+		A.part(
+			parent,
+			Vector3.new(w, 2.4, 2.4),
+			at(floor, cx, h - 1.2, z),
+			t.stone:Lerp(t.trim, 0.15),
+			t.material,
+			{ decor = true }
+		)
+	end
+	-- Hanging dressing: a few per room, kept off the middle third so the
+	-- camera and flying creatures have a clear centre.
+	local count = if room.kind == "Chamber" then 1 else math.clamp(math.floor(w * d / 5000), 2, 6)
+	for i = 1, count do
+		local side = if i % 2 == 0 then 1 else -1
+		local x = cx + side * rng:NextNumber(w * 0.2, w * 0.4)
+		local z = cz + rng:NextNumber(-0.4, 0.4) * d
+		local top = at(floor, x, h, z)
+		if floor.theme == "Frost" then
+			for k = 1, 3 do
+				local length = rng:NextNumber(4, 9)
+				A.part(
+					parent,
+					Vector3.new(1, length, 1),
+					top * CFrame.new(k * 2 - 4, -length / 2, rng:NextNumber(-1, 1)) * CFrame.Angles(0, k, 0),
+					Color3.fromRGB(205, 238, 255),
+					Enum.Material.Ice,
+					{ decor = true, transparency = 0.2 }
+				)
+			end
+		elseif floor.theme == "Ember" then
+			local drop = rng:NextNumber(8, 16)
+			A.part(
+				parent,
+				Vector3.new(0.4, drop, 0.4),
+				top * CFrame.new(0, -drop / 2, 0),
+				Color3.fromRGB(60, 54, 52),
+				Enum.Material.Metal,
+				{ decor = true }
+			)
+			A.part(
+				parent,
+				Vector3.new(2.2, 2.6, 2.2),
+				top * CFrame.new(0, -drop - 1.3, 0),
+				t.glow,
+				Enum.Material.Neon,
+				{ decor = true, transparency = 0.1 }
+			)
+		elseif floor.theme == "Void" then
+			-- A shard hanging in the air, no support: the Nullborn's pull.
+			A.part(
+				parent,
+				Vector3.new(2.4, rng:NextNumber(5, 9), 2.4),
+				top
+					* CFrame.new(0, -h * rng:NextNumber(0.3, 0.45), 0)
+					* CFrame.Angles(
+						rng:NextNumber(-0.5, 0.5),
+						rng:NextNumber(0, 3),
+						rng:NextNumber(-0.5, 0.5)
+					),
+				t.glow,
+				Enum.Material.Neon,
+				{ decor = true, transparency = 0.2 }
+			)
+		else
+			A.crystals(parent, top * CFrame.Angles(math.pi, 0, 0), rng:NextNumber(5, 8), t.glow)
 		end
 	end
 end
@@ -272,10 +369,11 @@ local function buildRoom(parent: Instance, floor: Floor, room: Room, index: numb
 	model.Name = `Room{index}_{room.id}`
 	local cx, cz = room.center[1], room.center[2]
 	local w, h, d = room.size[1], room.size[2], room.size[3]
-	A.part(model, Vector3.new(w, 2, d), at(floor, cx, -1, cz), t.floor, t.material)
+	A.part(model, Vector3.new(w, 2, d), at(floor, cx, -1, cz), t.floor, t.floorMaterial)
 	for _, side in { "N", "S", "E", "W" } do
 		wall(model, floor, room, side, t)
 	end
+	ceiling(model, floor, room, t, floor.index * 1000 + index * 17 + 5)
 	local seed = floor.index * 1000 + index * 17
 	local rng = Random.new(seed)
 	if room.kind == "Hall" then
@@ -377,7 +475,7 @@ local function buildPassage(
 	local cx, cz = passage.center[1], passage.center[2]
 	local w, d = passage.size[1], passage.size[2]
 	local height = DOOR_HEIGHT + 2
-	A.part(model, Vector3.new(w, 2, d), at(floor, cx, -1, cz), t.floor, t.material)
+	A.part(model, Vector3.new(w, 2, d), at(floor, cx, -1, cz), t.floor, t.floorMaterial)
 	if passage.axis == "Z" then
 		for _, s in { -1, 1 } do
 			A.part(
