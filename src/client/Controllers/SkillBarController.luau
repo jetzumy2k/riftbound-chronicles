@@ -609,7 +609,8 @@ local function render()
 			button.pips.Text = ""
 			button.shade.Size = UDim2.fromScale(1, 0)
 			button.timer.Text = ""
-			button.status.Text = "EMPTY"
+			-- On touch the "+" says it all; tiny labels only crowd a phone.
+			button.status.Text = if touch then "" else "EMPTY"
 			button.stroke.Color = Color3.new(1, 1, 1)
 			continue
 		end

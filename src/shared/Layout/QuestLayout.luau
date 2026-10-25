@@ -17,7 +17,6 @@
 ]]
 
 local CombatButtonsLayout = require(script.Parent.CombatButtonsLayout)
-local InventoryLayout = require(script.Parent.InventoryLayout)
 
 export type Rect = { x: number, y: number, w: number, h: number }
 
@@ -49,11 +48,12 @@ end
 function QuestLayout.obstacles(width: number, height: number): { Rect }
 	-- HudController: top-left 260 x 160 px scaled by clamp(height / 720, 0.85, 1.35).
 	local scale = math.clamp(height / 720, 0.85, 1.35)
+	local toggles = CombatButtonsLayout.toggles(width, height)
 	local list: { Rect } = {
 		{ x = 0, y = 0, w = 260 * scale, h = 160 * scale },
-		-- SKILLS toggle (centre height / 2 - 56) and the BAG toggle.
-		{ x = width - 118, y = height / 2 - 78, w = 110, h = 44 },
-		InventoryLayout.toggleRect(width, height),
+		-- The SKILLS and BAG toggles.
+		CombatButtonsLayout.toggleRect(toggles.skills, width, height),
+		CombatButtonsLayout.toggleRect(toggles.bag, width, height),
 		-- Roblox's jump button corner.
 		{
 			x = width - CombatButtonsLayout.JUMP_ZONE,
@@ -90,6 +90,12 @@ function QuestLayout.compute(width: number, height: number): Layout
 	local candidates: { { rect: Rect, mode: "full" | "pill" } } = {
 		{ rect = full, mode = "full" },
 		{ rect = { x = width - m - pill.w, y = m, w = pill.w, h = pill.h }, mode = "pill" },
+		-- Phone landscape: the card, then the pill, left of the icon column.
+		{
+			rect = { x = width - 60 - m - trackerW, y = m, w = trackerW, h = QuestLayout.TRACKER_H },
+			mode = "full",
+		},
+		{ rect = { x = width - 60 - m - pill.w, y = m, w = pill.w, h = pill.h }, mode = "pill" },
 	}
 	-- Under the potion button in the right column (portrait).
 	local combat = CombatButtonsLayout.compute(width, height)

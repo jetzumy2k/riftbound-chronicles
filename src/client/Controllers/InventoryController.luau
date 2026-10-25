@@ -124,6 +124,10 @@ local InventoryController = {}
 
 local gui: ScreenGui
 local toggle: TextButton
+-- Phone landscape shows the toggle as a 44 px icon button (D-86).
+local toggleCompact: () -> boolean = function()
+	return false
+end
 local potionButton: TextButton
 local POTION = "HealingPotion"
 local potionTicking = false
@@ -1146,12 +1150,10 @@ function InventoryController:Start()
 		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
 		DisplayOrder = 8,
 	})
-	local t = InventoryLayout.TOGGLE
+	-- Placed by HudLayout.bindToggle (CombatButtonsLayout.toggles) below.
 	toggle = Kit.new("TextButton", {
 		Name = "BagToggle",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -t.right, 0.5, t.offset),
-		Size = UDim2.fromOffset(t.w, t.h),
+		AnchorPoint = Vector2.new(1, 1),
 		BackgroundColor3 = Theme.Colors.Glass,
 		BackgroundTransparency = 0.15,
 		Text = "🎒 BAG",
@@ -1182,6 +1184,10 @@ function InventoryController:Start()
 	Kit.goldStroke(potionButton, 1.5, 0.2)
 	potionButton.Activated:Connect(drinkPotion)
 	gui.Parent = localPlayer():WaitForChild("PlayerGui")
+	toggleCompact = HudLayout.bindToggle("Bag", toggle, "bag", function()
+		toggle.Text = if toggleCompact() then "🎒" else "🎒 BAG"
+		toggle.TextSize = if toggleCompact() then 20 else 13
+	end)
 	Panels.register("bag", function()
 		InventoryController.setOpen(false)
 	end)

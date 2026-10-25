@@ -117,6 +117,12 @@ local function overlaps(a, b): boolean
 	return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
 end
 
+-- Touch combat buttons are round (corner radius = half their size).
+local function circlesOverlap(a, b): boolean
+	local ax, ay, bx, by = a.x + a.w / 2, a.y + a.h / 2, b.x + b.w / 2, b.y + b.h / 2
+	return math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2) < (a.w + b.w) / 2
+end
+
 return function(t)
 	t.describe("skill trees", function()
 		t.it("every class has 4 branches x 6 tiers: 16 regular skills and 8 specials", function()
@@ -772,10 +778,46 @@ return function(t)
 				-- clamp(height / 720, 0.85, 1.35).
 				local scale = math.clamp(height / 720, 0.85, 1.35)
 				local hud = { x = 0, y = 0, w = 260 * scale, h = 160 * scale }
+				-- The SKILLS / BAG toggles are part of the same corner (D-86).
+				local toggles = CombatButtonsLayout.toggles(width, height)
+				for _, id in { "skills", "bag" } do
+					local r = CombatButtonsLayout.toggleRect(toggles[id], width, height)
+					t.ok(r.x >= 0 and r.y >= 0, `{id} toggle off screen`)
+					t.ok(
+						r.w >= CombatButtonsLayout.MIN_TOUCH_PX and r.h >= CombatButtonsLayout.MIN_TOUCH_PX,
+						`{id} toggle size`
+					)
+					t.ok(
+						toggles[id].right >= CombatButtonsLayout.JUMP_ZONE
+							or toggles[id].bottom >= CombatButtonsLayout.JUMP_ZONE,
+						`{id} toggle jump`
+					)
+					rects[id] = r
+					table.insert(keys, id)
+				end
+				t.ok(not overlaps(rects.skills, rects.bag), "toggles overlap")
+				table.remove(keys)
+				table.remove(keys)
+				-- Phone landscape: the cluster stays out of the middle of the
+				-- screen, where the character stands.
+				if layout.mode == "arc" then
+					for _, key in keys do
+						t.ok(rects[key].x > width * 0.4, `{key} reaches the middle ({rects[key].x})`)
+					end
+				end
+				for _, id in { "skills", "bag" } do
+					t.ok(not overlaps(rects[id], hud), `{id} toggle overlaps the HUD`)
+					for _, key in keys do
+						t.ok(not overlaps(rects[id], rects[key]), `{id} toggle overlaps {key}`)
+					end
+				end
 				for i = 1, #keys do
 					t.ok(not overlaps(rects[keys[i]], hud), `{keys[i]} overlaps the HUD`)
 					for j = i + 1, #keys do
-						t.ok(not overlaps(rects[keys[i]], rects[keys[j]]), `{keys[i]} overlaps {keys[j]}`)
+						t.ok(
+							not circlesOverlap(rects[keys[i]], rects[keys[j]]),
+							`{keys[i]} overlaps {keys[j]}`
+						)
 					end
 				end
 			end)

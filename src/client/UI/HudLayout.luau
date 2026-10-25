@@ -25,6 +25,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local HudSlots = require(Shared.Layout.HudSlots)
+local CombatButtonsLayout = require(Shared.Layout.CombatButtonsLayout)
 local NetClient = require(Shared.Net.Client)
 local Signal = require(Shared.Util.Signal)
 
@@ -109,6 +110,49 @@ function HudLayout.register(id: string, object: GuiObject)
 		end
 	end)
 	HudLayout.apply(id)
+end
+
+--[[
+	A controller's new placement for a registered piece (the screen changed
+	size): used now unless the player moved the piece, and kept for Reset.
+]]
+function HudLayout.setDefault(id: string, object: GuiObject, position: UDim2, anchor: Vector2)
+	local entry = entries[id]
+	if entry then
+		entry.defaults[object] = { position = position, anchor = anchor }
+		if entry.moved then
+			return
+		end
+	end
+	object.AnchorPoint = anchor
+	object.Position = position
+end
+
+--[[
+	Places the SKILLS or BAG toggle (`which`) from CombatButtonsLayout.toggles
+	and re-places it whenever its screen changes size; `changed` runs after
+	(to refresh its text). Returns whether the toggle is compact right now:
+	a 44 px icon button on phone landscape (D-86), else the labelled pill.
+]]
+function HudLayout.bindToggle(id: string, object: GuiObject, which: string, changed: () -> ()): () -> boolean
+	local compact = false
+	local function place()
+		local screen = screenSize(object)
+		local toggles = CombatButtonsLayout.toggles(screen.X, screen.Y)
+		local t = (toggles :: any)[which] :: CombatButtonsLayout.Toggle
+		compact = toggles.compact
+		object.Size = UDim2.fromOffset(t.w, t.h)
+		HudLayout.setDefault(id, object, UDim2.new(1, -t.right, 1, -t.bottom), Vector2.new(1, 1))
+		changed()
+	end
+	local layer = object:FindFirstAncestorOfClass("ScreenGui")
+	if layer then
+		layer:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	end
+	place()
+	return function(): boolean
+		return compact
+	end
 end
 
 local function applyAll()

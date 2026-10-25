@@ -76,8 +76,9 @@ return function(t)
 					not overlaps(toggle, { x = width - jump, y = height - jump, w = jump, h = jump }),
 					"jump"
 				)
-				-- The SKILLS toggle sits just above (centre -56, 44 tall).
-				local skills = { x = width - 118, y = height / 2 - 56 - 22, w = 110, h = 44 }
+				-- The SKILLS toggle sits just above.
+				local toggles = CombatButtonsLayout.toggles(width, height)
+				local skills = CombatButtonsLayout.toggleRect(toggles.skills, width, height)
 				t.ok(not overlaps(toggle, skills), "skills toggle")
 			end)
 		end

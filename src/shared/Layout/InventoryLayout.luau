@@ -49,6 +49,8 @@ export type Doll = {
 	slots: { [string]: Rect },
 }
 
+local CombatButtonsLayout = require(script.Parent.CombatButtonsLayout)
+
 local InventoryLayout = {}
 
 InventoryLayout.MIN_TOUCH_PX = 44
@@ -76,9 +78,11 @@ InventoryLayout.RIGHT_SLOTS = table.freeze({ "Weapon", "OffHand", "Necklace", "E
 -- and of the jump button corner.
 InventoryLayout.TOGGLE = table.freeze({ right = 8, offset = -4, w = 110, h = 44 })
 
+-- Where the toggle is drawn: CombatButtonsLayout.toggles places it with the
+-- SKILLS toggle (an icon button in the right column on phone landscape).
 function InventoryLayout.toggleRect(width: number, height: number): Rect
-	local t = InventoryLayout.TOGGLE
-	return { x = width - t.right - t.w, y = height / 2 + t.offset - t.h / 2, w = t.w, h = t.h }
+	local toggles = CombatButtonsLayout.toggles(width, height)
+	return CombatButtonsLayout.toggleRect(toggles.bag, width, height)
 end
 
 local HEADER = 52

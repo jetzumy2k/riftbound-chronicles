@@ -60,6 +60,10 @@ local SkillTreeController = {}
 
 local gui: ScreenGui
 local toggle: TextButton
+-- Phone landscape shows the toggle as a 44 px icon button (D-86).
+local toggleCompact: () -> boolean = function()
+	return false
+end
 local panel: Frame? = nil
 local selected: string? = nil
 local open = false
@@ -581,7 +585,13 @@ end
 function render()
 	toggle.Visible = state().Job ~= nil
 	local points = pointsLeft()
-	toggle.Text = if points > 0 then `🌟 SKILLS ({points})` else "🌟 SKILLS"
+	if toggleCompact() then
+		toggle.Text = if points > 0 then `🌟{points}` else "🌟"
+		toggle.TextSize = 20
+	else
+		toggle.Text = if points > 0 then `🌟 SKILLS ({points})` else "🌟 SKILLS"
+		toggle.TextSize = 13
+	end
 	if panel then
 		local oldBody = panel:FindFirstChild("Body")
 		if oldBody and oldBody:IsA("ScrollingFrame") then
@@ -745,7 +755,7 @@ function SkillTreeController:Start()
 	toggle = Kit.new("TextButton", {
 		Name = "SkillsToggle",
 		AnchorPoint = Vector2.new(1, 0.5),
-		-- Right edge, above the dungeon tracker toggle.
+		-- Placed by HudLayout.bindToggle (CombatButtonsLayout.toggles) in Start.
 		Position = UDim2.new(1, -8, 0.5, -56),
 		Size = UDim2.fromOffset(110, 44),
 		BackgroundColor3 = Theme.Colors.Glass,
@@ -763,6 +773,7 @@ function SkillTreeController:Start()
 	HudLayout.register("Skills", toggle)
 	toggle.Activated:Connect(SkillTreeController.toggle)
 	gui.Parent = player():WaitForChild("PlayerGui")
+	toggleCompact = HudLayout.bindToggle("Skills", toggle, "skills", render)
 	Panels.register("skills", function()
 		SkillTreeController.setOpen(false)
 	end)

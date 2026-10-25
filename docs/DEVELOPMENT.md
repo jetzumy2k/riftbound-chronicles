@@ -199,6 +199,24 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phone landscape controls (D-86)
+
+Use the device emulator (iPhone XR / iPhone 14 / iPhone SE, landscape):
+
+1. The skills ring the attack button in two arcs in the bottom-right corner; the middle of the screen (your character) stays clear. The potion and the Auto switch sit at the ends of the outer arc.
+2. RUN and CROUCH sit side by side just above the jump button; above them 🌟 (skill points shown as 🌟3) and 🎒 icon buttons open the skill tree and the bag.
+3. The quest card sits at the top right, left of the icon column; nothing overlaps.
+4. Empty skill slots show just "+". Long-press a skill still explains it.
+5. Rotate to portrait: the paged column layout is unchanged. On a tablet / desktop the row layout and labelled SKILLS / BAG pills are unchanged.
+6. If you had moved SKILLS or BAG with 📐 Edit HUD, they stay where you put them; Reset puts them in the new spots.
+
+## Phase 16 stage 4: capital landforms (D-85)
+
+1. Play, check the Output: both capitals' `[WorldBudget]` lines (Skyreach about 857 parts, Emberdeep about 753, 2 emitters each) and no warning. Note the boot time on the `[Loader] booted` line.
+2. Skyreach Citadel: walk to the platform edge and look down. The island under it is one craggy rock tapering to a point with hanging spires and glowing crystals at their tips; three waterfalls spill off its sides into the clouds with mist. The floating islets sit on rocks. Nothing sticks up through the plaza.
+3. Emberdeep Bastion: from the spawn, look past the training yard. The volcano is a smooth ridged cone with a crater, a glowing lava lake inside, six winding lava streams down the flanks and smoke rising from the top.
+4. Check the frame rate in both capitals on the device emulator (phone).
+
 ## Phase 16 stage 3: Jungle Rift art (D-84)
 
 1. Play, check the Output: `[WorldBudget] Jungle Rift [WarZone]` should be under 7,000 parts (expected about 6,300) with no warning. Send the line.
