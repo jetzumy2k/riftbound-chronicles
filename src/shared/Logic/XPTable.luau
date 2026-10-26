@@ -48,6 +48,21 @@ function XPTable.toNext(level: number): number
 end
 
 --[[
+	Creature EXP scale by creature level (Phase 20 balance, PLAN.md D-95):
+	creatures gave about a quarter of a level each, so level 30 took under an
+	hour. Every creature kill and dungeon-boss bonus is scaled by
+	CREATURE_SCALE_BASE x CREATURE_SCALE_DECAY ^ level: generous early (a few
+	minutes per level), about 19 active hours to 30 in the balance model
+	(docs/balance). Quests are not scaled.
+]]
+XPTable.CREATURE_SCALE_BASE = 0.2
+XPTable.CREATURE_SCALE_DECAY = 0.905
+
+function XPTable.creatureScale(level: number): number
+	return XPTable.CREATURE_SCALE_BASE * XPTable.CREATURE_SCALE_DECAY ^ math.clamp(level, 0, MAX_LEVEL)
+end
+
+--[[
 	Cumulative XP needed to reach `level` from Level 0.
 ]]
 function XPTable.totalToReach(level: number): number

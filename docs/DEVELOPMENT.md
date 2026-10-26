@@ -199,6 +199,17 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Phase 20: balance changes (D-95)
+
+Numbers and reasons: docs/balance/BALANCE_REVIEW.md (regenerate the simulation with `lune run tools/balance/simulate > docs/balance/SIMULATION.md`).
+
+1. A new character: killing Rift Wolves gives a few EXP each (about 5 at level 1); level 1 takes a few minutes, not seconds. Quest EXP is unchanged.
+2. Floor 3 creatures give about 1-2% of a level each (they gave about a third).
+3. Creatures hit noticeably harder: a level-matched creature takes about half the hits it did to defeat you.
+4. Item Mall > Gear sets: only the Legendary set is for sale.
+5. New Archer armour drops can roll Max HP and Defense.
+6. Floor and field bosses have about 15% more HP.
+
 ## Phase 19: mobile / multi-device pass (D-94)
 
 Studio > Test > Device emulator. Start an event (e.g. Double EXP) and use a buff (Mall) so both chips show; have a quest active.

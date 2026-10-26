@@ -47,6 +47,10 @@ BossBalance.CHAIN_COEF = 0.96
 BossBalance.SKILL_BONUS = 0.6
 -- Share of the fight spent hitting (the rest: dodging, moving, reviving).
 BossBalance.UPTIME = 0.7
+-- D-95: the reference player wears a normal drop kit, not nothing (the
+-- balance model: a Rare +5 / +3 kit deals ~15% more), so boss HP and
+-- the group-size verdicts hold for normally geared players.
+BossBalance.GEAR_FACTOR = 1.15
 
 export type Tier = "Boss" | "Floor" | "Mini"
 
@@ -76,7 +80,9 @@ end
 function BossBalance.playerDps(level: number, defense: number): number
 	local attack = StatFormulas.forLevel(level).Attack
 	local coefficient = BossBalance.CHAIN_COEF * (1 + BossBalance.SKILL_BONUS * level / Constants.Level.Max)
+	-- D-95: a player in a normal drop kit (GEAR_FACTOR), not bare.
 	return coefficient
+		* BossBalance.GEAR_FACTOR
 		* BossBalance.UPTIME
 		* attack
 		* power(level)

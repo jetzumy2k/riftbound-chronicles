@@ -47,6 +47,7 @@ local DungeonDefinitions = require(Shared.Definitions.DungeonDefinitions)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local DungeonRules = require(Shared.Logic.DungeonRules)
 local LevelGap = require(Shared.Logic.LevelGap)
+local XPTable = require(Shared.Logic.XPTable)
 local QuestRules = require(Shared.Logic.QuestRules)
 local PartyRules = require(Shared.Logic.PartyRules)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
@@ -297,7 +298,8 @@ local groupRecipients = MobService.groupRecipients(function(player)
 end)
 
 local function grantBossBonus(mob: MobService.Mob, class: RespawnClass, copy: Copy)
-	local xp = copy.dungeon.bonusXp[class] or 0
+	-- D-95: scaled like creature EXP (XPTable.creatureScale).
+	local xp = math.floor((copy.dungeon.bonusXp[class] or 0) * XPTable.creatureScale(mob.level) + 0.5)
 	if xp <= 0 then
 		return
 	end

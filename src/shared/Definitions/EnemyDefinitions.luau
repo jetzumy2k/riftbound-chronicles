@@ -822,6 +822,19 @@ for _, enemy in roster do
 	enemies[enemy.id] = enemy
 end
 
+-- D-95 balance: regular creatures hit twice as hard, elites 1.5x, so a
+-- player in a normal drop kit takes ~15-60 hits from a level-matched one
+-- (was 20-115). Bosses keep their BossBalance hits.
+EnemyDefinitions.REGULAR_DAMAGE_SCALE = 2
+EnemyDefinitions.ELITE_DAMAGE_SCALE = 1.5
+for _, enemy in enemies do
+	if enemy.tier == nil then
+		(enemy :: any).attackScale *= if enemy.elite
+			then EnemyDefinitions.ELITE_DAMAGE_SCALE
+			else EnemyDefinitions.REGULAR_DAMAGE_SCALE
+	end
+end
+
 local function deepFreeze(value: any): any
 	if type(value) == "table" and not table.isfrozen(value) then
 		for _, child in value do
@@ -845,13 +858,12 @@ end
 -- the definition's): scaled along the EXP curve, never below 1.
 function EnemyDefinitions.xpAt(enemy: Enemy, level: number?): number
 	local at = level or enemy.level
-	if at == enemy.level then
-		return enemy.xp
-	end
 	local function curve(l: number): number
 		return XPTable.toNext(math.clamp(l, 0, 29))
 	end
-	return math.max(1, math.floor(enemy.xp * curve(at) / curve(enemy.level) + 0.5))
+	local xp = if at == enemy.level then enemy.xp else enemy.xp * curve(at) / curve(enemy.level)
+	-- D-95: the creature EXP scale (XPTable.creatureScale).
+	return math.max(1, math.floor(xp * XPTable.creatureScale(at) + 0.5))
 end
 
 return table.freeze(EnemyDefinitions)

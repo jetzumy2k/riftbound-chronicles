@@ -243,7 +243,16 @@ ItemRules.POOLS = table.freeze({
 			{ "HPRegen", 1 },
 		}),
 		Healer = pool({ { "MaxHP", 3 }, { "HealingPower", 3 }, { "Defense", 2 }, { "FocusEfficiency", 2 } }),
-		Archer = pool({ { "Attack", 3 }, { "CritChance", 3 }, { "CritDamage", 2 }, { "SkillPower", 2 } }),
+		-- D-95: Archer armour rolls Max HP and Defense too (it had only
+		-- damage stats, so top rolls made Archers glass cannons).
+		Archer = pool({
+			{ "Attack", 2 },
+			{ "MaxHP", 2 },
+			{ "CritChance", 2 },
+			{ "Defense", 2 },
+			{ "CritDamage", 2 },
+			{ "SkillPower", 2 },
+		}),
 		Mage = pool({
 			{ "SkillPower", 3 },
 			{ "MaxHP", 2 },

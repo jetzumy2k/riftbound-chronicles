@@ -8,7 +8,9 @@
 	its id in `productId`; 0 = not set up yet, the pack shows as
 	unavailable). MP are also given by events (D-93 stage 2).
 
-	Everything in the CATALOG is fixed: no random results. Gear sets have
+	Everything in the CATALOG is fixed: no random results. Only the
+	Legendary set is sold (D-95: a Mythical set gave a 3.8x PvP edge over
+	normal drop gear; Mythical stays a PvP-boss / endgame reward). Gear sets have
 	fixed attributes shown before buying (ItemRules.fixedRoll; creator
 	decision 2026-10-25), so they are not paid random items. Enhancement
 	Stones are sold as stones: the enhancement rates they are used with are
@@ -203,16 +205,6 @@ local CATALOG: { Entry } = {
 		price = 2500,
 		grant = { kind = "Set", rarity = "Legendary" },
 		description = "Every piece for your class (weapon, armour, jewellery) at your level, Legendary, with fixed attributes.",
-	},
-	{
-		id = "MythicalSet",
-		section = "Complete sets",
-		name = "Mythical Set",
-		icon = "👑",
-		tab = "Sets",
-		price = 5000,
-		grant = { kind = "Set", rarity = "Mythical" },
-		description = "Every piece for your class (weapon, armour, jewellery) at your level, Mythical, with fixed attributes.",
 	},
 }
 MallDefinitions.CATALOG = table.freeze(CATALOG)
