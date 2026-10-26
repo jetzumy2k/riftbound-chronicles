@@ -31,6 +31,8 @@ export type Entry = {
 	tab: string,
 	-- The heading it is listed under inside its tab.
 	section: string,
+	-- What it does in a few words (shown on its card).
+	short: string,
 	price: number,
 	grant: any,
 	description: string,
@@ -66,9 +68,10 @@ local CATALOG: { Entry } = {
 	-- Buffs (used from the bag; BuffRules).
 	{
 		id = "Insight",
+		short = "+50% EXP · 60 min",
 		section = "Boosts",
 		name = "Scroll of Insight",
-		icon = "📜",
+		icon = "✨",
 		tab = "Buffs",
 		price = 60,
 		grant = stack("Buff_Insight", 1),
@@ -76,6 +79,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Fortune",
+		short = "+50% gear drops · 60 min",
 		section = "Boosts",
 		name = "Fortune Charm",
 		icon = "🍀",
@@ -86,9 +90,10 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "StoneSeeker",
+		short = "+50% stone drops · 60 min",
 		section = "Boosts",
 		name = "Stone Seeker's Lantern",
-		icon = "🏮",
+		icon = "🔍",
 		tab = "Buffs",
 		price = 60,
 		grant = stack("Buff_StoneSeeker", 1),
@@ -96,6 +101,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Might",
+		short = "+10% damage · 30 min",
 		section = "Combat draughts",
 		name = "Draught of Might",
 		icon = "💪",
@@ -106,6 +112,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Iron",
+		short = "+10% Defense · 30 min",
 		section = "Combat draughts",
 		name = "Draught of Iron",
 		icon = "🛡️",
@@ -116,6 +123,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Vigor",
+		short = "+10% Max HP · 30 min",
 		section = "Combat draughts",
 		name = "Draught of Vigor",
 		icon = "💗",
@@ -126,6 +134,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Clarity",
+		short = "+30 max Focus · 30 min",
 		section = "Combat draughts",
 		name = "Draught of Clarity",
 		icon = "🔷",
@@ -136,6 +145,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Rebirth",
+		short = "Get all attribute points back",
 		section = "Utility",
 		name = "Scroll of Rebirth",
 		icon = "🔄",
@@ -146,6 +156,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Potions10",
+		short = "10 potions · heal 30% each",
 		section = "Utility",
 		name = "Healing Potions x10",
 		icon = "🧪",
@@ -157,6 +168,7 @@ local CATALOG: { Entry } = {
 	-- Stones.
 	{
 		id = "Stone1",
+		short = "Enhance gear by +1",
 		section = "Enhancement Stones",
 		name = "Enhancement Stone",
 		icon = "💎",
@@ -167,6 +179,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Stone10",
+		short = "10 stones · 10% off",
 		section = "Enhancement Stones",
 		name = "Enhancement Stones x10",
 		icon = "💎",
@@ -177,6 +190,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Perfect1",
+		short = "+1 that always succeeds",
 		section = "Perfect Stones",
 		name = "Perfect Enhancement Stone",
 		icon = "✨",
@@ -187,6 +201,7 @@ local CATALOG: { Entry } = {
 	},
 	{
 		id = "Perfect5",
+		short = "5 Perfect Stones",
 		section = "Perfect Stones",
 		name = "Perfect Stones x5",
 		icon = "✨",
@@ -198,6 +213,7 @@ local CATALOG: { Entry } = {
 	-- Complete sets for the buyer's class at their level, fixed attributes.
 	{
 		id = "LegendarySet",
+		short = "Every piece for your class",
 		section = "Complete sets",
 		name = "Legendary Set",
 		icon = "🔶",

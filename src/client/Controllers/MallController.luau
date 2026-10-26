@@ -17,8 +17,11 @@
 	           the description, how many you have, a running buff's time
 	           left, a set's pieces with their fixed attributes, and Buy
 	           (then "Tap again to confirm" for a few seconds)
-	  Buffs    while any buff runs, a chip under the event chip shows each
-	           buff's icon and minutes left
+	  Buffs    while any buff runs, a row of badges under the event chip:
+	           each shows the buff's icon, a short label (EXP, DROP, STONE,
+	           ATK, DEF, HP, FOCUS) and the minutes left; hover or tap one
+	           for its name, effect and time (UI/Tooltip). More buffs than
+	           fit end in a "+2" badge listing the rest
 
 	Opened from the 🛒 Mall button in the bag (or key N).
 ]]
@@ -42,6 +45,8 @@ local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local Panels = require(UI.Panels)
+
+local Tooltip = require(UI.Tooltip)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
 local InventoryController = require(script.Parent.InventoryController)
@@ -70,9 +75,13 @@ local confirming: string? = nil
 local confirmUntil = 0
 local status = ""
 local statusBad = false
-local chip: TextLabel? = nil
--- Phase 19 (D-94): the buff chip's short form (icons only) on crowded screens.
-local chipCompact = false
+-- The buff badges' row (placed by OverlayLayout) and how wide it may be.
+local badgeRow: Frame? = nil
+local badgeWidth = 200
+-- Reward buffs ring green, combat buffs red-orange.
+local REWARD_RING = Color3.fromRGB(120, 220, 140)
+local COMBAT_RING = Color3.fromRGB(255, 150, 110)
+local REWARD_CATEGORIES = { XP = true, DropChance = true, StoneChance = true }
 
 local function state()
 	return PlayerDataController:Get()
@@ -269,12 +278,45 @@ local function card(parent: Instance, choice: Choice, isSelected: boolean)
 		Theme.Colors.GoldBright
 	)
 	name.AutomaticSize = Enum.AutomaticSize.None
-	name.Position = UDim2.fromOffset(8, 40)
-	name.Size = UDim2.new(1, -16, 0, 34)
-	name.TextWrapped = true
+	name.Position = UDim2.fromOffset(8, 36)
+	name.Size = UDim2.new(1, -16, 0, 18)
+	name.TextWrapped = false
+	name.TextTruncate = Enum.TextTruncate.AtEnd
 	name.TextXAlignment = Enum.TextXAlignment.Left
 	name.TextYAlignment = Enum.TextYAlignment.Top
 	name.Parent = b
+	-- What it does in a few words (creator review 2026-10-26: the icon
+	-- alone didn't say), and the full story on hover / tap.
+	local short = Kit.label(
+		if entry
+			then entry.short
+			else (if (pack :: any).bonusPct > 0
+				then `incl. +{(pack :: any).bonusPct}% bonus`
+				else "Mall Points"),
+		12,
+		Theme.Fonts.Body,
+		Theme.Colors.Text
+	)
+	short.AutomaticSize = Enum.AutomaticSize.None
+	short.Position = UDim2.fromOffset(8, 55)
+	short.Size = UDim2.new(1, -16, 1, -80)
+	short.TextWrapped = true
+	short.TextTruncate = Enum.TextTruncate.AtEnd
+	short.TextXAlignment = Enum.TextXAlignment.Left
+	short.TextYAlignment = Enum.TextYAlignment.Top
+	short.Parent = b
+	Tooltip.attach(b, function()
+		if entry then
+			local have = owned(entry)
+			return `{entry.icon} {entry.name}`,
+				`{entry.description}\nPrice: {entry.price} MP{if have then `  ·  You have {have}` else ""}`
+		end
+		local pk = pack :: any
+		return `💠 {MallDefinitions.pointsOf(pk)} Mall Points`,
+			if pk.productId == 0
+				then "Not on sale yet."
+				else `{pk.robux} Robux through Roblox's purchase window.`
+	end)
 	local affordable = entry == nil or points() >= entry.price
 	local price = Kit.label(
 		if entry
@@ -424,8 +466,16 @@ function render()
 		InventoryController.setOpen(true)
 	end)
 	back.Position = UDim2.fromOffset(l.back.x, l.back.y)
+	-- Left-aligned beside ← Bag, never reaching the balance on the right
+	-- (creator review 2026-10-26: it sat centred against "0 MP").
 	local title = Kit.label("🛒 Item Mall", 17, Theme.Fonts.Display, Theme.Colors.GoldBright)
-	title.Position = UDim2.fromOffset(l.back.x + l.back.w + 10, l.back.y + 10)
+	local titleX = l.back.x + l.back.w + 12
+	title.AutomaticSize = Enum.AutomaticSize.None
+	title.Position = UDim2.fromOffset(titleX, l.back.y)
+	title.Size = UDim2.fromOffset(math.max(0, l.right.x - titleX - 12), l.back.h)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextWrapped = false
+	title.TextTruncate = Enum.TextTruncate.AtEnd
 	title.Visible = l.showTitle
 	title.Parent = frame
 	local right = Kit.new("Frame", {
@@ -506,14 +556,24 @@ function render()
 		})
 		local list = Kit.list(grid, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Left)
 		list.VerticalAlignment = Enum.VerticalAlignment.Top
-		local columns = math.max(2, math.floor((gridW - 10) / 150))
-		local cellW = math.floor((gridW - 14 - (columns - 1) * 8) / columns)
+		-- Room round the cards so their borders (and the selected card's
+		-- gold ring) are never clipped, and for the scroll bar on the
+		-- right (creator review 2026-10-26: the right border was cut).
+		local padding = Instance.new("UIPadding")
+		padding.PaddingTop = UDim.new(0, 4)
+		padding.PaddingBottom = UDim.new(0, 6)
+		padding.PaddingLeft = UDim.new(0, 4)
+		padding.PaddingRight = UDim.new(0, 14)
+		padding.Parent = grid
+		local usable = gridW - 18
+		local columns = math.max(2, math.floor((usable + 8) / 158))
+		local cellW = math.floor((usable - (columns - 1) * 8) / columns)
 		for order, section in sections do
 			local heading = text(grid, section.title, 14, Theme.Colors.GoldBright, true)
 			heading.LayoutOrder = order * 2 - 1
 			local cells = Kit.new("Frame", {
 				BackgroundTransparency = 1,
-				Size = UDim2.new(1, -8, 0, 0),
+				Size = UDim2.fromScale(1, 0),
 				AutomaticSize = Enum.AutomaticSize.Y,
 				LayoutOrder = order * 2,
 				Parent = grid,
@@ -583,26 +643,93 @@ function MallController.open()
 	render()
 end
 
--- The running-buffs chip under the event chip.
+-- One badge: icon and label on top, minutes left under them.
+local function badge(
+	parent: Instance,
+	top: string,
+	bottom: string,
+	ring: Color3,
+	tip: () -> (string, string?)
+)
+	local b = Kit.new("TextButton", {
+		Size = UDim2.fromOffset(OverlayLayout.BADGE_W, OverlayLayout.BADGE_H),
+		BackgroundColor3 = Theme.Colors.Glass,
+		BackgroundTransparency = 0.1,
+		Text = "",
+		AutoButtonColor = true,
+		Parent = parent,
+	})
+	Kit.corner(b, 10)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = ring
+	stroke.Thickness = 1.5
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = b
+	local upper = Kit.label(top, 13, Theme.Fonts.BodyBold, Theme.Colors.Text)
+	upper.AutomaticSize = Enum.AutomaticSize.None
+	upper.Position = UDim2.fromOffset(0, 4)
+	upper.Size = UDim2.new(1, 0, 0, 18)
+	upper.TextWrapped = false
+	upper.Parent = b
+	local lower = Kit.label(bottom, 12, Theme.Fonts.BodyBold, ring)
+	lower.AutomaticSize = Enum.AutomaticSize.None
+	lower.Position = UDim2.fromOffset(0, 23)
+	lower.Size = UDim2.new(1, 0, 0, 16)
+	lower.TextWrapped = false
+	lower.Parent = b
+	Tooltip.attach(b, tip, "tap")
+end
+
+-- The running buffs as badges under the event chip.
 local function renderChip()
-	local label = chip
-	if label == nil then
+	local row = badgeRow
+	if row == nil then
 		return
 	end
+	for _, child in row:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
 	local now = os.clock()
-	local parts = {}
+	local running = {}
 	for _, id in BuffRules.IDS do
 		local untilAt = state().BuffsUntil[id]
 		if type(untilAt) == "number" and untilAt > now then
-			local buff = BuffRules.get(id) :: BuffRules.Buff
 			table.insert(
-				parts,
-				if chipCompact then buff.icon else `{buff.icon} {math.ceil((untilAt - now) / 60)}m`
+				running,
+				{ buff = BuffRules.get(id) :: BuffRules.Buff, minutes = math.ceil((untilAt - now) / 60) }
 			)
 		end
 	end
-	label.Visible = #parts > 0
-	label.Text = table.concat(parts, if chipCompact then "" else "  ")
+	row.Visible = #running > 0
+	local columns = math.max(1, math.floor((badgeWidth + 4) / (OverlayLayout.BADGE_W + 4)))
+	local shown = if #running > columns then columns - 1 else #running
+	for index = 1, shown do
+		local entry = running[index]
+		local buff = entry.buff
+		local ring = if REWARD_CATEGORIES[buff.category] then REWARD_RING else COMBAT_RING
+		badge(row, `{buff.icon} {buff.tag}`, `{entry.minutes}m`, ring, function()
+			local left = state().BuffsUntil[buff.id] or 0
+			local minutes = math.max(0, math.ceil((left - os.clock()) / 60))
+			return buff.name,
+				`{buff.short}. {minutes} min left.\nUsing another adds {buff.minutes} min (up to 6 h).`
+		end)
+	end
+	local rest = #running - shown
+	if rest > 0 then
+		badge(row, if shown == 0 then `🧪 {rest}` else `+{rest}`, "buffs", REWARD_RING, function()
+			local lines = {}
+			for index = shown + 1, #running do
+				local entry = running[index]
+				table.insert(
+					lines,
+					`{entry.buff.icon} {entry.buff.name}: {entry.buff.short}, {entry.minutes} min`
+				)
+			end
+			return if shown == 0 then "Active buffs" else "More active buffs", table.concat(lines, "\n")
+		end)
+	end
 end
 
 function MallController:Start()
@@ -614,34 +741,27 @@ function MallController:Start()
 		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
 		DisplayOrder = 8,
 	})
-	local label = Kit.new("TextLabel", {
+	local row = Kit.new("Frame", {
+		Name = "Buffs",
 		-- Under the event chip (OverlayLayout, Phase 19, D-94).
-		Position = UDim2.fromOffset(8, 40),
-		Size = UDim2.fromOffset(0, 26),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BackgroundColor3 = Theme.Colors.Glass,
-		BackgroundTransparency = 0.25,
-		TextSize = 13,
-		FontFace = Theme.Fonts.BodyBold,
-		TextColor3 = Theme.Colors.Text,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(8, 52),
+		Size = UDim2.fromOffset(200, OverlayLayout.BADGE_H),
 		Visible = false,
 		Parent = gui,
 	})
-	Kit.corner(label, 13)
-	Kit.padding(label, 0, 10)
-	local limit = Kit.new("UISizeConstraint", { Parent = label })
+	Kit.list(row, Enum.FillDirection.Horizontal, 4, Enum.HorizontalAlignment.Left)
 	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
-	chip = label
+	badgeRow = row
 	local function fit()
 		local size = gui.AbsoluteSize
 		if size.X < 10 then
 			return
 		end
 		local layout = OverlayLayout.compute(size.X, size.Y)
-		label.Position = UDim2.fromOffset(layout.chips.x, layout.chips.y + OverlayLayout.EVENT_CHIP_H + 4)
-		limit.MaxSize = Vector2.new(layout.chips.w, 26)
-		chipCompact = layout.compact
+		row.Position = UDim2.fromOffset(layout.chips.x, layout.chips.y + OverlayLayout.EVENT_CHIP_H + 4)
+		row.Size = UDim2.fromOffset(layout.chips.w, OverlayLayout.BADGE_H)
+		badgeWidth = layout.chips.w
 		renderChip()
 	end
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)

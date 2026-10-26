@@ -60,6 +60,7 @@ local NetClient = require(Shared.Net.Client)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local Tooltip = require(UI.Tooltip)
 local SkillIcon = require(UI.SkillIcon)
 
 local Constants = require(Shared.Constants)
@@ -375,6 +376,10 @@ local function buildAutoButton()
 		Visible = false,
 		Parent = gui,
 	})
+	Tooltip.attach(b, function()
+		return "Auto attack",
+			"When on, your character keeps attacking the target in front of you. Tap to switch. Key: R."
+	end)
 	autoLabel = Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 1),

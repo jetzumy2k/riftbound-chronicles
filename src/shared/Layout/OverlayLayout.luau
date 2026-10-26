@@ -33,9 +33,11 @@ OverlayLayout.MARGIN = 8
 OverlayLayout.CHIP_W = 200
 -- The chips' short form (icons only) fits this.
 OverlayLayout.CHIP_MIN_W = 76
--- Events chip 44 (a touch target) + gap 4 + buff chip 26.
+-- Events chip 44 (a touch target) + gap 4 + a row of buff badges 44.
 OverlayLayout.EVENT_CHIP_H = 44
-OverlayLayout.CHIPS_H = 74
+OverlayLayout.BADGE_W = 52
+OverlayLayout.BADGE_H = 44
+OverlayLayout.CHIPS_H = 92
 OverlayLayout.TOAST_W = 420
 OverlayLayout.TOAST_MIN_W = 220
 -- Two toasts of up to ~52 px with a gap; one on short screens.
@@ -58,7 +60,7 @@ function OverlayLayout.obstacles(width: number, height: number): { Rect }
 	table.insert(list, QuestLayout.compute(width, height).tracker)
 	-- The party panel's place under the HUD (PartyController, scaled).
 	local scale = math.clamp(height / 720, 0.85, 1.35)
-	table.insert(list, { x = 0, y = 160 * scale, w = 240 * scale, h = 150 * scale })
+	table.insert(list, { x = 0, y = 168 * scale + 6, w = 240 * scale, h = 150 * scale })
 	return list
 end
 

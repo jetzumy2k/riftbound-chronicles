@@ -50,6 +50,7 @@ local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local Panels = require(UI.Panels)
 local AdminText = require(UI.AdminText)
+local Tooltip = require(UI.Tooltip)
 
 local AdminController = {}
 
@@ -409,7 +410,8 @@ local function drawProfile(body: Instance, p: any)
 		)
 		local stones = {}
 		for id, count in p.Stackables or {} do
-			table.insert(stones, `{AdminText.words(id)} x{count}`)
+			local def = ItemDefinitions.stackable(id)
+			table.insert(stones, `{if def then def.name else AdminText.words(id)} x{count}`)
 		end
 		if #stones > 0 then
 			label(overview, `Stones: {table.concat(stones, ", ")}`, 13)
@@ -543,14 +545,18 @@ local function drawItems(body: Instance, p: any)
 			})
 		end)
 
-		local stones = card(body, "Give stones")
+		-- Player-facing names, never ids (creator review 2026-10-26:
+		-- "Buff_Clarity" showed here); tap to cycle, the effect is listed.
+		local stones = card(body, "Give stones, potions and buffs", "Tap the name to pick another item.")
 		local r3 = row(stones)
-		local stackId = ItemDefinitions.STACKABLE_IDS[stackIndex]
-		button(r3, AdminText.words(stackId), 200, nil, function()
-			stackIndex = stackIndex % #ItemDefinitions.STACKABLE_IDS + 1
+		local stackId = ItemDefinitions.STACKABLE_ORDER[stackIndex] or ItemDefinitions.STACKABLE_ORDER[1]
+		local stackDef = ItemDefinitions.stackable(stackId) :: ItemDefinitions.StackableDef
+		button(r3, `{stackDef.glyph} {stackDef.name}`, 240, nil, function()
+			stackIndex = stackIndex % #ItemDefinitions.STACKABLE_ORDER + 1
 			refresh()
 		end)
 		field(r3, "count", "Count 1-999", 130)
+		label(stones, stackDef.short, 12, Theme.Colors.TextDim)
 		button(r3, "Give", 100, "gold", function()
 			local n = numberIn("count")
 			if n == nil then
@@ -1953,6 +1959,9 @@ local function makeButton()
 		AutoButtonColor = true,
 		Parent = layer,
 	})
+	Tooltip.attach(b, function()
+		return "🛠 Admin panel", "Staff tools: players, settings, events, world and the log. Key: F2."
+	end)
 	Kit.corner(b, 22)
 	Kit.goldStroke(b, 1.5, 0.2)
 	b.Activated:Connect(AdminController.toggle)

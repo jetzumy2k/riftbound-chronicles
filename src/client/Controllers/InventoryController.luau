@@ -54,6 +54,7 @@ local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local CharacterPreview = require(UI.CharacterPreview)
 local Panels = require(UI.Panels)
+local Tooltip = require(UI.Tooltip)
 local HudLayout = require(UI.HudLayout)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
@@ -119,6 +120,9 @@ local CANT_WEAR: { [string]: string } = {
 -- Bulk salvage takes unlocked, unequipped pieces of these rarities.
 local BULK_RARITIES = { Standard = true, Uncommon = true }
 local CONFIRM_SECONDS = 3
+
+-- Bag rows shown even at 0 (the rest only when owned).
+local ALWAYS_LISTED = { HealingPotion = true, EnhancementStone = true, PerfectStone = true }
 
 local InventoryController = {
 	-- D-93: opens the Item Mall (set by MallController).
@@ -496,6 +500,11 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 	for _, id in ItemDefinitions.STACKABLE_ORDER do
 		local def = ItemDefinitions.stackable(id) :: ItemDefinitions.StackableDef
 		local have = state().Stackables[id] or 0
+		-- Only what you have, plus potions and stones (review 2026-10-26:
+		-- a dozen empty rows made the list hard to read).
+		if have <= 0 and not ALWAYS_LISTED[id] then
+			continue
+		end
 		local row = Kit.new("Frame", {
 			BackgroundTransparency = 1,
 			Size = UDim2.new(1, 0, 0, 44),
@@ -505,16 +514,32 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 		order += 1
 		local name = Kit.new("TextLabel", {
 			BackgroundTransparency = 1,
-			Size = UDim2.new(1, -92, 1, 0),
+			Position = UDim2.fromOffset(0, 3),
+			Size = UDim2.new(1, -92, 0, 20),
 			Text = `{def.glyph}  {def.name}  ×{have}`,
-			TextSize = 12,
+			TextSize = 13,
 			FontFace = Theme.Fonts.BodyBold,
 			TextColor3 = if have > 0 then Theme.Colors.Text else Theme.Colors.TextMuted,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			TextWrapped = true,
 			Parent = row,
 		})
 		name.TextTruncate = Enum.TextTruncate.AtEnd
+		local effect = Kit.new("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(22, 23),
+			Size = UDim2.new(1, -114, 0, 18),
+			Text = def.short,
+			TextSize = 12,
+			FontFace = Theme.Fonts.Body,
+			TextColor3 = Theme.Colors.TextDim,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = row,
+		})
+		effect.TextTruncate = Enum.TextTruncate.AtEnd
+		Tooltip.attach(row, function()
+			return `{def.glyph} {def.name}`,
+				`{def.description}{if def.use then "\nTap Use to use one." else ""}\nYou have {state().Stackables[id] or 0}.`
+		end)
 		local action: TextButton? = nil
 		if def.use then
 			local readyAt = state().ReadyAt[id] or 0
@@ -1180,6 +1205,9 @@ function InventoryController:Start()
 		Visible = false,
 		Parent = gui,
 	})
+	Tooltip.attach(toggle, function()
+		return "🎒 Bag", "Your gear, equipment, potions and stones; the 🛒 Item Mall is inside. Key: B."
+	end)
 	Kit.corner(toggle, 12)
 	Kit.goldStroke(toggle, 1.5, 0.2)
 	HudLayout.register("Bag", toggle)
@@ -1196,6 +1224,11 @@ function InventoryController:Start()
 		Visible = false,
 		Parent = gui,
 	})
+	Tooltip.attach(potionButton, function()
+		local have = state().Stackables[POTION] or 0
+		return "🧪 Healing Potion",
+			`Restores 30% of your health at once. Usable every 15 seconds. You have {have}. Key: H.`
+	end)
 	Kit.corner(potionButton, 26)
 	Kit.goldStroke(potionButton, 1.5, 0.2)
 	potionButton.Activated:Connect(drinkPotion)

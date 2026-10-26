@@ -37,6 +37,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local LootRules = require(Shared.Logic.LootRules)
+local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local LevelGap = require(Shared.Logic.LevelGap)
 local Log = require(Shared.Util.Log)
 
@@ -213,7 +214,8 @@ function LootService:DropStonesFor(players: { Player }, tableId: string, level: 
 			NetService:FireClient("Notify", player, {
 				kind = "Warning",
 				textKey = "loot.stoneFull",
-				params = { stone = stone },
+				-- The stone's name, never its id (review 2026-10-26).
+				params = { stone = (ItemDefinitions.stackable(stone) :: any).name },
 			})
 			continue
 		end

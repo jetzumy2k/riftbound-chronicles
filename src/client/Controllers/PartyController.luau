@@ -531,6 +531,22 @@ local function build()
 	end)
 
 	gui.Parent = localPlayer:WaitForChild("PlayerGui")
+	-- Under the zone badge at the HUD's scale (HudController: clamp(height
+	-- / 720, 0.85, 1.35)); the HUD is scaled and this layer isn't, so a
+	-- fixed 168 px overlapped the badge on tall screens (creator review
+	-- 2026-10-26). A position the player chose (Edit HUD) is kept.
+	local function place()
+		local height = gui.AbsoluteSize.Y
+		local scale = math.clamp((if height > 0 then height else 720) / 720, 0.85, 1.35)
+		HudLayout.setDefault(
+			"Party",
+			panel,
+			UDim2.fromOffset(math.floor(10 * scale), math.floor(168 * scale) + 6),
+			Vector2.zero
+		)
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	place()
 end
 
 function PartyController:Start()

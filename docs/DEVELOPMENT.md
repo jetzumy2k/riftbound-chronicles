@@ -199,6 +199,15 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## Icons, labels and tooltips (D-96)
+
+1. Use two Mall buffs (e.g. Scroll of Insight and Draught of Might): badges appear under the 🎉 chip, "✨ EXP / 60m" (green ring) and "💪 ATK / 30m" (orange ring). Hover one (mouse) or tap it (touch): a card with its name, effect, minutes left and that another one adds time.
+2. Use more buffs than fit on a phone: the last badge reads "+2"; its tooltip lists the rest.
+3. Item Mall: every card shows its effect line ("+50% EXP · 60 min"); hover a card for the full description, price and how many you own.
+4. Bag: only owned materials plus potions and stones are listed; each row has an effect line; hover / tap a row for its description.
+5. Hover the 🧪 potion, 🎒 Bag, 🌟 Skills, 📐, 🛠 (staff), Auto and 🎉 buttons: each explains itself and its key. On touch, hold one half a second for its tooltip; a normal tap still does the action.
+6. (Review fix) In a capital: the 🛡 SAFE ZONE badge and the +Party panel no longer overlap (also on a tall window). Admin panel > Players > Items: "Give stones, potions and buffs" shows names ("🔷 Draught of Clarity") with the effect under it; tapping cycles through all items. Hover 🛠 and open the panel: the tooltip closes.
+
 ## Phase 20: balance changes (D-95)
 
 Numbers and reasons: docs/balance/BALANCE_REVIEW.md (regenerate the simulation with `lune run tools/balance/simulate > docs/balance/SIMULATION.md`).
@@ -220,6 +229,7 @@ Studio > Test > Device emulator. Start an event (e.g. Double EXP) and use a buff
 4. Item Mall on a landscape phone: the tabs sit in the header row (← Bag, tabs, MP, Close), a row of cards fits fully; tap a card: details with ← Back to list. On a tablet: cards and details side by side.
 5. Rotate / resize the window: chips, toasts and the Mall re-place themselves.
 6. Walk through docs/MOBILE_CHECKLIST.md's "Studio check" column.
+7. (Review fix 2026-10-26) Open the bag, the skills, the quest log, the Mall or the event board: the HUD, skill bar, combat buttons, SKILLS / BAG / quest / party pills and chips disappear; closing the panel brings them back. In the Mall the cards' borders (and the selected card's ring) are whole on every side, the title sits next to ← Bag.
 
 ## Item Mall stage 1 (D-93)
 

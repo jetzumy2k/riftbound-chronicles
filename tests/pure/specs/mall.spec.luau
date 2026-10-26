@@ -48,6 +48,29 @@ return function(t)
 			end
 		end)
 
+		t.it("every buff, bag item and Mall entry explains itself in a few words", function()
+			for _, id in BuffRules.IDS do
+				local buff = BuffRules.get(id)
+				t.ok(#buff.tag >= 2 and #buff.tag <= 5, `{id} badge label {buff.tag}`)
+				t.ok(buff.short ~= "" and #buff.short <= 24, `{id} short effect`)
+				t.eq(ItemDefinitions.stackable(`Buff_{id}`).glyph, buff.icon, `{id} same icon in the bag`)
+				t.eq(MallDefinitions.get(id).icon, buff.icon, `{id} same icon in the Mall`)
+			end
+			for id, def in ItemDefinitions.Stackables do
+				t.ok(type(def.short) == "string" and def.short ~= "" and #def.short <= 32, `{id} short`)
+				t.ok(
+					string.find(def.name, "_", 1, true) == nil and def.name ~= id,
+					`{id} has a readable name`
+				)
+			end
+			for _, entry in MallDefinitions.CATALOG do
+				t.ok(
+					type(entry.short) == "string" and entry.short ~= "" and #entry.short <= 32,
+					`{entry.id} short`
+				)
+			end
+		end)
+
 		t.it("Mall Point packs: 100 / 550 / 1200 / 2600 for 80 / 400 / 800 / 1600 Robux", function()
 			local want = { { 100, 80 }, { 550, 400 }, { 1200, 800 }, { 2600, 1600 } }
 			for i, pack in MallDefinitions.PACKS do

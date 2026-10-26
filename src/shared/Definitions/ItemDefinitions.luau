@@ -44,6 +44,8 @@ export type ItemDef = {
 export type StackableDef = {
 	id: string,
 	name: string,
+	-- What it does in a few words (bag rows; review 2026-10-26).
+	short: string,
 	description: string,
 	glyph: string,
 	maxStack: number,
@@ -282,6 +284,7 @@ local stackables: { [string]: StackableDef } = {
 	EnhancementStone = {
 		id = "EnhancementStone",
 		name = "Enhancement Stone",
+		short = "Enhance a weapon or gear +1",
 		description = "Raises a weapon or gear piece by +1 (enhancement opens later).",
 		glyph = "💎",
 		maxStack = 9999,
@@ -290,6 +293,7 @@ local stackables: { [string]: StackableDef } = {
 	PerfectStone = {
 		id = "PerfectStone",
 		name = "Perfect Enhancement Stone",
+		short = "Enhance +1, always succeeds",
 		description = "An enhancement that always succeeds (enhancement opens later).",
 		glyph = "✨",
 		maxStack = 9999,
@@ -298,6 +302,7 @@ local stackables: { [string]: StackableDef } = {
 	StoneFragment = {
 		id = "StoneFragment",
 		name = "Stone Fragment",
+		short = "10 combine into a stone",
 		description = "Salvaged from gear. 10 fragments combine into an Enhancement Stone.",
 		glyph = "🔹",
 		maxStack = 99999,
@@ -306,6 +311,7 @@ local stackables: { [string]: StackableDef } = {
 	HealingPotion = {
 		id = "HealingPotion",
 		name = "Healing Potion",
+		short = "Heal 30% of your HP",
 		description = "Restores 30% of your health at once. Usable every 15 seconds.",
 		glyph = "🧪",
 		maxStack = 999,
@@ -315,14 +321,16 @@ local stackables: { [string]: StackableDef } = {
 	Buff_Insight = {
 		id = "Buff_Insight",
 		name = "Scroll of Insight",
+		short = "+50% EXP for 60 min",
 		description = "+50% EXP for 60 minutes. Using another adds 60 minutes.",
-		glyph = "📜",
+		glyph = "✨",
 		maxStack = 99,
 		use = { kind = "Buff", buff = "Insight", cooldown = 1 },
 	},
 	Buff_Fortune = {
 		id = "Buff_Fortune",
 		name = "Fortune Charm",
+		short = "+50% gear drops for 60 min",
 		description = "Gear drops 50% more often for 60 minutes.",
 		glyph = "🍀",
 		maxStack = 99,
@@ -331,14 +339,16 @@ local stackables: { [string]: StackableDef } = {
 	Buff_StoneSeeker = {
 		id = "Buff_StoneSeeker",
 		name = "Stone Seeker's Lantern",
+		short = "+50% stone drops for 60 min",
 		description = "War-zone creatures drop stones 50% more often for 60 minutes.",
-		glyph = "🏮",
+		glyph = "🔍",
 		maxStack = 99,
 		use = { kind = "Buff", buff = "StoneSeeker", cooldown = 1 },
 	},
 	Buff_Might = {
 		id = "Buff_Might",
 		name = "Draught of Might",
+		short = "+10% damage for 30 min",
 		description = "+10% damage for 30 minutes.",
 		glyph = "💪",
 		maxStack = 99,
@@ -347,6 +357,7 @@ local stackables: { [string]: StackableDef } = {
 	Buff_Iron = {
 		id = "Buff_Iron",
 		name = "Draught of Iron",
+		short = "+10% Defense for 30 min",
 		description = "+10% Defense for 30 minutes.",
 		glyph = "🛡️",
 		maxStack = 99,
@@ -355,6 +366,7 @@ local stackables: { [string]: StackableDef } = {
 	Buff_Vigor = {
 		id = "Buff_Vigor",
 		name = "Draught of Vigor",
+		short = "+10% Max HP for 30 min",
 		description = "+10% Max HP for 30 minutes.",
 		glyph = "💗",
 		maxStack = 99,
@@ -363,6 +375,7 @@ local stackables: { [string]: StackableDef } = {
 	Buff_Clarity = {
 		id = "Buff_Clarity",
 		name = "Draught of Clarity",
+		short = "+30 max Focus for 30 min",
 		description = "+30 max Focus for 30 minutes.",
 		glyph = "🔷",
 		maxStack = 99,
@@ -371,6 +384,7 @@ local stackables: { [string]: StackableDef } = {
 	RebirthScroll = {
 		id = "RebirthScroll",
 		name = "Scroll of Rebirth",
+		short = "Get all attribute points back",
 		description = "Returns all your attribute points at once, even inside the 24-hour wait.",
 		glyph = "🔄",
 		maxStack = 99,

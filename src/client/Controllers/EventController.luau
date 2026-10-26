@@ -30,6 +30,7 @@ local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local Panels = require(UI.Panels)
+local Tooltip = require(UI.Tooltip)
 local NotificationController = require(script.Parent.NotificationController)
 
 local ATTRIBUTE = "RC_Events"
@@ -222,6 +223,14 @@ local function build()
 		Parent = gui,
 	})
 	Kit.corner(button, 22)
+	Tooltip.attach(button, function()
+		local names = {}
+		for _, entry in running do
+			local e = EventDefinitions.get(entry.Id) :: EventDefinitions.Event
+			table.insert(names, `{e.icon} {e.name} ({left(entry.EndsAt)} left)`)
+		end
+		return "🎉 Live events", `{table.concat(names, "\n")}\nTap for details.`
+	end)
 	Kit.goldStroke(button, 1.5, 0.2)
 	Kit.padding(button, 0, 12)
 	local limit = Kit.new("UISizeConstraint", { Parent = button })

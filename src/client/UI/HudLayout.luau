@@ -31,6 +31,7 @@ local Signal = require(Shared.Util.Signal)
 
 local Theme = require(script.Parent.Theme)
 local Kit = require(script.Parent.Kit)
+local Tooltip = require(script.Parent.Tooltip)
 
 type Default = { position: UDim2, anchor: Vector2 }
 type Entry = { objects: { GuiObject }, defaults: { [GuiObject]: Default }, moved: boolean }
@@ -413,6 +414,9 @@ function HudLayout.start()
 		Visible = false,
 		Parent = layer,
 	})
+	Tooltip.attach(b, function()
+		return "📐 Edit HUD", "Move the HUD pieces where you like them; Reset puts them back."
+	end)
 	Kit.corner(b, 22)
 	Kit.goldStroke(b, 1.5, 0.2)
 	b.Activated:Connect(HudLayout.openEditor)

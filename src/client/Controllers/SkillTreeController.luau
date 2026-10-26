@@ -47,6 +47,7 @@ local Panels = require(UI.Panels)
 local HudLayout = require(UI.HudLayout)
 local SkillInfo = require(UI.SkillInfo)
 local SkillIcon = require(UI.SkillIcon)
+local Tooltip = require(UI.Tooltip)
 local AttributePanel = require(UI.AttributePanel)
 local AttributeRules = require(Shared.Logic.AttributeRules)
 
@@ -832,6 +833,10 @@ function SkillTreeController:Start()
 		Visible = false,
 		Parent = gui,
 	})
+	Tooltip.attach(toggle, function()
+		return "🌟 Skills and attributes",
+			`Learn skills, set your skill bar and spend attribute points (📊 Stats). Skill points: {pointsLeft()}, attribute points: {attributePoints()}. Key: K.`
+	end)
 	Kit.corner(toggle, 12)
 	Kit.goldStroke(toggle, 1.5, 0.2)
 	HudLayout.register("Skills", toggle)
