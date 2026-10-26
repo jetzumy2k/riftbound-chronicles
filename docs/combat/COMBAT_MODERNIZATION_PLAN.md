@@ -116,3 +116,14 @@ classes first):
   ULTIMATE); the tier-3 skills (Blade Flurry, ...) are regular skills now
   (rank 5, any of the 6 slots). Saved bars with a tier-3 skill in the
   ultimate slot are repaired on load.
+
+**Stage A (skill tree screen), done 2026-10-26, awaiting test:**
+`Definitions/ClassThemes` (tested: colours, contrast, a role per branch) and
+`UI/ClassTheme` tint the panel, branch cards, links, bar and detail pane in
+the class colours; branch role labels (Warrior "ATTACK BUILD" / "DEFENSE
+BUILD", ...; the column header grew to 34 px); the ultimate node has a round
+frame, a spinning gold / class glow and a ⭐ badge; learnable nodes and the
+link to them pulse; nodes grow on hover / selection; learning bursts with a
+chime; the panel springs open; the detail pane has chips (ULTIMATE /
+REGULAR, Physical / Magic / Healing / Protection / Support, cooldown,
+Focus, range, EXTENDER).

@@ -33,6 +33,7 @@ local specs = {
 	{ "anime_archetypes", require("./specs/anime_archetypes.spec") },
 	{ "complexion", require("./specs/complexion.spec") },
 	{ "detail_rules", require("./specs/detail_rules.spec") },
+	{ "class_themes", require("./specs/class_themes.spec") },
 	{ "perf_budget", require("./specs/perf_budget.spec") },
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },

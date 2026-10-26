@@ -128,36 +128,39 @@ end
 
 return function(t)
 	t.describe("skill trees", function()
-		t.it("every class has 4 branches x 6 tiers: 20 regular skills and 1 ultimate per branch (D-103)", function()
-			for _, job in JOBS do
-				local branches = SkillDefinitions.Branches[job]
-				t.eq(#branches, 4, `{job} branches`)
-				local regular, special = 0, 0
-				for _, branch in branches do
-					t.ok(SkillIcons.get(branch.icon) ~= nil, `{job} {branch.id} icon`)
-					for tier = 1, SkillDefinitions.TIERS do
-						local skill = SkillDefinitions.at(job, branch.id, tier)
-						t.ok(skill ~= nil, `{job} {branch.id} tier {tier}`)
-						if skill then
-							t.eq(
-								skill.type,
-								if SkillDefinitions.SPECIAL_TIERS[tier] then "Special" else "Regular",
-								skill.id
-							)
-							if skill.type == "Regular" then
-								regular += 1
-							else
-								special += 1
+		t.it(
+			"every class has 4 branches x 6 tiers: 20 regular skills and 1 ultimate per branch (D-103)",
+			function()
+				for _, job in JOBS do
+					local branches = SkillDefinitions.Branches[job]
+					t.eq(#branches, 4, `{job} branches`)
+					local regular, special = 0, 0
+					for _, branch in branches do
+						t.ok(SkillIcons.get(branch.icon) ~= nil, `{job} {branch.id} icon`)
+						for tier = 1, SkillDefinitions.TIERS do
+							local skill = SkillDefinitions.at(job, branch.id, tier)
+							t.ok(skill ~= nil, `{job} {branch.id} tier {tier}`)
+							if skill then
+								t.eq(
+									skill.type,
+									if SkillDefinitions.SPECIAL_TIERS[tier] then "Special" else "Regular",
+									skill.id
+								)
+								if skill.type == "Regular" then
+									regular += 1
+								else
+									special += 1
+								end
 							end
 						end
 					end
+					t.eq(regular, 20, `{job} regular`)
+					t.eq(special, 4, `{job} ultimates, one per branch`)
+					t.eq(#SkillDefinitions.forJob(job), 24, job)
 				end
-				t.eq(regular, 20, `{job} regular`)
-				t.eq(special, 4, `{job} ultimates, one per branch`)
-				t.eq(#SkillDefinitions.forJob(job), 24, job)
+				t.eq(#SkillDefinitions.All, 96)
 			end
-			t.eq(#SkillDefinitions.All, 96)
-		end)
+		)
 
 		t.it("ids are unique and every category is allowed for its job (CLAUDE.md §6)", function()
 			local seen = {}

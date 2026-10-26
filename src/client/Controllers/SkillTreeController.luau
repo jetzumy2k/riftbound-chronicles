@@ -22,6 +22,16 @@
 	    STR / AGI; Reset there is the free daily attribute reset) and
 	    "🌟 Skills" back. The toggle counts skill and attribute points.
 
+	D-103 stage A look: the class colours (Definitions/ClassThemes: Warrior
+	crimson / steel / gold, Archer emerald / teal / silver, Mage violet /
+	blue / cyan, Healer white / gold / celestial blue) tint the panel, the
+	branch cards and the links; each branch shows its role ("ATTACK
+	BUILD", "DEFENSE BUILD", ...). The one ultimate per branch (tier 6) has
+	a round frame with a spinning glow and a ⭐ badge. Learnable nodes and
+	the link leading to them pulse; nodes grow on hover and when selected;
+	learning plays a burst and a chime. The detail pane shows chips for
+	type, power, cooldown, Focus and range (UI/SkillInfo).
+
 	Every action is an intent (`LearnSkill`, `ResetSkills`, `SetLoadout`);
 	the server validates it and answers with a fresh snapshot, which is what
 	this screen shows. Open with the "🌟 SKILLS" button (right edge), K, or
@@ -30,6 +40,8 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
@@ -49,6 +61,7 @@ local SkillInfo = require(UI.SkillInfo)
 local SkillIcon = require(UI.SkillIcon)
 local Tooltip = require(UI.Tooltip)
 local AttributePanel = require(UI.AttributePanel)
+local ClassTheme = require(UI.ClassTheme)
 local AttributeRules = require(Shared.Logic.AttributeRules)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
@@ -57,10 +70,11 @@ local SkillBarController = require(script.Parent.SkillBarController)
 
 type Skill = SkillDefinitions.Skill
 
-local LEARNED_LINE = Theme.Colors.Gold
 local LOCKED_LINE = Color3.fromRGB(70, 66, 82)
 local LEARNABLE = Color3.fromRGB(140, 235, 160)
-local SLOT_NAMES = { "1", "2", "3", "4", "5", "6", "SPECIAL" }
+local ULTIMATE_GOLD = Color3.fromRGB(255, 205, 90)
+local SLOT_NAMES = { "1", "2", "3", "4", "5", "6", "ULTIMATE" }
+local LEARN_SOUND = "rbxasset://sounds/electronicpingshort.wav"
 local SPECIAL_INDEX = #SLOT_NAMES
 
 local SkillTreeController = {}
@@ -76,6 +90,14 @@ local selected: string? = nil
 local open = false
 -- Tree scroll position, kept across re-renders (learning re-renders).
 local scroll = Vector2.zero
+-- D-103: the panel animates in only when it opens, not on every re-render.
+local justOpened = false
+-- A learn / rank-up we asked for: burst on its node when the rank arrives.
+local pending: { id: string, rank: number }? = nil
+
+local function colors(): ClassTheme.Colors
+	return ClassTheme.forJob(PlayerDataController:Get().Job)
+end
 
 local function player(): Player
 	return Players.LocalPlayer :: Player
@@ -220,16 +242,46 @@ local function smallButton(text: string, width: number, accent: Color3?): TextBu
 	return button
 end
 
-local function line(parent: Instance, from: Vector2, to: Vector2, color: Color3, thickness: number)
+local function line(parent: Instance, from: Vector2, to: Vector2, color: Color3, thickness: number): Frame
 	local length = (to - from).Magnitude
-	Kit.new("Frame", {
+	return Kit.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset((from.X + to.X) / 2, (from.Y + to.Y) / 2),
 		Size = UDim2.fromOffset(thickness, length),
 		BackgroundColor3 = color,
 		BorderSizePixel = 0,
+		ZIndex = 2,
 		Parent = parent,
+	}, { Kit.new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+end
+
+-- D-103: an expanding ring and a chime when a skill is learned / ranked up.
+local function burst(tile: GuiObject, color: Color3)
+	local ring = Kit.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.35,
+		ZIndex = 8,
+		Parent = tile,
+	}, {
+		Kit.new("UICorner", { CornerRadius = UDim.new(1, 0) }),
+		Kit.new("UIStroke", { Color = color, Thickness = 3 }),
 	})
+	local info = TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(ring, info, { Size = UDim2.fromScale(2.4, 2.4), BackgroundTransparency = 1 }):Play()
+	local stroke = ring:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		TweenService:Create(stroke, info, { Transparency = 1 }):Play()
+	end
+	task.delay(0.6, function()
+		ring:Destroy()
+	end)
+	local sound = Instance.new("Sound")
+	sound.SoundId = LEARN_SOUND
+	sound.Volume = 0.45
+	SoundService:PlayLocalSound(sound)
 end
 
 local render: () -> ()
@@ -264,6 +316,7 @@ local function drawDetail(parent: Instance, skill: Skill?)
 	local why = blocker(skill)
 	local equippedAt = slotOf(skill)
 	SkillInfo.fill(info, skill, rank, {
+		accent = colors().text,
 		note = if equippedAt
 			then `On your skill bar: {equippedAt}`
 			elseif SkillDefinitions.isBasic(skill) then "Free: put it in a slot, then press its key (1 to 6)."
@@ -307,6 +360,7 @@ local function drawDetail(parent: Instance, skill: Skill?)
 				return
 			end
 			-- When it can't be learned yet the server explains why.
+			pending = { id = skill.id, rank = rank }
 			NetClient.fire("LearnSkill", skill.id)
 		end)
 		if why then
@@ -356,6 +410,7 @@ local function drawNode(
 	local levelLocked = rank == 0 and not unlockAll() and state().Level < skill.unlockLevel
 	local isSelected = selected == skill.id
 	local special = skill.type == "Special"
+	local theme = colors()
 	local tile = Kit.new("TextButton", {
 		Name = skill.id,
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -367,6 +422,54 @@ local function drawNode(
 		ZIndex = 3,
 		Parent = parent,
 	})
+	-- Grows on hover and when selected.
+	local scale = Kit.new("UIScale", { Scale = if isSelected then 1.1 else 1, Parent = tile })
+	local rest = scale.Scale
+	tile.MouseEnter:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = rest + 0.08 }):Play()
+	end)
+	tile.MouseLeave:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = rest }):Play()
+	end)
+	if special then
+		-- The ultimate: a round frame with a spinning two-colour glow.
+		local ring = Kit.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(size + 12, size + 12),
+			BackgroundColor3 = theme.dark,
+			BackgroundTransparency = if rank >= 1 then 0.2 else 0.5,
+			ZIndex = 0,
+			Parent = tile,
+		}, { Kit.new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+		local glow = Kit.new("UIStroke", {
+			Thickness = 3,
+			Color = Color3.new(1, 1, 1),
+			Transparency = if rank >= 1 or learnable then 0 else 0.55,
+			Parent = ring,
+		})
+		local gradient = Kit.new("UIGradient", {
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, ULTIMATE_GOLD),
+				ColorSequenceKeypoint.new(0.5, theme.primary),
+				ColorSequenceKeypoint.new(1, ULTIMATE_GOLD),
+			}),
+			Parent = glow,
+		})
+		ClassTheme.spin(gradient, 4)
+		Kit.new("TextLabel", {
+			AnchorPoint = Vector2.new(0, 0),
+			Position = UDim2.fromOffset(-8, -8),
+			Size = UDim2.fromOffset(18, 18),
+			BackgroundColor3 = ULTIMATE_GOLD,
+			Text = "⭐",
+			TextSize = 12,
+			FontFace = Theme.Fonts.BodyBold,
+			TextColor3 = Color3.fromRGB(40, 20, 0),
+			ZIndex = 7,
+			Parent = tile,
+		}, { Kit.new("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+	end
 	local icon = SkillIcon.forSkill(skill, size, { dim = rank == 0, lock = levelLocked, zIndex = 1 })
 	icon.Parent = tile
 	local stroke = Kit.new("UIStroke", {
@@ -375,11 +478,19 @@ local function drawNode(
 		Color = if isSelected
 			then Color3.new(1, 1, 1)
 			elseif learnable then LEARNABLE
-			elseif rank >= 1 then Theme.Colors.Gold
+			elseif rank >= 1 then (if special then ULTIMATE_GOLD else theme.primary)
 			else LOCKED_LINE,
 		Parent = icon,
 	})
 	stroke.Transparency = 0
+	if learnable and not isSelected then
+		-- Learnable: the outline breathes.
+		ClassTheme.pulse(stroke, 0.7, { Transparency = 0.65 })
+	end
+	if pending and pending.id == skill.id and rank > pending.rank then
+		pending = nil
+		task.defer(burst, tile, if special then ULTIMATE_GOLD else theme.accent)
+	end
 	-- Rank badge (bottom-left; the padlock sits bottom-right).
 	Kit.new("TextLabel", {
 		AnchorPoint = Vector2.new(0, 1),
@@ -411,13 +522,14 @@ local function drawNode(
 	local label = Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromOffset(center.x, center.y + size / 2 + 2),
+		Position = UDim2.fromOffset(center.x, center.y + size / 2 + (if special then 6 else 2)),
 		Size = UDim2.fromOffset(math.max(columnWidth - 4, size), SkillTreeLayout.LABEL_HEIGHT),
 		Text = if levelLocked then `{skill.name}\nLv {skill.unlockLevel}` else skill.name,
 		TextSize = 10,
 		FontFace = Theme.Fonts.BodyBold,
-		TextColor3 = if rank >= 1
-			then Theme.Colors.Text
+		TextColor3 = if special and rank >= 1
+			then ULTIMATE_GOLD
+			elseif rank >= 1 then Theme.Colors.Text
 			elseif levelLocked then Theme.Colors.TextMuted
 			else Theme.Colors.TextDim,
 		TextWrapped = true,
@@ -438,7 +550,26 @@ local function drawTree(parent: Instance, layout: SkillTreeLayout.Layout)
 	local columnWidth = layout.columnWidth
 	local first = SkillDefinitions.forJob(job)[1]
 	local element = if first then first.fx.element else nil
+	local theme = colors()
 	for index, branch in branches do
+		-- D-103: a tinted card behind each branch column.
+		local card = Kit.new("Frame", {
+			Position = UDim2.fromOffset((index - 1) * columnWidth + 3, 0),
+			Size = UDim2.fromOffset(columnWidth - 6, layout.tree.h),
+			BackgroundColor3 = theme.primary,
+			BackgroundTransparency = 0.86,
+			BorderSizePixel = 0,
+			ZIndex = 0,
+			Parent = parent,
+		}, {
+			Kit.new("UICorner", { CornerRadius = UDim.new(0, 12) }),
+			Kit.new("UIGradient", {
+				Rotation = 90,
+				Transparency = NumberSequence.new(0.1, 0.85),
+			}),
+			Kit.new("UIStroke", { Color = theme.primary, Transparency = 0.75, Thickness = 1 }),
+		})
+		card.Name = `Branch{index}`
 		local head = Kit.new("Frame", {
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset((index - 1) * columnWidth, 0),
@@ -455,28 +586,54 @@ local function drawTree(parent: Instance, layout: SkillTreeLayout.Layout)
 		Kit.new("TextLabel", {
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(22, 0),
-			Size = UDim2.new(1, -24, 1, 0),
+			Size = UDim2.new(1, -24, 0, 18),
 			Text = branch.name,
 			TextSize = 12,
 			FontFace = Theme.Fonts.Display,
-			TextColor3 = Theme.Colors.GoldBright,
+			TextColor3 = theme.text,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			Parent = head,
 		})
+		local role = ClassTheme.role(branch.id)
+		if role then
+			Kit.new("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(4, 18),
+				Size = UDim2.new(1, -6, 0, 12),
+				Text = role,
+				TextSize = 9,
+				FontFace = Theme.Fonts.BodyBold,
+				TextColor3 = theme.accent,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Parent = head,
+			})
+		end
 		-- Connectors first (under the nodes).
 		for tier = 2, SkillTreeLayout.TIERS do
 			local skill = SkillDefinitions.at(job, branch.id, tier)
 			local a, b = layout.nodes[`{index}.{tier - 1}`], layout.nodes[`{index}.{tier}`]
 			if skill and a and b then
 				local learnedLink = SkillRules.rankOf(owned(), skill.id) >= 1
-				line(
+				-- The way forward: the skill above is learned and this one can be.
+				local next = not learnedLink and blocker(skill) == nil
+				local link = line(
 					parent,
 					Vector2.new(a.x, a.y + layout.node / 2 + SkillTreeLayout.LABEL_HEIGHT),
 					Vector2.new(b.x, b.y - layout.node / 2),
-					if learnedLink then LEARNED_LINE else LOCKED_LINE,
-					if learnedLink then 4 else 2
+					if learnedLink then theme.primary elseif next then LEARNABLE else LOCKED_LINE,
+					if learnedLink then 5 elseif next then 3 else 2
 				)
+				if learnedLink then
+					Kit.new("UIGradient", {
+						Rotation = 90,
+						Color = ColorSequence.new(theme.primary, theme.accent),
+						Parent = link,
+					})
+				elseif next then
+					ClassTheme.pulse(link, 0.7, { BackgroundTransparency = 0.6 })
+				end
 			end
 		end
 		for tier = 1, SkillTreeLayout.TIERS do
@@ -575,7 +732,22 @@ local function drawBar(parent: Instance, layout: SkillTreeLayout.Layout)
 			local icon = SkillIcon.forSkill(skill, layout.barSlot, { round = special })
 			icon.Parent = tile
 		end
-		Kit.goldStroke(tile, if special then 2.5 else 1.5, 0.2)
+		if special then
+			Kit.new("UIStroke", {
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+				Color = ULTIMATE_GOLD,
+				Thickness = 2.5,
+				Parent = tile,
+			})
+		else
+			Kit.new("UIStroke", {
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+				Color = colors().primary,
+				Transparency = if skill then 0.1 else 0.5,
+				Thickness = 1.5,
+				Parent = tile,
+			})
+		end
 		Kit.new("TextLabel", {
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(0, layout.barSlot + 1),
@@ -632,6 +804,37 @@ function render()
 		Parent = Panels.layer(),
 	})
 	panel = frame
+	local theme = colors()
+	-- D-103: the class colours wash over the glass panel.
+	Kit.new("Frame", {
+		Name = "ClassTint",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = theme.dark,
+		BackgroundTransparency = 0.25,
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = frame,
+	}, {
+		Kit.new("UICorner", { CornerRadius = UDim.new(0, 16) }),
+		Kit.new("UIGradient", {
+			Rotation = 120,
+			Color = ColorSequence.new(theme.dark, theme.primary:Lerp(theme.dark, 0.7)),
+		}),
+	})
+	Kit.new("UIStroke", {
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Color = theme.primary,
+		Transparency = 0.35,
+		Thickness = 1.5,
+		Parent = frame,
+	})
+	if justOpened then
+		justOpened = false
+		local grow = Kit.new("UIScale", { Scale = 0.94, Parent = frame })
+		TweenService
+			:Create(grow, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+			:Play()
+	end
 
 	local attributesPage = page == "Attributes"
 	if attributesPage then
@@ -667,7 +870,7 @@ function render()
 		if attributesPage then "Attributes" elseif job then `{job.displayName} Skill Tree` else "Skill Tree",
 		17,
 		Theme.Fonts.Display,
-		Theme.Colors.GoldBright
+		theme.text
 	)
 	title.AutomaticSize = Enum.AutomaticSize.None
 	title.Position = UDim2.fromOffset(118, 0)
@@ -775,6 +978,13 @@ function render()
 		})
 		Kit.corner(detail, 12)
 		Kit.padding(detail, 10, 12)
+		Kit.new("UIStroke", {
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Color = theme.primary,
+			Transparency = 0.55,
+			Thickness = 1,
+			Parent = detail,
+		})
 		detailParent = detail
 	else
 		detailParent = Kit.new("Frame", {
@@ -797,6 +1007,7 @@ function SkillTreeController.setOpen(value: boolean)
 	if value and not open and pointsLeft() == 0 and attributePoints() > 0 then
 		page = "Attributes"
 	end
+	justOpened = value and not open
 	open = value
 	if value then
 		Panels.opened("skills")

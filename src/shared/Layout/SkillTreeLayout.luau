@@ -48,7 +48,7 @@ SkillTreeLayout.LABEL_HEIGHT = 26
 local HEADER = 48
 local BAR = 70
 local PAD = 10
-local COLUMN_HEADER = 22
+local COLUMN_HEADER = 34 -- branch name + role line (D-103)
 
 local function rect(x: number, y: number, w: number, h: number): Rect
 	return { x = x, y = y, w = w, h = h }
