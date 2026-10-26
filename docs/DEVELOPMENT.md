@@ -199,6 +199,23 @@ Studio boss timers are short (`Dungeon.StudioMiniBossRespawnSeconds` 60, `Studio
 3. A serpent (Bakunawa, Ladon, Echidna, Basilisk, Leviathan, Apophis; the Jungle Hydra's body): moving, the body bends in an S and every part follows the path the chest took (no part slides sideways); the head stays steady; over bumps the belly stays on the ground. When it stops it lies in the curve it stopped in.
 4. A creature that respawns or is teleported does not snap its body across the map (its trail is laid fresh).
 
+## HUD reorganised (D-98)
+
+1. Desktop: level + EXP, HP + Focus and the zone badge sit in Roblox's top bar, right of Roblox's buttons; the 🎉 chip (during an event), 📐 and (staff) 🛠 at the right end of that row. The left side of the view is empty unless a buff runs (badges top-left) or you are in a party (panel under them). Hover each top-bar piece: it explains itself.
+2. Desktop: SKILLS, BAG and the 🧪 potion stand in the bottom-right corner; the skill bar stays at the bottom centre; the quest card top-right.
+3. Phone emulator (iPhone XR landscape): the same top-bar row (shorter bars, zone as an icon); the left side free; the combat cluster on the right as before. Switch the emulator to touch input: Roblox's thumbstick (bottom-left) and jump button (bottom-right corner) appear in the spaces kept free for them.
+4. Open a panel: the top bar hides with the rest of the HUD and comes back on close. Toasts appear in the free top gap (one at a time on phones).
+5. 📐 Edit HUD: party, SKILLS, BAG, potion and quest can still be moved; the top bar can't.
+
+## Phase 21: security (D-97)
+
+Details: docs/security/SECURITY_REVIEW.md.
+
+1. Play normally for a while: run, sprint, dash skills (e.g. a Warrior lunge), portals, the war-zone camps, dungeon floors. You are never pulled back ("rubber-band"). If you are, send the Output lines with "AntiExploit".
+2. Output on start: "movement validation mode: Enforce".
+3. Spam buttons (skills, potion, bag) as fast as you can: requests may be refused (rate limit) but you are never kicked.
+4. (Optional, private test place only) An exploit tool that fires remotes with wrong arguments is kicked after 20 within a minute ("TamperKick" in the Log tab); a speed / teleport hack is pulled back.
+
 ## Icons, labels and tooltips (D-96)
 
 1. Use two Mall buffs (e.g. Scroll of Insight and Draught of Might): badges appear under the 🎉 chip, "✨ EXP / 60m" (green ring) and "💪 ATK / 30m" (orange ring). Hover one (mouse) or tap it (touch): a card with its name, effect, minutes left and that another one adds time.

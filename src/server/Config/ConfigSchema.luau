@@ -192,6 +192,8 @@ return function(S: any)
 			RubberBandPoints = S.number(1, 100),
 			StrikePoints = S.number(1, 1000),
 			TeleportStuds = S.number(20, 2000),
+			TamperKickCount = S.int(3, 1000),
+			TamperWindowSeconds = S.number(5, 3600),
 		}),
 	})
 end

@@ -1144,7 +1144,10 @@ local function refreshPotion()
 	local data = state()
 	local have = data.Stackables[POTION] or 0
 	local wait = math.ceil((data.ReadyAt[POTION] or 0) - os.clock())
-	local slot = CombatButtonsLayout.compute(gui.AbsoluteSize.X, gui.AbsoluteSize.Y).potion
+	-- Mouse and keyboard: over the SKILLS / BAG column (D-98).
+	local slot = if UserInputService.TouchEnabled
+		then CombatButtonsLayout.compute(gui.AbsoluteSize.X, gui.AbsoluteSize.Y).potion
+		else CombatButtonsLayout.desktopPotion()
 	potionButton.Visible = data.Job ~= nil
 	potionButton.Size = UDim2.fromOffset(slot.size, slot.size)
 	potionButton.AnchorPoint = Vector2.new(1, 1)

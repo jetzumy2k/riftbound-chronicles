@@ -42,6 +42,7 @@ local NetClient = require(Shared.Net.Client)
 local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local AdminRules = require(Shared.Logic.AdminRules)
+local TopBarLayout = require(Shared.Layout.TopBarLayout)
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local EventRewards = require(Shared.Logic.EventRewards)
 
@@ -1944,7 +1945,8 @@ local function makeButton()
 	local layer = Kit.new("ScreenGui", {
 		Name = "RC_AdminButton",
 		ResetOnSpawn = false,
-		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
+		-- In Roblox's top bar, last in the status row (TopBarLayout, D-98).
+		ScreenInsets = Enum.ScreenInsets.TopbarSafeInsets,
 		DisplayOrder = 6,
 	})
 	local b = Kit.new("TextButton", {
@@ -1965,11 +1967,15 @@ local function makeButton()
 	Kit.corner(b, 22)
 	Kit.goldStroke(b, 1.5, 0.2)
 	b.Activated:Connect(AdminController.toggle)
-	-- Under the 📐 button (right of the HUD panels, scaled like the HUD).
+	-- Its slot at the right end of the top-bar row (TopBarLayout.admin).
 	local function place()
-		local height = layer.AbsoluteSize.Y
-		local scale = math.clamp((if height > 0 then height else 720) / 720, 0.85, 1.35)
-		b.Position = UDim2.fromOffset(math.floor(260 * scale + 18), 62)
+		local size = layer.AbsoluteSize
+		local slot = if size.X >= 10 then TopBarLayout.compute(size.X, size.Y, true).admin else nil
+		if slot then
+			b.Position = UDim2.fromOffset(slot.x, slot.y)
+			b.Size = UDim2.fromOffset(slot.w, slot.h)
+			b.TextSize = math.floor(slot.h * 0.5)
+		end
 	end
 	place()
 	layer:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
@@ -1985,6 +1991,9 @@ function AdminController:Init()
 			return
 		end
 		role = payload.Role
+		-- Client-local, display only: the top bar keeps a slot for 🛠.
+		local me = Players.LocalPlayer :: Player
+		me:SetAttribute("RC_IsStaff", true)
 		for _, permission in payload.Permissions or {} do
 			permissions[permission] = true
 		end

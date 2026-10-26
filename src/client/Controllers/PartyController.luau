@@ -33,6 +33,7 @@ local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local Panels = require(UI.Panels)
 local HudLayout = require(UI.HudLayout)
+local OverlayLayout = require(Shared.Layout.OverlayLayout)
 
 local PANEL_WIDTH = 210
 local ROW_HEIGHT = 40
@@ -531,19 +532,16 @@ local function build()
 	end)
 
 	gui.Parent = localPlayer:WaitForChild("PlayerGui")
-	-- Under the zone badge at the HUD's scale (HudController: clamp(height
-	-- / 720, 0.85, 1.35)); the HUD is scaled and this layer isn't, so a
-	-- fixed 168 px overlapped the badge on tall screens (creator review
-	-- 2026-10-26). A position the player chose (Edit HUD) is kept.
+	-- Top-left under the buff badges (OverlayLayout.party, D-98: the HUD
+	-- panels moved to Roblox's top bar). A position the player chose
+	-- (Edit HUD) is kept.
 	local function place()
-		local height = gui.AbsoluteSize.Y
-		local scale = math.clamp((if height > 0 then height else 720) / 720, 0.85, 1.35)
-		HudLayout.setDefault(
-			"Party",
-			panel,
-			UDim2.fromOffset(math.floor(10 * scale), math.floor(168 * scale) + 6),
-			Vector2.zero
-		)
+		local size = gui.AbsoluteSize
+		if size.X < 10 then
+			return
+		end
+		local slot = OverlayLayout.compute(size.X, size.Y).party
+		HudLayout.setDefault("Party", panel, UDim2.fromOffset(slot.x, slot.y), Vector2.zero)
 	end
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
 	place()

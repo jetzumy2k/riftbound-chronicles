@@ -107,6 +107,17 @@ return function(t)
 			t.ok(not fs.isDir(`{SRC}/shared/Config`), "config must not be in shared")
 		end)
 
+		t.it("no signal connection is called like a function (formatter-joined lines)", function()
+			-- Regression (2026-10-26): a statement starting with "(" after
+			-- ":Connect(fn)" was joined by the formatter into
+			-- ":Connect(fn)(...)", which errors at run time and stopped the
+			-- HUD from showing HP and EXP.
+			for _, path in listFiles(SRC) do
+				local text = fs.readFile(path)
+				t.ok(string.find(text, "Connect%([%w_%.]+%)%s*%(") == nil, `{path} calls a connection`)
+			end
+		end)
+
 		t.it("only NetService creates remotes", function()
 			for _, path in listFiles(SRC) do
 				local source = stripComments(fs.readFile(path))

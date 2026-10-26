@@ -759,7 +759,7 @@ function MallController:Start()
 			return
 		end
 		local layout = OverlayLayout.compute(size.X, size.Y)
-		row.Position = UDim2.fromOffset(layout.chips.x, layout.chips.y + OverlayLayout.EVENT_CHIP_H + 4)
+		row.Position = UDim2.fromOffset(layout.chips.x, layout.chips.y)
 		row.Size = UDim2.fromOffset(layout.chips.w, OverlayLayout.BADGE_H)
 		badgeWidth = layout.chips.w
 		renderChip()

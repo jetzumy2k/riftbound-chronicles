@@ -33,9 +33,9 @@ return function(t)
 						`tracker overlaps obstacle {index} ({layout.trackerMode})`
 					)
 				end
-				-- Independent of the module's own list: the HUD and toggles.
-				local scale = math.clamp(height / 720, 0.85, 1.35)
-				t.ok(not overlaps(layout.tracker, { x = 0, y = 0, w = 260 * scale, h = 160 * scale }), "HUD")
+				-- Independent of the module's own list: the left column (buff
+				-- badges and party, D-98) and the toggles.
+				t.ok(not overlaps(layout.tracker, { x = 0, y = 0, w = 246, h = 214 }), "left column")
 				t.ok(not overlaps(layout.tracker, InventoryLayout.toggleRect(width, height)), "bag toggle")
 				local potion =
 					CombatButtonsLayout.rect(CombatButtonsLayout.compute(width, height).potion, width, height)

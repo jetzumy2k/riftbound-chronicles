@@ -9,7 +9,8 @@ essential outside the safe area, panels inside the screen, no overlaps.
 
 | Screen | Layout module | Automated check | Studio check |
 |---|---|---|---|
-| HUD (level, HP / Focus, zone badge, Edit HUD) | HudSlots / HudLayout | hud_slots.spec: on screen, moved pieces kept on screen | text readable at the smallest scale |
+| Top bar: level / EXP, HP / Focus, zone badge, events chip, Edit HUD, Admin (D-98) | **TopBarLayout** (Roblox top bar, TopbarSafeInsets) | **top_bar_layout.spec**: 420 px phone bars to 4K, no overlaps, readable bars | numbers readable on a phone |
+| Desktop SKILLS / BAG / potion column (D-98) | CombatButtonsLayout.toggles(touch = false), desktopPotion | top_bar_layout.spec: bottom-right corner, 44 px, stacked | |
 | Combat buttons, skill slots, potion, Auto, run / crouch | CombatButtonsLayout (row / arc / column) | skills.spec: on screen, 44 px, no overlaps (circles), clear of the jump corner and HUD, phone landscape keeps the middle clear | thumb reach on a phone |
 | SKILLS / BAG toggles | CombatButtonsLayout.toggles | skills.spec, quest_layout.spec | |
 | Quest tracker and log | QuestLayout | quest_layout.spec: card or pill, never over buttons | |

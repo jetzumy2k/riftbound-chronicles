@@ -24,7 +24,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local EventRewards = require(Shared.Logic.EventRewards)
-local OverlayLayout = require(Shared.Layout.OverlayLayout)
+local TopBarLayout = require(Shared.Layout.TopBarLayout)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -200,17 +200,16 @@ local function build()
 	local gui = Kit.new("ScreenGui", {
 		Name = "RC_Events",
 		ResetOnSpawn = false,
-		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
+		-- In Roblox's top bar with the status row (TopBarLayout, D-98).
+		ScreenInsets = Enum.ScreenInsets.TopbarSafeInsets,
 		-- Under the toasts (20), which may briefly cover it.
 		DisplayOrder = 8,
 	})
 	local button = Kit.new("TextButton", {
 		Name = "Events",
-		-- Placed by OverlayLayout (Phase 19, D-94): clear of the HUD, the
-		-- quest tracker and the buttons on every screen.
+		-- Placed in its top-bar slot by TopBarLayout (D-98).
 		Position = UDim2.fromOffset(8, 6),
-		Size = UDim2.fromOffset(0, OverlayLayout.EVENT_CHIP_H),
-		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(150, 36),
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BackgroundColor3 = Theme.Colors.Glass,
 		BackgroundTransparency = 0.15,
@@ -239,12 +238,19 @@ local function build()
 		if size.X < 10 then
 			return
 		end
-		local layout = OverlayLayout.compute(size.X, size.Y)
-		button.Position = UDim2.fromOffset(layout.chips.x, layout.chips.y)
-		limit.MaxSize = Vector2.new(layout.chips.w, OverlayLayout.EVENT_CHIP_H)
+		local layout = TopBarLayout.compute(
+			size.X,
+			size.Y,
+			(Players.LocalPlayer :: Player):GetAttribute("RC_IsStaff") == true
+		)
+		button.Position = UDim2.fromOffset(layout.events.x, layout.events.y)
+		button.Size = UDim2.fromOffset(layout.events.w, layout.events.h)
+		limit.MaxSize = Vector2.new(layout.events.w, layout.events.h)
 		compact = layout.compact
 		render()
 	end
+	local me = Players.LocalPlayer :: Player
+	me:GetAttributeChangedSignal("RC_IsStaff"):Connect(fit)
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	fit()
 	button.Activated:Connect(function()

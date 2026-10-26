@@ -1,49 +1,52 @@
 --!strict
 --[[
-	HudController — level medallion + XP bar and safe-zone badge, in the
-	dark-glass + gold style (UI/Theme, UI/Kit).
+	HudController — the status row in Roblox's top bar (PLAN.md D-98;
+	creator review 2026-10-26: the HUD panels took the left side of the view
+	while the top strip stood empty).
 
-	Mobile-first (CLAUDE.md §28):
-	  - Top-left, inside CoreUISafeInsets (never under the top bar or a notch).
-	  - Scaled from viewport height so it stays readable on phones.
-	  - Progress shown as text ("1,234 / 5,000 XP") as well as bar fill; the
-	    safe-zone badge has text and an icon, not colour alone.
-	  - Non-interactive: never blocks touches.
-
-	Display only: values come from the server (PlayerDataController and the
-	server-set "SafeZone" attribute).
+	Lives in ScreenInsets.TopbarSafeInsets (the part of Roblox's top bar not
+	used by Roblox's own buttons), placed by Layout/TopBarLayout:
+	  Level    medallion with the level, the EXP bar with "4 / 100 XP"
+	  Vitals   the HP bar with its numbers (shield, resting), Focus under it
+	  Zone     🛡 SAFE ZONE / 🗡 WAR ZONE, and PROTECTED while spawn
+	           protection lasts (icons only on phones)
+	Each piece explains itself in a tooltip (UI/Tooltip). Text and bar fill
+	together, never colour alone. Display only: values come from the server
+	(PlayerDataController, character attributes, SafeZone / WarZone).
+	The events chip, 📐 Edit HUD and 🛠 Admin share the row (their own
+	controllers place them from the same layout).
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
+local TopBarLayout = require(Shared.Layout.TopBarLayout)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local HudLayout = require(UI.HudLayout)
+local Tooltip = require(UI.Tooltip)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
 
-local BASE_HEIGHT = 720
-local MIN_SCALE, MAX_SCALE = 0.85, 1.35
-
 local HudController = {}
 
+local gui: ScreenGui
+local levelPanel: Frame
+local vitalsPanel: Frame
+local zonePill: Frame
+local zoneText: TextLabel
 local levelText: TextLabel
 local xpText: TextLabel
 local fill: Frame
-local safeBadge: Frame
-local warBadge: Frame
-local protectedBadge: Frame
 local hpFill: Frame
 local hpText: TextLabel
 local focusFill: Frame
+local compact = false
 local characterConnections: { RBXScriptConnection } = {}
-local scale: UIScale
 local lastLevel = -1
 
 local function formatNumber(n: number): string
@@ -52,106 +55,101 @@ local function formatNumber(n: number): string
 	return (string.gsub(formatted, "^,", ""))
 end
 
-local function build()
-	local gui = Kit.new("ScreenGui", {
-		Name = "RC_Hud",
-		ResetOnSpawn = false,
-		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	})
-	scale = Kit.new("UIScale", { Parent = gui })
+local function localPlayer(): Player
+	return Players.LocalPlayer :: Player
+end
 
-	-- Progress panel.
-	local panel = Kit.glassPanel({
-		Name = "Progress",
-		Position = UDim2.fromOffset(10, 10),
-		Size = UDim2.fromOffset(250, 60),
-		Parent = gui,
-	})
-
-	local medallion = Kit.new("Frame", {
-		Name = "Level",
-		BackgroundColor3 = Theme.Colors.Ink,
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 6, 0.5, 0),
-		Size = UDim2.fromOffset(48, 48),
-		Parent = panel,
-	})
-	Kit.corner(medallion, 24)
-	Kit.goldStroke(medallion, 2)
-	Kit.new("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 5),
-		Size = UDim2.new(1, 0, 0, 10),
-		Text = "LV",
-		TextSize = 10,
-		FontFace = Theme.Fonts.BodyBold,
-		TextColor3 = Theme.Colors.TextDim,
-		Parent = medallion,
-	})
-	levelText = Kit.new("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 14),
-		Size = UDim2.new(1, 0, 0, 26),
-		Text = "0",
-		TextSize = 22,
-		FontFace = Theme.Fonts.Display,
-		TextColor3 = Theme.Colors.GoldBright,
-		Parent = medallion,
-	})
-
-	xpText = Kit.new("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(62, 8),
-		Size = UDim2.new(1, -72, 0, 18),
-		Text = "",
-		TextSize = 13,
-		FontFace = Theme.Fonts.BodyBold,
-		TextColor3 = Theme.Colors.Text,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Parent = panel,
-	})
-
+local function bar(parent: Instance, height: number, y: number, radius: number): (Frame, Frame)
 	local track = Kit.new("Frame", {
-		Name = "Track",
 		BackgroundColor3 = Theme.Colors.Ink,
-		Position = UDim2.fromOffset(62, 32),
-		Size = UDim2.new(1, -74, 0, 12),
-		Parent = panel,
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromOffset(0, y),
+		Size = UDim2.new(1, 0, 0, height),
+		Parent = parent,
 	})
-	Kit.corner(track, 6)
-	Kit.new("UIStroke", { Color = Theme.Colors.GoldDeep, Thickness = 1, Transparency = 0.3, Parent = track })
-
-	fill = Kit.new("Frame", {
-		Name = "Fill",
+	Kit.corner(track, radius)
+	local inner = Kit.new("Frame", {
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		Size = UDim2.fromScale(0, 1),
 		Parent = track,
 	})
-	Kit.corner(fill, 6)
-	Kit.new("UIGradient", { Color = Theme.GoldSequence, Parent = fill })
+	Kit.corner(inner, radius)
+	return track, inner
+end
 
-	-- Vitals: HP + Focus (server-owned values mirrored as character attributes).
-	local vitals = Kit.glassPanel({
-		Name = "Vitals",
-		Position = UDim2.fromOffset(10, 78),
-		Size = UDim2.fromOffset(250, 44),
-		Parent = gui,
+local function build()
+	gui = Kit.new("ScreenGui", {
+		Name = "RC_TopBar",
+		ResetOnSpawn = false,
+		ScreenInsets = Enum.ScreenInsets.TopbarSafeInsets,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 4,
 	})
-	local hpTrack = Kit.new("Frame", {
+
+	-- Level and EXP.
+	levelPanel = Kit.glassPanel({ Name = "Level", Parent = gui }, 12)
+	local medallion = Kit.new("Frame", {
+		Name = "Medallion",
 		BackgroundColor3 = Theme.Colors.Ink,
-		Position = UDim2.fromOffset(10, 7),
-		Size = UDim2.new(1, -20, 0, 18),
-		Parent = vitals,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 3, 0.5, 0),
+		Size = UDim2.fromOffset(32, 32),
+		Parent = levelPanel,
 	})
-	Kit.corner(hpTrack, 6)
-	hpFill = Kit.new("Frame", {
-		BackgroundColor3 = Color3.new(1, 1, 1),
+	Kit.corner(medallion, 20)
+	Kit.goldStroke(medallion, 1.5)
+	levelText = Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Parent = hpTrack,
+		Text = "0",
+		TextScaled = true,
+		FontFace = Theme.Fonts.Display,
+		TextColor3 = Theme.Colors.GoldBright,
+		Parent = medallion,
 	})
-	Kit.corner(hpFill, 6)
+	Kit.new("UIPadding", {
+		PaddingTop = UDim.new(0.18, 0),
+		PaddingBottom = UDim.new(0.18, 0),
+		Parent = levelText,
+	})
+	local xpArea = Kit.new("Frame", {
+		BackgroundTransparency = 1,
+		Name = "Exp",
+		Parent = levelPanel,
+	})
+	local track
+	track, fill = bar(xpArea, 18, 0, 6)
+	track.AnchorPoint = Vector2.new(0, 0.5)
+	track.Position = UDim2.fromScale(0, 0.5)
+	Kit.new("UIStroke", { Color = Theme.Colors.GoldDeep, Thickness = 1, Transparency = 0.3, Parent = track })
+	Kit.new("UIGradient", { Color = Theme.GoldSequence, Parent = fill })
+	xpText = Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		TextSize = 12,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.Text,
+		TextStrokeTransparency = 0.35,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = 3,
+		Parent = track,
+	})
+	Tooltip.attach(levelPanel, function()
+		local s = PlayerDataController:Get()
+		if s.Level >= Constants.Level.Max then
+			return `Level {s.Level} (max)`, "You've reached the top level."
+		end
+		return `Level {s.Level}`,
+			`{formatNumber(s.Experience)} / {formatNumber(s.XPToNext)} EXP to level {s.Level + 1}. Defeat creatures and finish quests to earn EXP.`
+	end)
+
+	-- HP and Focus.
+	vitalsPanel = Kit.glassPanel({ Name = "Vitals", Parent = gui }, 12)
+	Kit.padding(vitalsPanel, 4, 6)
+	local hpTrack
+	hpTrack, hpFill = bar(vitalsPanel, 0, 0, 6)
+	hpTrack.Size = UDim2.new(1, 0, 1, -8)
 	Kit.new("UIGradient", {
 		Color = ColorSequence.new(Color3.fromRGB(196, 40, 52), Color3.fromRGB(255, 120, 90)),
 		Parent = hpFill,
@@ -160,97 +158,95 @@ local function build()
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
 		Text = "",
-		TextSize = 13,
+		TextSize = 12,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Theme.Colors.Text,
-		TextStrokeTransparency = 0.4,
+		TextStrokeTransparency = 0.35,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		ZIndex = 3,
 		Parent = hpTrack,
 	})
-	local focusTrack = Kit.new("Frame", {
-		BackgroundColor3 = Theme.Colors.Ink,
-		Position = UDim2.fromOffset(10, 29),
-		Size = UDim2.new(1, -20, 0, 7),
-		Parent = vitals,
-	})
-	Kit.corner(focusTrack, 4)
-	focusFill = Kit.new("Frame", {
-		BackgroundColor3 = Color3.fromRGB(110, 190, 255),
-		Size = UDim2.fromScale(1, 1),
-		Parent = focusTrack,
-	})
-	Kit.corner(focusFill, 4)
+	local focusTrack
+	focusTrack, focusFill = bar(vitalsPanel, 5, 0, 3)
+	focusTrack.AnchorPoint = Vector2.new(0, 1)
+	focusTrack.Position = UDim2.fromScale(0, 1)
+	focusFill.BackgroundColor3 = Color3.fromRGB(110, 190, 255)
+	Tooltip.attach(vitalsPanel, function()
+		local character = localPlayer().Character
+		local hp = character and character:GetAttribute("HP")
+		local maxHp = character and character:GetAttribute("MaxHP")
+		local focus = character and character:GetAttribute("Focus")
+		local maxFocus = character and character:GetAttribute("MaxFocus")
+		return "HP and Focus",
+			`HP {formatNumber(tonumber(hp) or 0)} / {formatNumber(tonumber(maxHp) or 0)} (red bar). Focus {formatNumber(
+				tonumber(focus) or 0
+			)} / {formatNumber(tonumber(maxFocus) or 100)} (blue bar): skills and sprinting spend it, it refills by itself.`
+	end)
 
-	-- Safe-zone badge (server-published attribute; display only).
-	safeBadge = Kit.new("Frame", {
-		Name = "SafeZone",
-		BackgroundColor3 = Theme.Colors.SafeDeep,
-		BackgroundTransparency = 0.15,
-		Position = UDim2.fromOffset(10, 130),
-		Size = UDim2.fromOffset(150, 30),
-		Visible = false,
-		Parent = gui,
-	})
-	Kit.corner(safeBadge, 15)
-	Kit.new("UIStroke", { Color = Theme.Colors.Safe, Thickness = 1.5, Parent = safeBadge })
-	Kit.new("TextLabel", {
+	-- Zone badge.
+	zonePill = Kit.glassPanel({ Name = "Zone", Visible = false, Parent = gui }, 12)
+	zoneText = Kit.new("TextLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Text = "🛡  SAFE ZONE",
+		Text = "",
 		TextSize = 13,
 		FontFace = Theme.Fonts.BodyBold,
 		TextColor3 = Theme.Colors.Safe,
-		Parent = safeBadge,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = zonePill,
 	})
+	Tooltip.attach(zonePill, function()
+		local player = localPlayer()
+		local character = player.Character
+		local protected = character ~= nil and character:GetAttribute("Protected") == true
+		local lines = {}
+		if player:GetAttribute("SafeZone") ~= nil then
+			table.insert(lines, "Safe zone: no player can hurt you here, and you can't attack players.")
+		elseif player:GetAttribute("WarZone") ~= nil then
+			table.insert(lines, "War zone: players of the other realm can fight you here.")
+		end
+		if protected then
+			table.insert(lines, "Protected: you can't be hurt for a few seconds; attacking ends it.")
+		end
+		return "Where you are", table.concat(lines, "\n")
+	end)
 
-	-- War zone badge: open PvP here (outside the oasis safe zone).
-	warBadge = Kit.new("Frame", {
-		Name = "WarZone",
-		BackgroundColor3 = Color3.fromRGB(70, 18, 18),
-		BackgroundTransparency = 0.15,
-		Position = UDim2.fromOffset(10, 130),
-		Size = UDim2.fromOffset(170, 30),
-		Visible = false,
-		Parent = gui,
-	})
-	Kit.corner(warBadge, 15)
-	Kit.new("UIStroke", { Color = Color3.fromRGB(255, 110, 90), Thickness = 1.5, Parent = warBadge })
-	Kit.new("TextLabel", {
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		Text = "🗡  WAR ZONE · PvP",
-		TextSize = 13,
-		FontFace = Theme.Fonts.BodyBold,
-		TextColor3 = Color3.fromRGB(255, 190, 170),
-		Parent = warBadge,
-	})
-
-	-- Spawn / exit protection badge (text, not colour alone).
-	protectedBadge = Kit.new("Frame", {
-		Name = "Protected",
-		BackgroundColor3 = Theme.Colors.Glass,
-		BackgroundTransparency = 0.15,
-		Position = UDim2.fromOffset(166, 130),
-		Size = UDim2.fromOffset(120, 30),
-		Visible = false,
-		Parent = gui,
-	})
-	Kit.corner(protectedBadge, 15)
-	Kit.goldStroke(protectedBadge, 1.5)
-	Kit.new("TextLabel", {
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		Text = "🛡  PROTECTED",
-		TextSize = 13,
-		FontFace = Theme.Fonts.BodyBold,
-		TextColor3 = Theme.Colors.GoldBright,
-		Parent = protectedBadge,
-	})
-
-	gui.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
+	gui.Parent = localPlayer():WaitForChild("PlayerGui")
 end
 
-local function renderVitals(character: Model?)
+local function rect(object: GuiObject, r: TopBarLayout.Rect)
+	object.Position = UDim2.fromOffset(r.x, r.y)
+	object.Size = UDim2.fromOffset(r.w, r.h)
+end
+
+local renderZone: () -> ()
+local renderVitals: (Model?) -> ()
+local render: (PlayerDataController.State) -> ()
+
+local function place()
+	local size = gui.AbsoluteSize
+	if size.X < 10 then
+		return
+	end
+	local layout = TopBarLayout.compute(size.X, size.Y, localPlayer():GetAttribute("RC_IsStaff") == true)
+	compact = layout.compact
+	rect(levelPanel, layout.level)
+	rect(vitalsPanel, layout.vitals)
+	rect(zonePill, layout.zone)
+	local xpArea = levelPanel:FindFirstChild("Exp") :: Frame
+	local medallion = layout.level.h - 6
+	(levelPanel:FindFirstChild("Medallion") :: Frame).Size = UDim2.fromOffset(medallion, medallion)
+	xpArea.Position = UDim2.fromOffset(medallion + 9, 0)
+	xpArea.Size = UDim2.new(1, -(medallion + 15), 1, 0)
+	xpText.TextSize = if compact then 11 else 12
+	hpText.TextSize = if compact then 11 else 12
+	renderZone()
+	-- The numbers' form follows `compact`.
+	renderVitals(localPlayer().Character)
+	render(PlayerDataController:Get())
+end
+
+function renderVitals(character: Model?)
 	local hp = if character then character:GetAttribute("HP") else nil
 	local maxHp = if character then character:GetAttribute("MaxHP") else nil
 	local focus = if character then character:GetAttribute("Focus") else nil
@@ -258,19 +254,19 @@ local function renderVitals(character: Model?)
 		hpText.Text = ""
 		hpFill.Size = UDim2.fromScale(0, 1)
 		focusFill.Size = UDim2.fromScale(0, 1)
-		protectedBadge.Visible = false
+		renderZone()
 		return
 	end
 	local shield = if character then character:GetAttribute("Shield") else nil
-	hpText.Text = `HP  {formatNumber(hp)} / {formatNumber(maxHp)}`
-		.. (if type(shield) == "number" and shield > 0 then `  +{formatNumber(shield)} shield` else "")
-		.. (
-			if character
-					and character:GetAttribute("Resting") == true
-					and hp < maxHp
-				then "  · resting"
-				else ""
-		)
+	local resting = character ~= nil and character:GetAttribute("Resting") == true and hp < maxHp
+	-- Phones: just the numbers (the bar is short); the tooltip has the rest.
+	hpText.Text = (
+		if compact
+			then `{formatNumber(hp)}/{formatNumber(maxHp)}`
+			else `HP {formatNumber(hp)} / {formatNumber(maxHp)}`
+	)
+		.. (if type(shield) == "number" and shield > 0 then ` +{formatNumber(shield)}🛡` else "")
+		.. (if resting and not compact then " · resting" else "")
 	Kit.tween(hpFill, Kit.Tween.Quick, { Size = UDim2.fromScale(math.clamp(hp / maxHp, 0, 1), 1) })
 	if type(focus) == "number" then
 		-- Max Focus grows with Wisdom (D-90).
@@ -278,7 +274,25 @@ local function renderVitals(character: Model?)
 		local cap = if type(maxFocus) == "number" and maxFocus > 0 then maxFocus else 100
 		focusFill.Size = UDim2.fromScale(math.clamp(focus / cap, 0, 1), 1)
 	end
-	protectedBadge.Visible = character ~= nil and character:GetAttribute("Protected") == true
+	renderZone()
+end
+
+function renderZone()
+	local player = localPlayer()
+	local character = player.Character
+	local safe = player:GetAttribute("SafeZone") ~= nil
+	local war = not safe and player:GetAttribute("WarZone") ~= nil
+	local protected = character ~= nil and character:GetAttribute("Protected") == true
+	zonePill.Visible = safe or war or protected
+	if compact then
+		zoneText.Text = if safe then "🛡" elseif war then "🗡" else "✨"
+		zoneText.TextSize = 18
+	else
+		zoneText.Text = (if safe then "🛡 SAFE ZONE" elseif war then "🗡 WAR ZONE" else "✨ PROTECTED")
+			.. (if protected and (safe or war) then " ✨" else "")
+		zoneText.TextSize = 13
+	end
+	zoneText.TextColor3 = if war then Color3.fromRGB(255, 190, 170) else Theme.Colors.Safe
 end
 
 local function bindCharacter(character: Model?)
@@ -299,65 +313,44 @@ local function bindCharacter(character: Model?)
 	end
 end
 
-local function updateScale()
-	local camera = Workspace.CurrentCamera
-	if camera then
-		scale.Scale = math.clamp(camera.ViewportSize.Y / BASE_HEIGHT, MIN_SCALE, MAX_SCALE)
-	end
-end
-
-local function render(state: PlayerDataController.State)
+function render(state: PlayerDataController.State)
 	levelText.Text = tostring(state.Level)
 	local ratio
 	if state.Level >= Constants.Level.Max then
 		xpText.Text = "MAX LEVEL"
 		ratio = 1
 	elseif state.XPToNext > 0 then
-		xpText.Text = `{formatNumber(state.Experience)} / {formatNumber(state.XPToNext)} XP`
+		xpText.Text = if compact
+			then `{formatNumber(state.Experience)}/{formatNumber(state.XPToNext)}`
+			else `{formatNumber(state.Experience)} / {formatNumber(state.XPToNext)} XP`
 		ratio = math.clamp(state.Experience / state.XPToNext, 0, 1)
 	else
 		ratio = 0
 	end
 	Kit.tween(fill, Kit.Tween.Smooth, { Size = UDim2.fromScale(ratio, 1) })
-
 	if lastLevel >= 0 and state.Level > lastLevel then
 		-- Level-up pulse on the medallion.
-		levelText.TextSize = 30
-		Kit.tween(levelText, Kit.Tween.Smooth, { TextSize = 22 })
+		local medallion = levelText.Parent :: GuiObject
+		medallion.BackgroundColor3 = Theme.Colors.Gold
+		Kit.tween(medallion, Kit.Tween.Smooth, { BackgroundColor3 = Theme.Colors.Ink })
 	end
 	lastLevel = state.Level
 end
 
 function HudController:Start()
 	build()
-	updateScale()
-	-- D-74: the player can move these (and the "📐" button opens the editor).
-	HudLayout.start()
-	local hud = safeBadge.Parent :: ScreenGui
-	HudLayout.register("Level", hud:FindFirstChild("Progress") :: GuiObject)
-	HudLayout.register("Vitals", hud:FindFirstChild("Vitals") :: GuiObject)
-	HudLayout.register("Zone", safeBadge)
-	HudLayout.register("Zone", warBadge)
-	local camera = Workspace.CurrentCamera
-	if camera then
-		camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
-	end
-
-	local localPlayer = Players.LocalPlayer :: Player
-	localPlayer.CharacterAdded:Connect(bindCharacter)
-	bindCharacter(localPlayer.Character)
-
-	local function renderSafeZone()
-		local safe = localPlayer:GetAttribute("SafeZone") ~= nil
-		safeBadge.Visible = safe
-		warBadge.Visible = not safe and localPlayer:GetAttribute("WarZone") ~= nil
-	end
-	localPlayer:GetAttributeChangedSignal("SafeZone"):Connect(renderSafeZone)
-	localPlayer:GetAttributeChangedSignal("WarZone"):Connect(renderSafeZone)
-	renderSafeZone()
-
+	place()
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	localPlayer():GetAttributeChangedSignal("RC_IsStaff"):Connect(place)
+	-- The bars first: nothing below may keep HP and EXP from showing
+	-- (creator report 2026-10-26: an error in the Edit HUD button's setup
+	-- left both bars empty).
+	local player = localPlayer()
+	player.CharacterAdded:Connect(bindCharacter)
+	bindCharacter(player.Character)
+	player:GetAttributeChangedSignal("SafeZone"):Connect(renderZone)
+	player:GetAttributeChangedSignal("WarZone"):Connect(renderZone)
 	render(PlayerDataController:Get())
-	HudLayout.setEditVisible(PlayerDataController:Get().Job ~= nil)
 	PlayerDataController.Changed:Connect(function(state, reason)
 		render(state)
 		HudLayout.setEditVisible(state.Job ~= nil)
@@ -365,6 +358,11 @@ function HudController:Start()
 			HudLayout.load(state.HudLayout)
 		end
 	end)
+
+	-- D-74: the player can move the other HUD pieces (📐 opens the editor);
+	-- the top bar itself stays put.
+	HudLayout.start()
+	HudLayout.setEditVisible(PlayerDataController:Get().Job ~= nil)
 end
 
 return HudController

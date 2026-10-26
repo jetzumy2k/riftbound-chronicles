@@ -41,6 +41,7 @@ local keepOnBackdrop: { [string]: boolean } = {}
 -- SKILLS / BAG / quest / party pills, chips, target plate, HUD panels).
 local HUD_LAYERS = {
 	"RC_Hud",
+	"RC_TopBar",
 	"RC_Combat",
 	"RC_AutoAttack",
 	"RC_Skills",

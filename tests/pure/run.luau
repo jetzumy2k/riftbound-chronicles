@@ -42,6 +42,8 @@ local specs = {
 	{ "overlay_layout", require("./specs/overlay_layout.spec") },
 	{ "mall_layout", require("./specs/mall_layout.spec") },
 	{ "balance", require("./specs/balance.spec") },
+	{ "security", require("./specs/security.spec") },
+	{ "top_bar_layout", require("./specs/top_bar_layout.spec") },
 	{ "race_select_layout", require("./specs/race_select_layout.spec") },
 	{ "motion_math", require("./specs/motion_math.spec") },
 	{ "job_definitions", require("./specs/job_definitions.spec") },

@@ -25,6 +25,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local HudSlots = require(Shared.Layout.HudSlots)
+local TopBarLayout = require(Shared.Layout.TopBarLayout)
 local CombatButtonsLayout = require(Shared.Layout.CombatButtonsLayout)
 local NetClient = require(Shared.Net.Client)
 local Signal = require(Shared.Util.Signal)
@@ -139,7 +140,8 @@ function HudLayout.bindToggle(id: string, object: GuiObject, which: string, chan
 	local compact = false
 	local function place()
 		local screen = screenSize(object)
-		local toggles = CombatButtonsLayout.toggles(screen.X, screen.Y)
+		-- Mouse and keyboard: bottom-right column (D-98); touch: by the buttons.
+		local toggles = CombatButtonsLayout.toggles(screen.X, screen.Y, UserInputService.TouchEnabled)
 		local t = (toggles :: any)[which] :: CombatButtonsLayout.Toggle
 		compact = toggles.compact
 		object.Size = UDim2.fromOffset(t.w, t.h)
@@ -398,7 +400,8 @@ function HudLayout.start()
 	local layer = Kit.new("ScreenGui", {
 		Name = "RC_HudEditButton",
 		ResetOnSpawn = false,
-		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
+		-- In Roblox's top bar with the status row (TopBarLayout, D-98).
+		ScreenInsets = Enum.ScreenInsets.TopbarSafeInsets,
 		DisplayOrder = 6,
 	})
 	local b = Kit.new("TextButton", {
@@ -422,18 +425,26 @@ function HudLayout.start()
 	b.Activated:Connect(HudLayout.openEditor)
 	layer.Parent = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
 	editButton = b
-	-- Right of the HUD panels (260 px wide, scaled like HudController).
+	-- Its slot in the top-bar row (TopBarLayout.edit); the top bar stays put.
 	local function place()
-		local camera = Workspace.CurrentCamera
-		local height = if camera then camera.ViewportSize.Y else 720
-		local scale = math.clamp(height / 720, 0.85, 1.35)
+		local size = layer.AbsoluteSize
+		if size.X < 10 then
+			return
+		end
+		local slot = TopBarLayout.compute(
+			size.X,
+			size.Y,
+			(Players.LocalPlayer :: Player):GetAttribute("RC_IsStaff") == true
+		).edit
 		b.AnchorPoint = Vector2.zero
-		b.Position = UDim2.fromOffset(math.floor(260 * scale + 18), 10)
-		HudLayout.apply("Edit")
+		b.Position = UDim2.fromOffset(slot.x, slot.y)
+		b.Size = UDim2.fromOffset(slot.w, slot.h)
+		b.TextSize = math.floor(slot.h * 0.5)
 	end
 	place()
-	HudLayout.register("Edit", b)
 	layer:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	local me = Players.LocalPlayer :: Player
+	me:GetAttributeChangedSignal("RC_IsStaff"):Connect(place)
 end
 
 function HudLayout.setEditVisible(visible: boolean)

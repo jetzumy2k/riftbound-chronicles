@@ -245,6 +245,15 @@ Roles come from `server/Config/Roles.luau` (UserIds) and optionally group ranks.
 
 Logs never contain chat text. They contain report text only after filtering, and never secrets.
 
+| T-34 | Tampering | Forged or replayed Robux purchase (Mall Points twice, points without paying) | Only `MarketplaceService.ProcessReceipt` grants Mall Points, for a known product id; each PurchaseId is a claim `R:<id>` kept forever, recorded before the grant; the profile is saved before PurchaseGranted; NotProcessedYet while the profile isn't loaded (D-93). | C | 18+ |
+| T-35 | Tampering | Mall purchase with a forged price, item or rarity | `BuyMallItem` takes a catalog id (enum) only; price and goods come from the server catalog; MP are checked and taken in one synchronous block; stack and bag room checked first; sets have fixed server attributes (D-93). | H | 18+ |
+| T-36 | Tampering | Forged attribute points (more than the level gives, negative, fractional) | `SpendAttributes` per-field 0..150 integers; `AttributeRules.spend` checks the total against the level; the profile is repaired on load; a level set down returns all points (D-90). | H | 18+ |
+| T-37 | Tampering | Endless or stacked buffs, using buffs you don't have | Buffs start only by consuming a bag item server-side (`UseConsumable`, per-item cooldown); expiry is a server time; at most 6 h left; reward buffs share the event caps (D-93). | M | 18+ |
+| T-38 | Tampering | Opening event chests from afar or twice | Chests are server ProximityPrompts: the server re-checks the run is live, the player is within 12 studs and has a class; each chest is a claim per run (D-92). | M | 18 |
+| T-39 | Elevation | A Moderator with the event grant paying out economy rewards | Event bonus rewards need `items.grant` (Owner / Admin) besides `events.activate`; contents validated per event (`EventRewards`); audited (D-93). | H | 18+ |
+| T-40 | Tampering | Position-based rewards by teleporting (parade time, chests, zones) | Movement validation in **Enforce** mode since Phase 21 (rubber-band); position checks are server-side (D-97). | M | 21 |
+| T-41 | Abuse | Modified client probing remotes (bad arguments, staff remotes) | Rejections only a modified client can cause (`StrikeRules`) kick after 20 within 60 s; rate limits and state checks never count; logged, no ban (D-97). | M | 21 |
+
 ---
 
 ## 8. Security Test Plan (cumulative; each phase adds its rows)
@@ -258,9 +267,13 @@ For **every** remote:
 
 Scenario tests (from `.claude/skills/security`): fake XP, fake damage, fake healing, fake item, fake enhancement, duplicate rewards, fake quest completion, teleport bypass, safe-zone damage, admin remote abuse, moderator escalation, event config abuse. Each is a written test case, automated where the logic is pure and run manually in multiplayer Studio otherwise, before the phase that introduces the feature is accepted.
 
+Phase 21 (D-97) adds: forged Robux receipts and replays (T-34), forged Mall prices / items (T-35), forged attribute points (T-36), buff stacking (T-37), remote chest opening (T-38), Moderator event-reward escalation (T-39), teleport-to-reward (T-40), remote probing (T-41). Automated: `tests/pure/specs/security.spec.luau` (no player remote accepts an outcome field, rate / state / string limits on every player remote, catalog-only purchases, bounded attribute and reward payloads, Enforce mode, tamper-kick rules); the remote list is `docs/security/REMOTES.md`.
+
 ---
 
 ## 9. Residual Risks / Human Review Required
-- Movement anti-exploit tolerances trade false positives (lag) against detection. They need tuning with real-device play in Phase 23.
+- Movement anti-exploit tolerances trade false positives (lag) against detection. They need tuning with real-device play in Phase 23. Since Phase 21 the mode is Enforce: watch for rubber-banding reports from legitimate players (switch `AntiExploit.Mode` back to Shadow in code if needed).
+- The tamper kick (T-41) assumes the game's own client never sends a malformed request; a client bug that does would kick after 20 in a minute. HandlerError (server bugs) never counts.
+- Robux purchases (T-34) need a live test with real Developer Products before launch; refunds and chargebacks are handled by Roblox, not by the game.
 - Roblox platform APIs and policies were checked on 2026-10-08 (`PLAN.md` §10). Ban API: requires `Players.BanningEnabled`; `DisplayReason` is filtered and ≤ 400 chars; Roblox expects public rules and an appeal path. **Re-verify** before Phases 17, 22 and 25.
 - No system can fully prevent client-side visual exploits (ESP, auto-aim). Server checks bound their impact. They don't eliminate it.

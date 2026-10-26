@@ -59,6 +59,22 @@ CombatButtonsLayout.MIN_TOUCH_PX = 44
 CombatButtonsLayout.JUMP_ZONE = 110
 -- Below this width the skills stack in a column (phone portrait).
 CombatButtonsLayout.ROW_MIN_WIDTH = 480
+-- Mouse and keyboard: the toggles' column starts this far above the bottom.
+CombatButtonsLayout.DESKTOP_BOTTOM = 16
+
+--[[
+	The quick potion button without touch controls (D-98): centred over the
+	SKILLS / BAG column in the bottom-right corner.
+]]
+function CombatButtonsLayout.desktopPotion(): Slot
+	local size = 56
+	return {
+		right = 8 + math.floor((110 - size) / 2),
+		bottom = CombatButtonsLayout.DESKTOP_BOTTOM + 100,
+		size = size,
+	}
+end
+
 -- Landscape screens shorter than this are phones: the arc layout (D-86).
 CombatButtonsLayout.ARC_MAX_HEIGHT = 480
 CombatButtonsLayout.SKILL_KEYS =
@@ -173,8 +189,19 @@ end
 ]]
 function CombatButtonsLayout.toggles(
 	width: number,
-	height: number
+	height: number,
+	touch: boolean?
 ): { skills: Toggle, bag: Toggle, compact: boolean }
+	if touch == false then
+		-- Mouse and keyboard (D-98): no on-screen combat buttons, so the
+		-- toggles stand in the bottom-right corner, out of the view's
+		-- middle (BAG lowest, SKILLS above it; the potion above both).
+		return {
+			skills = { right = 8, bottom = CombatButtonsLayout.DESKTOP_BOTTOM + 50, w = 110, h = 44 },
+			bag = { right = 8, bottom = CombatButtonsLayout.DESKTOP_BOTTOM, w = 110, h = 44 },
+			compact = false,
+		}
+	end
 	local layout = CombatButtonsLayout.compute(width, height)
 	if layout.mode == "arc" then
 		local above = layout.sprint.bottom + layout.sprint.size + 6

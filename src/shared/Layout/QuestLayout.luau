@@ -46,11 +46,11 @@ end
 
 -- Everything the tracker must not cover.
 function QuestLayout.obstacles(width: number, height: number): { Rect }
-	-- HudController: top-left 260 x 160 px scaled by clamp(height / 720, 0.85, 1.35).
-	local scale = math.clamp(height / 720, 0.85, 1.35)
+	-- The left column: buff badges and the party panel under them (D-98:
+	-- the HUD panels moved to Roblox's top bar).
 	local toggles = CombatButtonsLayout.toggles(width, height)
 	local list: { Rect } = {
-		{ x = 0, y = 0, w = 260 * scale, h = 160 * scale },
+		{ x = 0, y = 0, w = 246, h = 214 },
 		-- The SKILLS and BAG toggles.
 		CombatButtonsLayout.toggleRect(toggles.skills, width, height),
 		CombatButtonsLayout.toggleRect(toggles.bag, width, height),

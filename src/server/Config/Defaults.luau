@@ -231,8 +231,12 @@ return {
 	},
 
 	-- SECURITY_MODEL §5A.2 movement validation. Shadow = log only (Phase 6).
+	-- Phase 21 (D-97): Enforce (was Shadow, logging only, since Phase 6):
+	-- speed / teleport / fly cheats are rubber-banded. Every legitimate
+	-- server move grants grace or a speed allowance first (TravelService,
+	-- PvPService, dashes, lunges, run / crouch changes).
 	AntiExploit = {
-		Mode = "Shadow",
+		Mode = "Enforce",
 		SampleHz = 10,
 		SpeedFactor = 1.25,
 		SpeedToleranceStuds = 4,
@@ -240,5 +244,9 @@ return {
 		RubberBandPoints = 3,
 		StrikePoints = 10,
 		TeleportStuds = 150,
+		-- D-97: this many tampered requests (StrikeRules) within the window
+		-- kick the player (logged, no ban).
+		TamperKickCount = 20,
+		TamperWindowSeconds = 60,
 	},
 }
