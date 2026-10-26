@@ -14,6 +14,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AnimeArchetypes = require(ReplicatedStorage.Shared.Definitions.AnimeArchetypes)
+local DetailRules = require(ReplicatedStorage.Shared.Logic.DetailRules)
 
 export type Shape = "Block" | "Ball" | "Cylinder" | "Ellipsoid" | "Wedge" | "CornerWedge"
 
@@ -140,6 +141,11 @@ function Kit.part(
 	part.Reflectance = REFLECTANCE[role] or 0
 	part.Color = Kit.color(ctx, role)
 	part:SetAttribute("RC_Role", role)
+	-- Distance detail class (D-102): small parts hide on far characters.
+	local class = DetailRules.classOf(math.max(part.Size.X, part.Size.Y, part.Size.Z))
+	if class > 0 then
+		part:SetAttribute("RC_Lod", class)
+	end
 	part.Anchored = false
 	part.CanCollide = false
 	part.CanQuery = false

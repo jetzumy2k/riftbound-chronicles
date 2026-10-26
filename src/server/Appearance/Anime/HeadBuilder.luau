@@ -93,6 +93,15 @@ local FACES: { [string]: FaceStyle } = {
 	},
 }
 
+-- Eye layers hidden on far characters (DetailRules class 1).
+local FINE_EYE_LAYERS: { [string]: boolean } = {
+	IrisLight = true,
+	Shine = true,
+	Shine2 = true,
+	Flick = true,
+	Flick2 = true,
+}
+
 local function eye(ctx: Kit.Ctx, frame: HeadFrame, style: FaceStyle, side: string, sign: number)
 	local head = frame.anchor
 	local w = frame.size.X
@@ -103,6 +112,8 @@ local function eye(ctx: Kit.Ctx, frame: HeadFrame, style: FaceStyle, side: strin
 	end
 	local function named(part: BasePart, layer: string)
 		part.Name = `Eye_{side}_{layer}`
+		-- D-102: the eye's shape always shows; only its sparkle drops far away.
+		part:SetAttribute("RC_Lod", FINE_EYE_LAYERS[layer] and 1 or nil)
 	end
 	named(Kit.ellipsoid(ctx, head, "eyeWhite", Vector3.new(ew, eh, 0.05), at(0, 0, 0.005)), "White")
 	-- Two-tone iris: deep at the top, bright below.
@@ -248,6 +259,7 @@ function HeadBuilder.build(ctx: Kit.Ctx, body: Kit.Body): HeadFrame?
 		center * facePoint(frame, 0, -w * 0.3, 0.0)
 	)
 	mouth.Name = "Mouth"
+	mouth:SetAttribute("RC_Lod", nil)
 	-- A soft blush under each eye.
 	for _, sign in Kit.SIDES do
 		local blush = Kit.ellipsoid(

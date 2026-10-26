@@ -172,6 +172,11 @@ return {
 	-- Base Body (Appearance/BodyStyle), keeping head, face, hair and skin.
 	-- D-100: realms and jobs with an anime archetype (AnimeArchetypes) are
 	-- built from Parts in the anime style; the rest keep the classic look.
+	-- Phase 23 (D-102): how often PerfService logs the performance report.
+	Perf = {
+		ReportSeconds = 60,
+	},
+
 	Appearance = {
 		SmoothBody = true,
 		AnimeStyle = true,

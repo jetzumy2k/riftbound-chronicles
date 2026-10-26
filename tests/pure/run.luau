@@ -32,6 +32,8 @@ local specs = {
 	{ "race_definitions", require("./specs/race_definitions.spec") },
 	{ "anime_archetypes", require("./specs/anime_archetypes.spec") },
 	{ "complexion", require("./specs/complexion.spec") },
+	{ "detail_rules", require("./specs/detail_rules.spec") },
+	{ "perf_budget", require("./specs/perf_budget.spec") },
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },
 	{ "world_budget", require("./specs/world_budget.spec") },

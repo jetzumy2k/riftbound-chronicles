@@ -64,6 +64,10 @@ return function(S: any)
 			ResetNeedsSafeZone = S.boolean(),
 		}),
 
+		Perf = S.struct({
+			ReportSeconds = S.int(10, 3600),
+		}),
+
 		Appearance = S.struct({
 			SmoothBody = S.boolean(),
 			AnimeStyle = S.boolean(),

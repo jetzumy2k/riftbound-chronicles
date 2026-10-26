@@ -63,7 +63,11 @@ local function reject(player: Player, name: string, code: string, detail: string
 	return { ok = false, code = code }
 end
 
+-- Remote traffic since the last TakeTraffic (Phase 23 perf report).
+local inbound, outbound = 0, 0
+
 local function dispatch(name: string, spec: NetSpec.RemoteSpec, player: Player, count: number, args: { any })
+	inbound += 1
 	local globalCapacity = ConfigurationService:Get("Net.GlobalCapacity")
 	local globalRefill = ConfigurationService:Get("Net.GlobalRefillPerSecond")
 	if not RateLimitService:Consume(player, GLOBAL_BUCKET_KEY, globalCapacity, globalRefill) then
@@ -195,6 +199,13 @@ end
 --------------------------------------------------------------------------------
 
 -- Registers the single handler for a ClientToServer remote.
+-- Events received / sent since the last call (PerfService), then reset.
+function NetService:TakeTraffic(): (number, number)
+	local i, o = inbound, outbound
+	inbound, outbound = 0, 0
+	return i, o
+end
+
 function NetService:Handle(name: string, handler: Handler)
 	local spec = Registry[name]
 	assert(spec ~= nil, `unknown remote '{name}'`)
@@ -233,12 +244,14 @@ end
 function NetService:FireClient(name: string, player: Player, ...: any)
 	if checkOutgoing(name, select("#", ...), { ... }) then
 		(remotes[name] :: RemoteEvent):FireClient(player, ...)
+		outbound += 1
 	end
 end
 
 function NetService:FireAllClients(name: string, ...: any)
 	if checkOutgoing(name, select("#", ...), { ... }) then
 		(remotes[name] :: RemoteEvent):FireAllClients(...)
+		outbound += #Players:GetPlayers()
 	end
 end
 
@@ -248,6 +261,7 @@ function NetService:FireClients(name: string, players: { Player }, ...: any)
 		for _, player in players do
 			remote:FireClient(player, ...)
 		end
+		outbound += #players
 	end
 end
 

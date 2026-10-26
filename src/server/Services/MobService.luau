@@ -155,6 +155,8 @@ local MobService = {
 }
 
 local mobs: { [Model]: Mob } = {}
+-- Live / awake creatures at the last AI tick (PerfService report).
+local liveCount, awakeCount = 0, 0
 local nextId = 0
 local npcFolder: Folder
 
@@ -262,6 +264,11 @@ function MobService:DespawnOwner(owner: string)
 			MobService:Despawn(mob)
 		end
 	end
+end
+
+-- Creatures alive and awake at the last AI tick (PerfService).
+function MobService:Counts(): (number, number)
+	return liveCount, awakeCount
 end
 
 function MobService:GetMob(model: Model): Mob?
@@ -885,19 +892,23 @@ end
 local function tick()
 	local now = os.clock()
 	local sleepRadius = config().SleepRadius
+	local live, awake = 0, 0
 	for model, mob in mobs do
 		if mob.dead or model.Parent == nil then
 			continue
 		end
+		live += 1
 		-- Sleep: nobody near, nothing to do (unless walking home).
 		if mob.state == "Idle" and not anyPlayerNear(mob.root.Position, sleepRadius) then
 			continue
 		end
+		awake += 1
 		local ok, err = pcall(stepMob :: any, mob, now)
 		if not ok then
 			log:Error("mob %s tick failed: %s", mob.enemy.id, tostring(err))
 		end
 	end
+	liveCount, awakeCount = live, awake
 end
 
 --------------------------------------------------------------------------------

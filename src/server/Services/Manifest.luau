@@ -42,6 +42,8 @@ return {
 	{ name = "QuestService", layer = 6 },
 	{ name = "WorldEventService", layer = 6 },
 	{ name = "EventChallengeService", layer = 6 },
+	-- Phase 23 (D-102): reads NetService traffic and MobService counts.
+	{ name = "PerfService", layer = 6 },
 	-- Phase 17 (D-77): the admin panel uses the services below it.
 	{ name = "AdminService", layer = 7 },
 }

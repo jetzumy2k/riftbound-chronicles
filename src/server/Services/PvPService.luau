@@ -388,6 +388,10 @@ local function sweep()
 end
 
 function PvPService:Init()
+	-- Phase 23 audit (D-102): forget leavers' notice times.
+	Players.PlayerRemoving:Connect(function(player)
+		lastCampNotice[player] = nil
+	end)
 	CombatService.Defeated:Connect(onDefeated)
 	CombatService.CombatLogged:Connect(function(entity: CombatService.Entity, attacker: CombatService.Entity?)
 		local victim = entity.player
