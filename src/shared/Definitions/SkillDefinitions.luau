@@ -3,12 +3,13 @@
 	SkillDefinitions — every class's skill tree (CLAUDE.md §6-7, Phase 5,
 	PLAN.md D-45).
 
-	Each job has a tree of 4 branches x 6 tiers = 24 skills: 16 regular
-	(tiers 1, 2, 4, 5) and 8 specials (tier 3 and the tier-6 capstone of
-	every branch). Players earn skill points by levelling
+	Each job has a tree of 4 branches x 6 tiers = 24 skills: 20 regular
+	(tiers 1-5) and 4 specials, the **ultimates**: the tier-6 capstone of
+	each branch, one per branch (creator request 2026-10-26, D-103; tier 3
+	was a special before). Players earn skill points by levelling
 	(SkillRules.pointsFor) and spend them to learn skills and raise their
-	rank; then they choose any 3 learned regular skills + 1 learned special
-	for the skill bar.
+	rank; then they choose any 6 learned regular skills + 1 learned
+	ultimate for the skill bar.
 
 	Tree fields (derived at load from branch / tier / type)
 	  branch / tier   column and row in the tree
@@ -16,13 +17,13 @@
 	  unlockLevel     level needed to learn it: tier 1 at level 0, then
 	                  TIER_LEVELS[tier] + one level per branch column, so
 	                  something new opens at most levels up to 30
-	  maxRank         5 for regular skills, 3 for specials; every rank
+	  maxRank         5 for regular skills, 3 for ultimates; every rank
 	                  scales the numbers (SkillRules.effectAtRank) and
 	                  higher ranks open with level (SkillRules.rankCap)
 	  icon            SkillIcons motif drawn on the skill button
 
 	Skill fields
-	  type         "Regular" (6 slots, D-75) or "Special" (1 slot)
+	  type         "Regular" (6 slots, D-75) or "Special" (the ultimate, 1 slot)
 	  category     must be one the job allows (JobDefinitions)
 	  target       Enemy | Ally | Self | SelfArea | EnemyArea | Dash
 	  range / radius / cooldown / focusCost
@@ -49,10 +50,22 @@
 	    Cleanse   removes Stun, Freeze, Root, Slow, Silence, Mark,
 	              Weaken, Poison and Burn
 	    Dash      `studs` in `seconds` (the client moves within a
-	              server-granted speed allowance)
+	              server-granted speed allowance); `toward` charges at the
+	              target instead of evading backwards (D-103)
+	    Reflect   returns `pct`% of each incoming hit to its attacker for
+	              `seconds` (capped per hit, scaled in PvP; D-103)
+	    Immune    no damage for `seconds` (a damage cut in PvP; D-103)
+	    Extend    Extender (D-103): if the caster's own area skill is still
+	              active, it pulses `pulses` more times with `pct`% more
+	              radius at `coefficient` x its numbers
+	  Damage extras (ultimates, D-103): `hpPct` adds that % of the caster's
+	  max HP to the hit; `attribute` + `perPointPct` adds % damage per point
+	  the caster put into that attribute (AttributeRules).
 	  combo        bonus when the target already has `status` (or is below
 	               `lowHpPct`% HP): +`bonusPct`% damage, optionally
 	               consuming the status. Shown as "COMBO · <name>".
+	               `execute`: below the threshold a normal creature falls at
+	               once; bosses and players only take the bonus (D-103).
 	  fx           visual recipe for CombatVfx / SkillVfx (element palette,
 	               cast, travel, impact, area)
 
@@ -93,6 +106,9 @@ export type EffectKind =
 	| "Taunt"
 	| "Cleanse"
 	| "Dash"
+	| "Reflect"
+	| "Immune"
+	| "Extend"
 
 export type Effect = {
 	kind: EffectKind,
@@ -103,6 +119,12 @@ export type Effect = {
 	studs: number?,
 	heavy: boolean?,
 	self: boolean?,
+	-- D-103
+	toward: boolean?,
+	hpPct: number?,
+	attribute: string?,
+	perPointPct: number?,
+	pulses: number?,
 }
 
 export type Combo = {
@@ -110,6 +132,7 @@ export type Combo = {
 	lowHpPct: number?,
 	bonusPct: number,
 	consume: boolean?,
+	execute: boolean?,
 	name: string,
 }
 
@@ -188,8 +211,9 @@ local SkillDefinitions = {}
 SkillDefinitions.TIER_LEVELS = table.freeze({ 0, 3, 8, 14, 20, 27 })
 SkillDefinitions.TIERS = 6
 SkillDefinitions.BRANCHES = 4
--- Tiers that hold specials (the rest are regular skills).
-SkillDefinitions.SPECIAL_TIERS = table.freeze({ [3] = true, [6] = true })
+-- Tiers that hold specials, the ultimates (the rest are regular skills).
+-- One per branch (D-103).
+SkillDefinitions.SPECIAL_TIERS = table.freeze({ [6] = true })
 SkillDefinitions.REGULAR_MAX_RANK = 5
 SkillDefinitions.SPECIAL_MAX_RANK = 3
 
@@ -319,15 +343,18 @@ local skills: { SkillSpec } = {
 		tier = 1,
 		type = "Regular",
 		category = "MeleeAttack",
-		description = "A heavy slash. Crushes stunned foes for extra damage.",
+		description = "Charge at the enemy and land a heavy slash. Crushes stunned foes for extra damage.",
 		icon = "sword",
 		target = "Enemy",
-		range = 8,
+		range = 16,
 		cooldown = 5,
 		focusCost = 12,
 		clip = "Warrior_Attack1",
 		melee = true,
-		effects = { { kind = "Damage", coefficient = 1.35, heavy = true } },
+		effects = {
+			{ kind = "Dash", studs = 11, seconds = 0.22, toward = true },
+			{ kind = "Damage", coefficient = 1.35, heavy = true },
+		},
 		combo = { status = "Stun", bonusPct = 50, name = "Crushing Blow" },
 		fx = fx("Steel", "Weapon", "None", "Slash"),
 	},
@@ -359,7 +386,7 @@ local skills: { SkillSpec } = {
 		job = "Warrior",
 		branch = "Blademaster",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "MeleeAttack",
 		description = "Five lightning-fast cuts on one enemy while your strength rises by 15%.",
 		icon = "swords",
@@ -385,7 +412,7 @@ local skills: { SkillSpec } = {
 		tier = 4,
 		type = "Regular",
 		category = "MeleeAttack",
-		description = "An overhead finishing blow that deals far more damage to enemies below 35% HP.",
+		description = "An overhead finishing blow. Creatures below 35% HP fall at once; bosses and players take far more damage.",
 		icon = "axe",
 		target = "Enemy",
 		range = 8,
@@ -394,7 +421,7 @@ local skills: { SkillSpec } = {
 		clip = "Warrior_Attack3",
 		melee = true,
 		effects = { { kind = "Damage", coefficient = 1.8, heavy = true } },
-		combo = { lowHpPct = 35, bonusPct = 80, name = "Execute" },
+		combo = { lowHpPct = 35, bonusPct = 80, execute = true, name = "Execute" },
 		fx = fx("Steel", "Weapon", "None", "Explosion"),
 	},
 	{
@@ -405,7 +432,7 @@ local skills: { SkillSpec } = {
 		tier = 5,
 		type = "Regular",
 		category = "MeleeAttack",
-		description = "A splitting blow that cracks the enemy's guard: it takes 15% more damage from everyone for 6 seconds.",
+		description = "A splitting blow that cracks the enemy's guard (+15% damage taken). EXTENDER: your active area skill grows and strikes again.",
 		icon = "crack",
 		target = "Enemy",
 		range = 8,
@@ -416,6 +443,7 @@ local skills: { SkillSpec } = {
 		effects = {
 			{ kind = "Damage", coefficient = 1.2, heavy = true },
 			{ kind = "Mark", pct = 15, seconds = 6 },
+			{ kind = "Extend", pct = 40, pulses = 1, coefficient = 1.2 },
 		},
 		fx = fx("Steel", "Weapon", "None", "Explosion"),
 	},
@@ -427,7 +455,7 @@ local skills: { SkillSpec } = {
 		tier = 6,
 		type = "Special",
 		category = "AreaMelee",
-		description = "Become a storm of steel: four spinning sweeps around you while your strength surges.",
+		description = "ULTIMATE. Become a storm of steel: four spinning sweeps powered by your Strength and max HP. Creatures below 20% HP are cut down.",
 		icon = "tornado",
 		target = "SelfArea",
 		range = 0,
@@ -440,8 +468,16 @@ local skills: { SkillSpec } = {
 		maxTargets = 10,
 		effects = {
 			{ kind = "Empower", pct = 20, seconds = 6, self = true },
-			{ kind = "Damage", coefficient = 0.7, heavy = true },
+			{
+				kind = "Damage",
+				coefficient = 0.7,
+				heavy = true,
+				hpPct = 3,
+				attribute = "STR",
+				perPointPct = 0.3,
+			},
 		},
+		combo = { lowHpPct = 20, bonusPct = 50, execute = true, name = "Execute" },
 		fx = fx("Steel", "Weapon", "None", "Slash", "Whirl"),
 	},
 	-- Ironclad
@@ -492,7 +528,7 @@ local skills: { SkillSpec } = {
 		job = "Warrior",
 		branch = "Ironclad",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "DefenseBuff",
 		description = "Plant your feet like a fortress: +35% Defense and 25% less damage taken for 8 seconds.",
 		icon = "tower",
@@ -535,7 +571,7 @@ local skills: { SkillSpec } = {
 		tier = 5,
 		type = "Regular",
 		category = "DefenseBuff",
-		description = "Shake off every hindrance, harden by 25% and recover health every second for 6 seconds.",
+		description = "Shake off every hindrance, harden by 25% and regenerate for 6 seconds. EXTENDER: your active area skill grows and pulses again.",
 		icon = "heart",
 		target = "Self",
 		range = 0,
@@ -546,6 +582,7 @@ local skills: { SkillSpec } = {
 			{ kind = "Cleanse" },
 			{ kind = "Harden", pct = 25, seconds = 6 },
 			{ kind = "Regen", coefficient = 0.12, seconds = 6 },
+			{ kind = "Extend", pct = 40, pulses = 1, coefficient = 1 },
 		},
 		fx = fx("Earth", "Circle", "None", "Ward"),
 	},
@@ -557,16 +594,17 @@ local skills: { SkillSpec } = {
 		tier = 6,
 		type = "Special",
 		category = "Guard",
-		description = "Shake off every hindrance, take 50% less damage and regenerate for 6 seconds.",
+		description = "ULTIMATE. Shake off every hindrance and turn the enemy's power back on them: for 5 seconds every hit is reflected (100%, half in PvP), you take 40% less damage and regenerate.",
 		icon = "star",
 		target = "Self",
 		range = 0,
-		cooldown = 50,
+		cooldown = 90,
 		focusCost = 30,
 		clip = "Warrior_SkillRoar",
 		effects = {
 			{ kind = "Cleanse" },
-			{ kind = "Guard", pct = 50, seconds = 6 },
+			{ kind = "Guard", pct = 40, seconds = 5 },
+			{ kind = "Reflect", pct = 100, seconds = 5 },
 			{ kind = "Regen", coefficient = 0.2, seconds = 6 },
 		},
 		fx = fx("Earth", "Circle", "None", "Ward", "Nova"),
@@ -623,7 +661,7 @@ local skills: { SkillSpec } = {
 		job = "Warrior",
 		branch = "Warlord",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "Taunt",
 		description = "A terrifying glare: enemies around you must fight you, deal 30% less damage and move 35% slower.",
 		icon = "eye",
@@ -697,7 +735,7 @@ local skills: { SkillSpec } = {
 		tier = 6,
 		type = "Special",
 		category = "AreaMelee",
-		description = "Split the earth beneath your target: after a warning, a huge blast stuns everything in the area.",
+		description = "ULTIMATE. Split the earth beneath your target: after a warning, a blast powered by your Strength and max HP stuns everything in the area.",
 		icon = "burst",
 		target = "EnemyArea",
 		range = 26,
@@ -708,7 +746,14 @@ local skills: { SkillSpec } = {
 		delay = 0.6,
 		maxTargets = 10,
 		effects = {
-			{ kind = "Damage", coefficient = 2.2, heavy = true },
+			{
+				kind = "Damage",
+				coefficient = 2.2,
+				heavy = true,
+				hpPct = 6,
+				attribute = "STR",
+				perPointPct = 0.3,
+			},
 			{ kind = "Stun", seconds = 1.2 },
 		},
 		combo = { status = "Slow", bonusPct = 40, name = "Earthshaker" },
@@ -766,7 +811,7 @@ local skills: { SkillSpec } = {
 		job = "Warrior",
 		branch = "Vanguard",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "DefenseBuff",
 		description = "Raise the war banner: allies around you gain +20% Defense and +15% Attack for 10 seconds.",
 		icon = "banner",
@@ -791,7 +836,7 @@ local skills: { SkillSpec } = {
 		tier = 4,
 		type = "Regular",
 		category = "AreaMelee",
-		description = "A wide sweep that hits every enemy close around you and slows them by 25%.",
+		description = "A corrupting sweep around you: enemies are slowed by 25% and take 25% more damage from everyone for 6 seconds.",
 		icon = "wave",
 		target = "SelfArea",
 		range = 0,
@@ -803,6 +848,7 @@ local skills: { SkillSpec } = {
 		effects = {
 			{ kind = "Damage", coefficient = 0.9 },
 			{ kind = "Slow", pct = 25, seconds = 2 },
+			{ kind = "Mark", pct = 25, seconds = 6 },
 		},
 		fx = fx("Steel", "Weapon", "None", "Slash", "Whirl"),
 	},
@@ -900,7 +946,7 @@ local skills: { SkillSpec } = {
 		job = "Healer",
 		branch = "Light",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "AreaSupport",
 		description = "Open a well of life: you and allies around you are healed, then healed every second for 8 seconds.",
 		icon = "spring",
@@ -1025,7 +1071,7 @@ local skills: { SkillSpec } = {
 		job = "Healer",
 		branch = "Sanctity",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "AreaSupport",
 		description = "Consecrate the ground: allies around you are cleansed and take 25% less damage for 8 seconds.",
 		icon = "dome",
@@ -1096,18 +1142,18 @@ local skills: { SkillSpec } = {
 		tier = 6,
 		type = "Special",
 		category = "Shield",
-		description = "A dome of dawn light: strong shields and 20% damage reduction for every ally around you.",
+		description = "ULTIMATE. A dome of dawn light: every ally around you is untouchable for 8 seconds (60% less damage in PvP) and keeps a strong shield after.",
 		icon = "shield",
 		target = "SelfArea",
 		range = 0,
 		radius = 18,
-		cooldown = 55,
+		cooldown = 120,
 		focusCost = 40,
 		clip = "Healer_SkillPlant",
 		maxTargets = 8,
 		effects = {
-			{ kind = "Shield", coefficient = 2, seconds = 8 },
-			{ kind = "Guard", pct = 20, seconds = 8 },
+			{ kind = "Shield", coefficient = 2, seconds = 10 },
+			{ kind = "Immune", seconds = 8 },
 		},
 		fx = fx("Holy", "Circle", "None", "Ward", "Circle"),
 	},
@@ -1161,7 +1207,7 @@ local skills: { SkillSpec } = {
 		job = "Healer",
 		branch = "Judgment",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "HolyAttack",
 		description = "After a warning, sunfire falls on the area and burns every enemy in it.",
 		icon = "flame",
@@ -1209,7 +1255,7 @@ local skills: { SkillSpec } = {
 		tier = 5,
 		type = "Regular",
 		category = "HolyAttack",
-		description = "A searing ray that makes the enemy deal 15% less damage. Strikes marked enemies harder.",
+		description = "A searing ray that makes the enemy deal 15% less damage. Strikes marked enemies harder. EXTENDER: your active area grows and pulses again (heals too).",
 		icon = "eye",
 		target = "Enemy",
 		range = 32,
@@ -1220,6 +1266,7 @@ local skills: { SkillSpec } = {
 		effects = {
 			{ kind = "Damage", coefficient = 1.2 },
 			{ kind = "Weaken", pct = 15, seconds = 5 },
+			{ kind = "Extend", pct = 40, pulses = 1, coefficient = 1.1 },
 		},
 		combo = { status = "Mark", bonusPct = 40, name = "Judgment" },
 		fx = fx("Holy", "Hands", "Lance", "Sigil"),
@@ -1243,7 +1290,7 @@ local skills: { SkillSpec } = {
 		delay = 0.8,
 		maxTargets = 8,
 		effects = {
-			{ kind = "Damage", coefficient = 2.1, heavy = true },
+			{ kind = "Damage", attribute = "INT", perPointPct = 0.3, coefficient = 2.1, heavy = true },
 			{ kind = "Stun", seconds = 1 },
 		},
 		combo = { status = "Mark", bonusPct = 40, name = "Judgment" },
@@ -1299,7 +1346,7 @@ local skills: { SkillSpec } = {
 		job = "Healer",
 		branch = "Seraph",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "AreaSupport",
 		description = "Spread wings of light: allies around you run 25% faster and heal every second for 6 seconds.",
 		icon = "wings",
@@ -1383,7 +1430,7 @@ local skills: { SkillSpec } = {
 		effects = {
 			{ kind = "Heal", coefficient = 1.0, self = true },
 			{ kind = "Guard", pct = 30, seconds = 6, self = true },
-			{ kind = "Damage", coefficient = 1.6, heavy = true },
+			{ kind = "Damage", attribute = "INT", perPointPct = 0.3, coefficient = 1.6, heavy = true },
 			{ kind = "Stun", seconds = 0.8 },
 		},
 		fx = fx("Holy", "Raise", "None", "Pillar", "Nova"),
@@ -1440,7 +1487,7 @@ local skills: { SkillSpec } = {
 		job = "Archer",
 		branch = "Marksman",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "Precision",
 		description = "Focus like an eagle: +25% Attack for 8 seconds.",
 		icon = "eye",
@@ -1500,7 +1547,7 @@ local skills: { SkillSpec } = {
 		tier = 6,
 		type = "Special",
 		category = "Precision",
-		description = "One perfect arrow that rarely misses a weak spot. Finishes off enemies below 30% HP.",
+		description = "ULTIMATE. One perfect arrow powered by your Agility that rarely misses a weak spot. Creatures below 30% HP fall at once.",
 		icon = "heart",
 		target = "Enemy",
 		range = 60,
@@ -1508,8 +1555,17 @@ local skills: { SkillSpec } = {
 		focusCost = 35,
 		clip = "Archer_Attack3",
 		projectileSpeed = 260,
-		effects = { { kind = "Damage", coefficient = 3, critBonusPct = 40, heavy = true } },
-		combo = { lowHpPct = 30, bonusPct = 60, name = "Execute" },
+		effects = {
+			{
+				kind = "Damage",
+				coefficient = 3,
+				critBonusPct = 40,
+				heavy = true,
+				attribute = "AGI",
+				perPointPct = 0.5,
+			},
+		},
+		combo = { lowHpPct = 30, bonusPct = 60, execute = true, name = "Execute" },
 		fx = fx("Wind", "Weapon", "Arrow", "Explosion"),
 	},
 	-- Venom
@@ -1563,7 +1619,7 @@ local skills: { SkillSpec } = {
 		job = "Archer",
 		branch = "Venom",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "RangedArea",
 		description = "A cloud of venom over the area: poison and a 25% slow for everything inside.",
 		icon = "flask",
@@ -1703,7 +1759,7 @@ local skills: { SkillSpec } = {
 		job = "Archer",
 		branch = "Ranger",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "RangedArea",
 		description = "Throw a frost trap at the area: it bursts and freezes every enemy in it for 1 second.",
 		icon = "snowflake",
@@ -1751,7 +1807,7 @@ local skills: { SkillSpec } = {
 		tier = 5,
 		type = "Regular",
 		category = "RangedArea",
-		description = "An arrow that bounces between your target and up to 2 enemies near it.",
+		description = "An arrow that bounces between your target and up to 2 enemies near it. EXTENDER: your active area skill grows and strikes again.",
 		icon = "bolt",
 		target = "EnemyArea",
 		range = 48,
@@ -1760,7 +1816,10 @@ local skills: { SkillSpec } = {
 		focusCost = 16,
 		clip = "Archer_Attack1",
 		maxTargets = 3,
-		effects = { { kind = "Damage", coefficient = 0.9 } },
+		effects = {
+			{ kind = "Damage", coefficient = 0.9 },
+			{ kind = "Extend", pct = 40, pulses = 1, coefficient = 1.2 },
+		},
 		fx = fx("Wind", "Weapon", "Arrow", "Burst"),
 	},
 	{
@@ -1784,7 +1843,7 @@ local skills: { SkillSpec } = {
 		waveGap = 0.5,
 		maxTargets = 8,
 		effects = {
-			{ kind = "Damage", coefficient = 0.7 },
+			{ kind = "Damage", attribute = "AGI", perPointPct = 0.4, coefficient = 0.7 },
 			{ kind = "Slow", pct = 30, seconds = 2 },
 		},
 		fx = fx("Wind", "Weapon", "None", "Burst", "Rain"),
@@ -1839,7 +1898,7 @@ local skills: { SkillSpec } = {
 		job = "Archer",
 		branch = "Windrunner",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "RangedArea",
 		description = "An arrow that bursts into a cyclone: three waves of damage and a 30% slow on the area.",
 		icon = "tornado",
@@ -1910,7 +1969,7 @@ local skills: { SkillSpec } = {
 		tier = 6,
 		type = "Special",
 		category = "RangedArea",
-		description = "A storm of arrows on the area: four waves that mark everything caught (+15% damage taken).",
+		description = "ULTIMATE. A storm of arrows powered by your Agility: four waves that mark everything caught (+15% damage taken).",
 		icon = "storm",
 		target = "EnemyArea",
 		range = 52,
@@ -1923,7 +1982,7 @@ local skills: { SkillSpec } = {
 		waveGap = 0.45,
 		maxTargets = 8,
 		effects = {
-			{ kind = "Damage", coefficient = 0.45 },
+			{ kind = "Damage", coefficient = 0.45, attribute = "AGI", perPointPct = 0.4 },
 			{ kind = "Mark", pct = 15, seconds = 6 },
 		},
 		fx = fx("Wind", "Weapon", "None", "Burst", "Rain"),
@@ -1984,7 +2043,7 @@ local skills: { SkillSpec } = {
 		job = "Mage",
 		branch = "Pyromancy",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "AreaMagic",
 		description = "After a warning, the ground erupts in flame under your target's area, burning everything in it.",
 		icon = "pillar",
@@ -2011,7 +2070,7 @@ local skills: { SkillSpec } = {
 		tier = 4,
 		type = "Regular",
 		category = "MagicAttack",
-		description = "Detonate the fire inside an enemy: much more damage to burning targets (ends the burn).",
+		description = "Detonate the fire inside an enemy: much more damage to burning targets (ends the burn). EXTENDER: your active area spell grows and strikes again.",
 		icon = "burst",
 		target = "Enemy",
 		range = 40,
@@ -2019,7 +2078,10 @@ local skills: { SkillSpec } = {
 		focusCost = 22,
 		clip = "Mage_Attack2",
 		projectileSpeed = 160,
-		effects = { { kind = "Damage", coefficient = 1.4, heavy = true } },
+		effects = {
+			{ kind = "Damage", coefficient = 1.4, heavy = true },
+			{ kind = "Extend", pct = 40, pulses = 1, coefficient = 1.25 },
+		},
 		combo = { status = "Burn", bonusPct = 70, consume = true, name = "Combustion" },
 		fx = fx("Fire", "Hands", "Bolt", "Explosion"),
 	},
@@ -2053,7 +2115,7 @@ local skills: { SkillSpec } = {
 		tier = 6,
 		type = "Special",
 		category = "AreaMagic",
-		description = "After a warning, a meteor crashes down: huge damage, burning ground and a short stun.",
+		description = "ULTIMATE. After a warning, a meteor crashes down: huge damage, burning ground and a short stun.",
 		icon = "meteor",
 		target = "EnemyArea",
 		range = 40,
@@ -2064,7 +2126,7 @@ local skills: { SkillSpec } = {
 		delay = 1,
 		maxTargets = 8,
 		effects = {
-			{ kind = "Damage", coefficient = 2.4, heavy = true },
+			{ kind = "Damage", attribute = "INT", perPointPct = 0.4, coefficient = 2.4, heavy = true },
 			{ kind = "Burn", coefficient = 0.12, seconds = 5 },
 			{ kind = "Stun", seconds = 0.8 },
 		},
@@ -2123,7 +2185,7 @@ local skills: { SkillSpec } = {
 		job = "Mage",
 		branch = "Cryomancy",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "Control",
 		description = "A blast of frost from your feet freezes every enemy close around you for 1 second.",
 		icon = "icenova",
@@ -2206,7 +2268,7 @@ local skills: { SkillSpec } = {
 		waveGap = 0.6,
 		maxTargets = 8,
 		effects = {
-			{ kind = "Damage", coefficient = 0.55 },
+			{ kind = "Damage", attribute = "INT", perPointPct = 0.4, coefficient = 0.55 },
 			{ kind = "Slow", pct = 40, seconds = 2 },
 		},
 		fx = fx("Frost", "Raise", "None", "Shatter", "Blizzard"),
@@ -2257,7 +2319,7 @@ local skills: { SkillSpec } = {
 		job = "Mage",
 		branch = "Arcanist",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "AreaMagic",
 		description = "A slow orb of arcane force bursts on the area, hurting and slowing everything by 30%.",
 		icon = "orb",
@@ -2338,7 +2400,7 @@ local skills: { SkillSpec } = {
 		maxTargets = 10,
 		effects = {
 			{ kind = "Shield", coefficient = 1, seconds = 6, self = true },
-			{ kind = "Damage", coefficient = 1.8, heavy = true },
+			{ kind = "Damage", attribute = "INT", perPointPct = 0.4, coefficient = 1.8, heavy = true },
 			{ kind = "Slow", pct = 50, seconds = 3 },
 		},
 		fx = fx("Arcane", "Circle", "None", "Explosion", "Nova"),
@@ -2395,7 +2457,7 @@ local skills: { SkillSpec } = {
 		job = "Mage",
 		branch = "Stormcaller",
 		tier = 3,
-		type = "Special",
+		type = "Regular",
 		category = "Control",
 		description = "A clap of thunder around you stuns every enemy close by for 1 second.",
 		icon = "roar",
@@ -2475,7 +2537,7 @@ local skills: { SkillSpec } = {
 		waveGap = 0.6,
 		maxTargets = 8,
 		effects = {
-			{ kind = "Damage", coefficient = 0.5 },
+			{ kind = "Damage", attribute = "INT", perPointPct = 0.4, coefficient = 0.5 },
 			{ kind = "Slow", pct = 30, seconds = 2 },
 		},
 		fx = fx("Storm", "Raise", "None", "Burst", "Meteor"),

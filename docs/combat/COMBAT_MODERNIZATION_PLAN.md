@@ -85,3 +85,34 @@ numbers, effects, fx recipes and clips, so saved skill ranks stay valid.
 - **Q4 Passives:** a new Passive skill type in the tree, **2 passive slots**;
   the 6 + 1 skill bar is unchanged. Passives grant timed, capped buffs (for
   example "on a crit: +15% STR for 6 s, 20 s internal cooldown").
+
+## 6. Progress
+
+**Stage D (class skills), first pass, done 2026-10-26** (creator asked for
+classes first):
+- New effects: `Reflect`, `Immune`, `Extend`; Dash `toward` (charge);
+  Damage `hpPct` and `attribute` / `perPointPct`; combo `execute`.
+  Server: `CombatService` (Immune / Reflect in `applyDamage`, `Execute`),
+  `SkillService` (Extender registry, attribute and HP scaling, charge hit).
+  Pure rules in `SkillRules.reflected / boostedCoefficient / extendedRadius`
+  (tested). Config `Skills.*` (schema-checked, admin-editable).
+- Warrior attack: Cleaving Strike charges in; Execution and Blade Storm
+  finish creatures; Blade Storm / Earthsplitter scale with STR and max HP;
+  Sunder is the Extender.
+- Warrior defense: Sweeping Blow corrupts (+25% damage taken); Steadfast is
+  the Extender; Unbreakable reflects 100% for 5 s (capped, half in PvP).
+- Archer: Ricochet is the Extender; Heartseeker (execute), Tempest Volley,
+  Arrow Rain scale with AGI.
+- Mage: Combustion is the Extender; Meteor, Blizzard, Thunderstorm, Arcane
+  Nova scale with INT.
+- Healer: Penance is the Extender (re-pulses heals too); Aegis of Dawn gives
+  8 s immunity (60% cut in PvP), 120 s cooldown, can't be chained.
+- Client: charge toward the target, "EXTENDED" pulse, IMMUNE / REFLECT
+  chips, glow and numbers.
+- **Fixes from the creator's test (2026-10-26):** putting a skill on the bar
+  sent only the first 3 regular slots (a leftover from the old 3 + 1 bar), so
+  slots 4-6 were lost and refilled in tree order; it now sends all 6. **One
+  ultimate per branch:** only the tier-6 capstone is a Special (shown as
+  ULTIMATE); the tier-3 skills (Blade Flurry, ...) are regular skills now
+  (rank 5, any of the 6 slots). Saved bars with a tier-3 skill in the
+  ultimate slot are repaired on load.

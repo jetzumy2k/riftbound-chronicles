@@ -52,6 +52,9 @@ local CHIPS: { Chip } = {
 	{ attribute = "Hasted", text = "» HASTE", color = Color3.fromRGB(150, 240, 220) },
 	{ attribute = "Regenerating", text = "💚 REGEN", color = Color3.fromRGB(140, 255, 170) },
 	{ attribute = "Shield", text = "◈ ", color = Color3.fromRGB(150, 210, 255) },
+	-- D-103 ultimates.
+	{ attribute = "Immune", text = "✨ IMMUNE", color = Theme.Colors.GoldBright },
+	{ attribute = "Reflecting", text = "↩ REFLECT", color = Color3.fromRGB(255, 200, 120) },
 }
 
 type Follower = { part: BasePart, offset: CFrame, spin: number?, feet: boolean? }
@@ -306,6 +309,34 @@ local function buildAura(model: Model, attribute: string): Aura
 		)
 	elseif attribute == "Taunted" then
 		add(billboardIcon(model, "!", Color3.fromRGB(255, 90, 70), 3.6))
+	elseif attribute == "Immune" or attribute == "Reflecting" then
+		-- A bright outline and glow while the ultimate lasts.
+		local highlight = Instance.new("Highlight")
+		highlight.Name = "RC_StatusHighlight"
+		highlight.FillColor = if attribute == "Immune"
+			then Color3.fromRGB(255, 240, 190)
+			else Color3.fromRGB(255, 170, 90)
+		highlight.FillTransparency = 0.7
+		highlight.OutlineColor = if attribute == "Immune"
+			then Theme.Colors.GoldBright
+			else Color3.fromRGB(255, 140, 60)
+		highlight.OutlineTransparency = 0
+		highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+		highlight.Parent = model
+		add(highlight)
+		add(
+			emitter(
+				model,
+				SPARKLES,
+				if attribute == "Immune" then Color3.fromRGB(255, 235, 160) else Color3.fromRGB(255, 160, 80),
+				10,
+				1,
+				NumberRange.new(0.3, 0.8),
+				Vector3.zero,
+				nil,
+				0
+			)
+		)
 	elseif attribute == "Guarded" or attribute == "Hardened" then
 		local highlight = Instance.new("Highlight")
 		highlight.Name = "RC_StatusHighlight"

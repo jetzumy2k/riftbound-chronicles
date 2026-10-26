@@ -42,6 +42,9 @@ local EFFECTS = {
 	Taunt = true,
 	Cleanse = true,
 	Dash = true,
+	Reflect = true,
+	Immune = true,
+	Extend = true,
 }
 local CASTS = { Weapon = true, Hands = true, Raise = true, Circle = true }
 local TRAVELS = { None = true, Bolt = true, Orb = true, Arrow = true, Lance = true, Missiles = true }
@@ -125,7 +128,7 @@ end
 
 return function(t)
 	t.describe("skill trees", function()
-		t.it("every class has 4 branches x 6 tiers: 16 regular skills and 8 specials", function()
+		t.it("every class has 4 branches x 6 tiers: 20 regular skills and 1 ultimate per branch (D-103)", function()
 			for _, job in JOBS do
 				local branches = SkillDefinitions.Branches[job]
 				t.eq(#branches, 4, `{job} branches`)
@@ -149,8 +152,8 @@ return function(t)
 						end
 					end
 				end
-				t.eq(regular, 16, `{job} regular`)
-				t.eq(special, 8, `{job} specials`)
+				t.eq(regular, 20, `{job} regular`)
+				t.eq(special, 4, `{job} ultimates, one per branch`)
 				t.eq(#SkillDefinitions.forJob(job), 24, job)
 			end
 			t.eq(#SkillDefinitions.All, 96)
@@ -257,7 +260,9 @@ return function(t)
 				t.ok(#skill.name > 0 and #skill.description > 0, id)
 				t.ok(SkillIcons.get(skill.icon) ~= nil, `{id} icon '{tostring(skill.icon)}'`)
 				t.ok(SkillIcons.Elements[skill.fx.element] ~= nil, `{id} element colours`)
-				t.ok(skill.cooldown >= 3 and skill.cooldown <= 60, `{id} cooldown`)
+				-- D-103: the capstone ultimates may wait up to 2 minutes.
+				local maxCooldown = if skill.tier == 6 then 120 else 60
+				t.ok(skill.cooldown >= 3 and skill.cooldown <= maxCooldown, `{id} cooldown`)
 				t.ok(skill.focusCost > 0 and skill.focusCost <= Defaults.Combat.FocusMax, `{id} focus`)
 				t.ok(
 					skill.clip ~= nil and AnimationClips.get(skill.clip) ~= nil,
@@ -289,7 +294,13 @@ return function(t)
 					if kind == "Poison" or kind == "Burn" or kind == "Regen" then
 						t.ok(effect.coefficient and effect.coefficient <= 0.3, `{id} {kind} per second`)
 					end
-					if kind ~= "Damage" and kind ~= "Heal" and kind ~= "Cleanse" and kind ~= "Dash" then
+					if
+						kind ~= "Damage"
+						and kind ~= "Heal"
+						and kind ~= "Cleanse"
+						and kind ~= "Dash"
+						and kind ~= "Extend"
+					then
 						t.ok(
 							effect.seconds and effect.seconds > 0 and effect.seconds <= 10,
 							`{id} {kind} seconds`
@@ -303,6 +314,22 @@ return function(t)
 					end
 					if kind == "Stun" or kind == "Freeze" then
 						t.ok((effect.seconds or 0) <= 1.5, `{id} stuns stay short`)
+					end
+					-- D-103 limits (creator decisions 2026-10-26).
+					if kind == "Reflect" then
+						t.ok(effect.pct and effect.pct <= 100 and (effect.seconds or 0) <= 5, `{id} reflect`)
+					elseif kind == "Immune" then
+						t.ok((effect.seconds or 0) <= 8 and skill.cooldown >= 90, `{id} immunity stays short`)
+					elseif kind == "Extend" then
+						t.ok(effect.pct and effect.pct <= 50, `{id} extend pct`)
+						t.ok((effect.pulses or 1) >= 1 and (effect.pulses or 1) <= 3, `{id} extend pulses`)
+						t.ok((effect.coefficient or 1) <= 1.5, `{id} extend power`)
+					end
+					if effect.perPointPct then
+						t.ok(effect.attribute ~= nil and effect.perPointPct <= 0.5, `{id} attribute scaling`)
+					end
+					if effect.hpPct then
+						t.ok(effect.hpPct <= 10, `{id} HP scaling`)
 					end
 				end
 				if skill.combo then
@@ -460,7 +487,13 @@ return function(t)
 						t.ok(top.seconds <= SkillRules.CAPS.Freeze, skill.id)
 					end
 					if top.pct then
-						t.ok(top.pct <= SkillRules.CAPS.Pct, skill.id)
+						local cap = if top.kind == "Reflect"
+							then SkillRules.CAPS.ReflectPct
+							else SkillRules.CAPS.Pct
+						t.ok(top.pct <= cap, skill.id)
+					end
+					if top.kind == "Extend" then
+						t.eq(top.coefficient, effect.coefficient, `{skill.id}: ranks only widen an Extender`)
 					end
 				end
 			end
@@ -696,6 +729,80 @@ return function(t)
 		)
 	end)
 
+	t.describe("D-103 ultimates, Extender and execute", function()
+		t.it("reflect returns the hit, capped per hit and halved in PvP", function()
+			t.eq(SkillRules.reflected(400, 100, 1000, 1), 400)
+			t.eq(SkillRules.reflected(400, 100, 250, 1), 250, "cap")
+			t.eq(SkillRules.reflected(400, 100, 1000, 0.5), 200, "PvP")
+			t.eq(SkillRules.reflected(400, 300, 1000, 1), 400, "never more than the hit")
+			t.eq(SkillRules.reflected(-5, 100, 1000, 1), 0)
+		end)
+
+		t.it("ultimates scale with attribute points (capped) and max HP", function()
+			local e = { kind = "Damage", coefficient = 2, attribute = "STR", perPointPct = 0.5, hpPct = 5 }
+			-- 100 STR = +50%; 5% of 4,000 HP against 1,000 Attack = +0.2.
+			t.ok(math.abs(SkillRules.boostedCoefficient(2, e :: any, 100, 4000, 1000, 100) - 3.2) < 1e-9)
+			-- 300 STR would be +150%, capped at +100%.
+			t.ok(math.abs(SkillRules.boostedCoefficient(2, e :: any, 300, 0, 1000, 100) - 4) < 1e-9)
+			t.eq(SkillRules.boostedCoefficient(2, { kind = "Damage" } :: any, 100, 4000, 1000, 100), 2)
+		end)
+
+		t.it("an Extender widens the area up to a cap", function()
+			t.eq(SkillRules.extendedRadius(10, 40, 30), 14)
+			t.eq(SkillRules.extendedRadius(24, 50, 30), 30)
+		end)
+
+		t.it("each class has an Extender and the execute / reflect / immune ultimates", function()
+			local extenders, executes = {}, {}
+			for _, skill in SkillDefinitions.All do
+				if SkillDefinitions.effect(skill, "Extend") then
+					extenders[skill.job] = true
+				end
+				if skill.combo and skill.combo.execute then
+					executes[skill.id] = true
+					t.ok(
+						skill.combo.lowHpPct ~= nil and skill.combo.lowHpPct <= 35,
+						`{skill.id} execute threshold`
+					)
+				end
+			end
+			for _, job in JOBS do
+				t.ok(extenders[job], `{job} has an Extender`)
+			end
+			t.ok(executes.Execution and executes.BladeStorm and executes.Heartseeker)
+			t.ok(SkillDefinitions.effect(SkillDefinitions.get("Unbreakable"), "Reflect") ~= nil)
+			t.ok(SkillDefinitions.effect(SkillDefinitions.get("AegisOfDawn"), "Immune") ~= nil)
+			t.ok(
+				SkillDefinitions.effect(SkillDefinitions.get("SweepingBlow"), "Mark") ~= nil,
+				"corrupting area"
+			)
+			local charge = SkillDefinitions.effect(SkillDefinitions.get("CleavingStrike"), "Dash")
+			t.ok(charge ~= nil and charge.toward == true, "Warrior charge")
+			-- Mage ultimates use INT (D-90 magic damage), not WIS.
+			local meteor = SkillDefinitions.effect(SkillDefinitions.get("Meteor"), "Damage")
+			t.eq(meteor.attribute, "INT")
+		end)
+
+		t.it("new numbers have config defaults inside their schema", function()
+			local skills = Defaults.Skills
+			t.ok(skills.ReflectCapPctOfMaxHp > 0 and skills.ReflectCapPctOfMaxHp <= 100)
+			t.ok(skills.PvPReflectScale > 0 and skills.PvPReflectScale <= 1)
+			t.ok(skills.ImmunePvPCutPct > 0 and skills.ImmunePvPCutPct < 100, "no full immunity in PvP")
+			t.ok(skills.ExtendWindowSeconds > 0 and skills.ExtendMaxRadius >= 24)
+			t.eq(skills.ExecuteCreatures, true)
+		end)
+
+		t.it("tooltips describe the new effects", function()
+			local reflect = SkillRules.describe(SkillDefinitions.get("Unbreakable"), 1)
+			t.ok(string.find(table.concat(reflect.effects, "|"), "Reflects 100%", 1, true) ~= nil)
+			local storm = SkillRules.describe(SkillDefinitions.get("BladeStorm"), 1)
+			t.ok(string.find(table.concat(storm.effects, "|"), "max HP", 1, true) ~= nil)
+			t.ok(string.find(storm.combo or "", "creatures fall at once", 1, true) ~= nil)
+			local sunder = SkillRules.describe(SkillDefinitions.get("Sunder"), 1)
+			t.ok(string.find(table.concat(sunder.effects, "|"), "EXTENDER", 1, true) ~= nil)
+		end)
+	end)
+
 	t.describe("skill information text", function()
 		t.it("every skill describes every effect, its combo and the next rank", function()
 			for _, skill in SkillDefinitions.All do
@@ -710,7 +817,8 @@ return function(t)
 				t.eq(SkillRules.describe(skill, skill.maxRank).nextRank, nil, `{skill.id} at max rank`)
 			end
 			local text = SkillRules.describe(SkillDefinitions.get("CleavingStrike"), 1)
-			t.eq(text.effects[1], "Deals 135% Attack damage")
+			t.eq(text.effects[1], "Charges 11 studs at the target")
+			t.eq(text.effects[2], "Deals 135% Attack damage")
 			t.ok(string.find(text.combo or "", "Crushing Blow", 1, true) ~= nil)
 		end)
 	end)

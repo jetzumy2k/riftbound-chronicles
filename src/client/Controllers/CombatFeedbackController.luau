@@ -99,6 +99,8 @@ local function showNumber(
 	label.TextSize = if crit then 34 elseif shielded or tick then 19 else 24
 	label.Text = if tick == "Dodge"
 		then "💨 DODGE"
+		elseif tick == "Immune" then "✨ IMMUNE"
+		elseif tick == "Reflect" then `↩ {formatNumber(amount)}`
 		elseif shielded then `🛡 {formatNumber(amount)}`
 		elseif tick == "Poison" then `💀 {formatNumber(amount)}`
 		elseif tick == "Burn" then `🔥 {formatNumber(amount)}`
@@ -107,6 +109,8 @@ local function showNumber(
 		else formatNumber(amount)
 	label.TextColor3 = if tick == "Dodge"
 		then Color3.fromRGB(200, 230, 255)
+		elseif tick == "Immune" then Theme.Colors.GoldBright
+		elseif tick == "Reflect" then Color3.fromRGB(255, 200, 120)
 		elseif shielded then Color3.fromRGB(150, 210, 255)
 		elseif tick == "Poison" then Color3.fromRGB(150, 240, 110)
 		elseif tick == "Burn" then Color3.fromRGB(255, 160, 70)
@@ -198,6 +202,8 @@ local function defeatBurst(model: Model)
 	Debris:AddItem(attachment, 2)
 end
 
+local onExtend: (model: Model, info: any) -> ()
+
 local HIT_STOP_SECONDS = 0.055
 local HEAVY_HIT_STOP_SECONDS = 0.1
 
@@ -241,6 +247,30 @@ local function onAttack(model: Model, action: any, aim: any)
 	end)
 end
 
+-- D-103 Extender: the extended area pulses again, wider, with a title.
+local EXTEND_COLOR = Color3.fromRGB(140, 230, 255)
+local EXTEND_PULSE_GAP = 0.35 -- SkillService
+
+function onExtend(model: Model, info: any)
+	local area = SkillDefinitions.get(info.skill)
+	if area == nil or type(info.radius) ~= "number" then
+		return
+	end
+	local point: Vector3? = if typeof(info.point) == "Vector3" then info.point else nil
+	local delay = if type(info.delay) == "number" then math.clamp(info.delay, 0, 3) else 0.3
+	local pulses = if type(info.pulses) == "number" then math.clamp(info.pulses, 1, 3) else 1
+	local radius = math.clamp(info.radius, 1, 40)
+	SkillVfx.comboTitle(model, "Extended", EXTEND_COLOR)
+	for pulse = 1, pulses do
+		task.delay(delay + (pulse - 1) * EXTEND_PULSE_GAP, function()
+			if model.Parent then
+				local center = SkillVfx.groundAt(point or model:GetPivot().Position)
+				SkillVfx.area(area.fx, center, radius, pulse, model)
+			end
+		end)
+	end
+end
+
 -- A skill cast (Phase 5): the caster's animation and cast effect, a ground
 -- warning for delayed areas, then the travel / area effect timed to land
 -- with the server's hit. Impacts play when the server's Damage / Heal
@@ -262,12 +292,15 @@ local function onSkill(model: Model, payload: any)
 		AnimationController.play(model, clip)
 	end
 	if isSelf then
-		SkillBarController.onOwnCast(skill.id)
+		SkillBarController.onOwnCast(skill.id, aim)
 	elseif aim then
 		local root = aim:FindFirstChild("HumanoidRootPart")
 		if root and root:IsA("BasePart") then
 			CharacterMotionController.faceToward(root.Position, 0.6)
 		end
+	end
+	if type(payload.extend) == "table" then
+		onExtend(model, payload.extend)
 	end
 	local elapsed = if clip then AnimationController.actionElapsed(model, clip) or 0 else 0
 	local clipHit = math.max(0, SkillDefinitions.hitTime(skill) - (skill.delay or 0) - elapsed)
@@ -346,6 +379,14 @@ local function onDamage(model: Model, payload: any)
 	local heavy = payload.heavy == true
 	local crit = payload.crit == true
 	local tick = if type(payload.tick) == "string" then payload.tick else nil
+	if payload.immune == true then
+		-- D-103: the Healer's ultimate stopped the hit.
+		showNumber(model, 0, false, false, false, "Immune")
+		return
+	end
+	if payload.reflect == true then
+		tick = "Reflect"
+	end
 	if tick then
 		-- Poison / burn: a small coloured number, no flinch.
 		showNumber(model, payload.amount or 0, false, false, false, tick)

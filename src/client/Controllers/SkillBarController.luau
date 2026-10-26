@@ -193,7 +193,9 @@ end
 --------------------------------------------------------------------------------
 
 -- Short burst of velocity (dashes), started once the server confirms.
-local function dash(studs: number, seconds: number)
+-- `toward`: a charge at that point (D-103); otherwise the way we're moving
+-- or backwards (an evade).
+local function dash(studs: number, seconds: number, toward: Vector3?)
 	local character = localCharacter()
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -207,6 +209,15 @@ local function dash(studs: number, seconds: number)
 	local move = humanoid.MoveDirection
 	local flat = Vector3.new(move.X, 0, move.Z)
 	local direction = if flat.Magnitude > 0.2 then flat.Unit else -root.CFrame.LookVector
+	if toward then
+		local offset = Vector3.new(toward.X - root.Position.X, 0, toward.Z - root.Position.Z)
+		-- Stop short of the target instead of running through it.
+		studs = math.min(studs, math.max(offset.Magnitude - 4, 0))
+		direction = if offset.Magnitude > 0.1 then offset.Unit else root.CFrame.LookVector
+		if studs <= 0 then
+			return
+		end
+	end
 	local push = Instance.new("LinearVelocity")
 	push.Name = "RC_Dash"
 	push.Attachment0 = attachment
@@ -221,11 +232,19 @@ local function dash(studs: number, seconds: number)
 end
 
 -- Our own cast was accepted (CombatFeedbackController): dashes move now.
-function SkillBarController.onOwnCast(id: string)
+function SkillBarController.onOwnCast(id: string, aim: Model?)
 	local skill = SkillDefinitions.get(id)
 	local effect = skill and SkillDefinitions.effect(skill, "Dash")
 	if effect then
-		dash(effect.studs or 10, effect.seconds or 0.25)
+		local toward: Vector3? = nil
+		if effect.toward then
+			local root = aim and aim:FindFirstChild("HumanoidRootPart")
+			toward = if root and root:IsA("BasePart") then root.Position else nil
+			if toward == nil then
+				return -- a charge with no target stays put
+			end
+		end
+		dash(effect.studs or 10, effect.seconds or 0.25, toward)
 	end
 end
 

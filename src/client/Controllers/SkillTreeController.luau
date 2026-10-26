@@ -12,7 +12,7 @@
 	  - Tap a node: the detail pane shows everything about it (UI/SkillInfo:
 	    damage, effects, durations, combo, next rank) with buttons to learn /
 	    rank it up (1 skill point) and to put it on the skill bar.
-	  - The skill bar row (3 regular + 1 special) sits on top; tap a slot to
+	  - The skill bar row (6 regular + 1 ultimate) sits on top; tap a slot to
 	    inspect its skill. Left of it, the BASIC tile: Auto Attack, free for
 	    every class (no point, no rank); tap it to put it in a slot.
 	  - Header: skill points left and Reset (refunds every point; only in a
@@ -138,7 +138,7 @@ end
 
 local function sendLoadout(regular: { string? }, special: string?)
 	local compact = {}
-	for index = 1, 3 do
+	for index = 1, SkillRules.REGULAR_SLOTS do
 		local id = regular[index]
 		if id then
 			table.insert(compact, id)
@@ -194,7 +194,7 @@ end
 local function slotOf(skill: Skill): string?
 	local loadout = state().EquippedSkills
 	if loadout.Special == skill.id then
-		return "Special"
+		return "Ultimate"
 	end
 	local index = table.find(loadout.Regular, skill.id)
 	return if index then `Slot {index}` else nil
@@ -315,7 +315,7 @@ local function drawDetail(parent: Instance, skill: Skill?)
 	end
 	if rank >= 1 then
 		if skill.type == "Special" then
-			local put = smallButton(if equippedAt then "✅ Special" else "Put in Special", 112)
+			local put = smallButton(if equippedAt then "✅ Ultimate" else "Put in Ultimate", 112)
 			put.LayoutOrder = 2
 			put.Parent = actions
 			put.Activated:Connect(function()

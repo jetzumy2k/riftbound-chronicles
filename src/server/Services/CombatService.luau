@@ -29,7 +29,9 @@
 	    Focus regen (D-23).
 	  - Statuses (Phase 5 skills, D-45) live on the entity with an expiry:
 	    Stun, Freeze, Root, Slow, Silence, Mark, Weaken, Poison, Burn, Guard,
-	    Harden, Empower, Haste, Regen, Shield, Taunt. Attack is scaled by
+	    Harden, Empower, Haste, Regen, Shield, Taunt, Reflect, Immune (D-103:
+	    Immune stops damage, a cut in PvP; Reflect returns a capped share of
+	    each hit to its attacker, never reflected again). Attack is scaled by
 	    Empower / Weaken, Defense by Harden; every hit goes through Mark /
 	    Guard / Shield (Logic/SkillRules.incoming). Poison / Burn damage and
 	    Regen healing tick once a second, credited to whoever applied them.
@@ -102,6 +104,8 @@ export type StatusKind =
 	| "Regen"
 	| "Shield"
 	| "Taunt"
+	| "Reflect"
+	| "Immune"
 --[[
 	`value`: percent (Slow / Mark / Weaken / Guard / Harden / Empower /
 	Haste) or Shield points left. `perTick`: damage (Poison / Burn) or
@@ -128,6 +132,8 @@ local STATUS_ATTRIBUTES: { [string]: string } = {
 	Regen = "Regenerating",
 	Shield = "Shield",
 	Taunt = "Taunted",
+	Reflect = "Reflecting",
+	Immune = "Immune",
 }
 -- Over-time statuses tick once per second.
 local TICK_SECONDS_DOT = 1
@@ -442,6 +448,7 @@ end
 --------------------------------------------------------------------------------
 
 local defeat: (entity: Entity, attacker: Entity?, reason: string) -> ()
+local harmFacts: (attacker: Entity, target: Entity) -> CombatMath.HarmFacts
 
 local function requestRespawn(entity: Entity)
 	local player = entity.player
@@ -480,9 +487,19 @@ function defeat(entity: Entity, attacker: Entity?, reason: string)
 	end
 end
 
-export type HitExtra = { skill: string?, combo: string?, tick: string? }
+-- `reflect`: damage a Reflect sent back (never reflected again); `execute`:
+-- an Execute combo finishing a creature (D-103).
+export type HitExtra = { skill: string?, combo: string?, tick: string?, reflect: boolean?, execute: boolean? }
 
-local function applyDamage(
+local applyDamage: (
+	target: Entity,
+	rawAmount: number,
+	attacker: Entity,
+	crit: boolean,
+	heavy: boolean?,
+	extra: HitExtra?
+) -> ()
+function applyDamage(
 	target: Entity,
 	rawAmount: number,
 	attacker: Entity,
@@ -491,6 +508,28 @@ local function applyDamage(
 	extra: HitExtra?
 )
 	local t = now()
+	local skills = ConfigurationService:Get("Skills")
+	local playerVsPlayer = attacker.player ~= nil and target.player ~= nil
+	local execute = extra ~= nil and extra.execute == true
+	-- D-103: Immune stops the hit (only cuts it between players).
+	local immune = statusOf(target, "Immune")
+	if immune and not execute then
+		if not playerVsPlayer then
+			target.lastHostileAt = t
+			attacker.lastHostileAt = t
+			broadcast(
+				target,
+				{ kind = "Damage", target = target.model, amount = 0, source = attacker.model, immune = true }
+			)
+			return
+		end
+		rawAmount = math.max(1, rawAmount * (1 - math.clamp(skills.ImmunePvPCutPct, 0, 100) / 100))
+	end
+	local reflect = if extra and (extra.reflect or extra.tick)
+			or execute
+			or attacker == target
+		then nil
+		else statusOf(target, "Reflect")
 	-- Gear damage reduction (D-64), then Mark / Guard scale the hit, then a
 	-- shield soaks up what it can.
 	if target.mitigationPct > 0 then
@@ -508,6 +547,21 @@ local function applyDamage(
 		if guard then guard.value else 0,
 		if shield then shield.value else 0
 	)
+	local reflected = 0
+	if reflect then
+		-- Before Guard / shield: the hit as it arrived, capped per hit.
+		reflected = SkillRules.reflected(
+			rawAmount,
+			reflect.value,
+			target.maxHp * skills.ReflectCapPctOfMaxHp / 100,
+			if playerVsPlayer then skills.PvPReflectScale else 1
+		)
+	end
+	if execute then
+		-- An Execute finishes the creature whatever its defences.
+		amount, absorbed, shieldLeft =
+			math.max(1, math.ceil(target.hp)), 0, if shield then shield.value else 0
+	end
 	if shield then
 		shield.value = shieldLeft
 		if shieldLeft <= 0 then
@@ -538,11 +592,20 @@ local function applyDamage(
 		skill = extra and extra.skill,
 		combo = extra and extra.combo,
 		tick = extra and extra.tick,
+		reflect = if extra and extra.reflect then true else nil,
 	})
 	if target.hp <= 0 then
 		defeat(target, attacker, "Combat")
 	elseif target.kind == "Npc" and amount > 0 then
 		CombatService.NpcHurt:Fire(target.model, amount, crit)
+	end
+	if
+		reflected >= 1
+		and entitiesByModel[attacker.model] == attacker
+		and not attacker.defeated
+		and CombatMath.canHarm(harmFacts(target, attacker))
+	then
+		applyDamage(attacker, reflected, target, false, false, { reflect = true })
 	end
 end
 
@@ -641,7 +704,7 @@ local function hasLineOfSight(from: Vector3, to: Vector3): boolean
 	return Workspace:Raycast(from, direction, raycastParams) == nil
 end
 
-local function harmFacts(attacker: Entity, target: Entity): CombatMath.HarmFacts
+function harmFacts(attacker: Entity, target: Entity): CombatMath.HarmFacts
 	return {
 		sameEntity = attacker == target,
 		attackerIsPlayer = attacker.kind == "Player",
@@ -1404,6 +1467,30 @@ function CombatService:Strike(
 	return true
 end
 
+--[[
+	D-103 Execute combo: a normal creature (not a boss, not a player) falls
+	at once. Returns false when the target doesn't qualify (the caller then
+	deals the skill's normal damage) or the hit isn't allowed.
+]]
+function CombatService:Execute(attacker: Entity, target: Entity, extra: HitExtra?): boolean
+	if entitiesByModel[attacker.model] ~= attacker or entitiesByModel[target.model] ~= target then
+		return false
+	end
+	if not ConfigurationService:Get("Skills").ExecuteCreatures then
+		return false
+	end
+	if target.kind ~= "Npc" or target.controlImmune or target.defeated then
+		return false
+	end
+	if not CombatMath.canHarm(harmFacts(attacker, target)) then
+		return false
+	end
+	local hit: HitExtra = table.clone(extra or {})
+	hit.execute = true
+	applyDamage(target, target.hp, attacker, true, true, hit)
+	return true
+end
+
 -- Heals `target` by coefficient x the healer's Attack (re-validates help rules).
 function CombatService:HealTarget(
 	healer: Entity,
@@ -1493,6 +1580,9 @@ function CombatService:ApplyStatus(
 	end
 	local untilAt = t + seconds
 	local existing = statusOf(target, kind)
+	if existing and kind == "Immune" then
+		return 0 -- D-103: no chaining immunity from several casters
+	end
 	if existing then
 		existing.untilAt = math.max(existing.untilAt, untilAt)
 		existing.value = math.max(existing.value, value or 0)

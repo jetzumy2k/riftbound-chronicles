@@ -79,6 +79,8 @@ local STATUS_WORDS = {
 	{ "Hasted", "HASTE" },
 	{ "Regenerating", "REGEN" },
 	{ "Shield", "SHIELD" },
+	{ "Immune", "IMMUNE" },
+	{ "Reflecting", "REFLECT" },
 }
 
 local TargetController = {

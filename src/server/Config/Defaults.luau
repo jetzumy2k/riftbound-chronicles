@@ -101,6 +101,21 @@ return {
 		StudioBonusPoints = 0,
 		-- Resetting the tree (free) is allowed only in a safe zone, out of combat.
 		ResetNeedsSafeZone = true,
+		-- D-103 combat modernization (creator decisions 2026-10-26).
+		-- Extender: seconds after an area skill's last wave it can still be extended.
+		ExtendWindowSeconds = 4,
+		-- Extender: the widest an extended area may grow (studs).
+		ExtendMaxRadius = 30,
+		-- Reflect: at most this % of the reflector's max HP per hit, and this
+		-- share of it between players.
+		ReflectCapPctOfMaxHp = 25,
+		PvPReflectScale = 0.5,
+		-- Immune (Healer ultimate): between players it only cuts damage by this %.
+		ImmunePvPCutPct = 60,
+		-- Execute combos finish normal creatures at once (never bosses or players).
+		ExecuteCreatures = true,
+		-- Ultimates' per-attribute-point bonus is capped at this % in total.
+		AttributeBonusCapPct = 100,
 	},
 
 	-- Movement modes (Walk / Sprint / Crouch). Speeds are server-set so the

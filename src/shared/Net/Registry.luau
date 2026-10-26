@@ -793,6 +793,17 @@ return function(S: any)
 					combo = S.optional(S.enum(COMBO_NAMES)),
 					-- "Damage" / "Heal" over time (poison, burn, regen ticks).
 					tick = S.optional(S.enum({ "Poison", "Burn", "Regen" })),
+					-- D-103 "Damage": the Healer's Immune stopped it / a Reflect sent it back.
+					immune = S.optional(S.boolean()),
+					reflect = S.optional(S.boolean()),
+					-- D-103 "Skill": an Extender re-pulsed the caster's active area.
+					extend = S.optional(S.struct({
+						skill = S.enum(SKILL_IDS),
+						point = S.optional(S.vector3()),
+						radius = S.number(0, 40),
+						pulses = S.int(1, 3),
+						delay = S.number(0, 5),
+					})),
 				}),
 			},
 		},

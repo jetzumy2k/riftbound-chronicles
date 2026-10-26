@@ -92,6 +92,9 @@ local REASON_KEYS: { [string]: string } = {
 	rankLocked = "skill.learn.rankLocked",
 }
 
+-- Seconds between an Extender's pulses (D-103).
+local EXTEND_PULSE_GAP = 0.35
+
 local function skillsConfig(): any
 	return ConfigurationService:Get("Skills")
 end
@@ -423,12 +426,29 @@ local function applyEffect(caster: Entity, target: Entity, e: Effect, skillId: s
 		CombatService:ApplyStatus(target, kind, e.seconds or 1, nil, caster)
 	elseif kind == "Cleanse" then
 		CombatService:Cleanse(target)
+	elseif kind == "Reflect" then
+		CombatService:ApplyStatus(target, "Reflect", e.seconds or 3, e.pct or 0, caster)
+	elseif kind == "Immune" then
+		CombatService:ApplyStatus(target, "Immune", e.seconds or 3, 0, caster)
 	end
+end
+
+-- D-103: points the casting player put into `attribute` (0 for creatures).
+local function attributePoints(caster: Entity, attribute: string?): number
+	local player = caster.player
+	if attribute == nil or player == nil then
+		return 0
+	end
+	local data = PlayerDataService:GetData(player)
+	local attributes = data and data.Attributes
+	local points = if type(attributes) == "table" then attributes[attribute] else nil
+	return if type(points) == "number" then points else 0
 end
 
 -- The skill's target effects on one target at `rank`. A hostile skill whose
 -- hit doesn't land (target became protected / safe) applies nothing else.
-local function applyEffects(caster: Entity, target: Entity, skill: Skill, rank: number)
+-- `scale` multiplies every number (an Extender's pulse, D-103).
+local function applyEffects(caster: Entity, target: Entity, skill: Skill, rank: number, scale: number?)
 	local combo = skill.combo
 	local comboOn = combo ~= nil
 		and SkillDefinitions.isHostile(skill)
@@ -440,9 +460,31 @@ local function applyEffects(caster: Entity, target: Entity, skill: Skill, rank: 
 			continue
 		end
 		local e = SkillRules.effectAtRank(raw, rank)
-		if e.kind == "Damage" then
-			local coefficient = (e.coefficient or 1)
-				* (if comboOn and combo then 1 + combo.bonusPct / 100 else 1)
+		if scale and e.coefficient then
+			e.coefficient *= scale
+		end
+		if e.kind == "Extend" or e.kind == "Dash" then
+			continue -- handled at the cast (onCast)
+		elseif e.kind == "Damage" then
+			if
+				comboOn
+				and combo
+				and combo.execute
+				and CombatService:Execute(caster, target, {
+					skill = skill.id,
+					combo = combo.name,
+				})
+			then
+				return -- D-103: the creature fell; nothing else to apply
+			end
+			local coefficient = SkillRules.boostedCoefficient(
+				(e.coefficient or 1) * (if comboOn and combo then 1 + combo.bonusPct / 100 else 1),
+				e,
+				attributePoints(caster, e.attribute),
+				caster.maxHp,
+				caster.attack,
+				skillsConfig().AttributeBonusCapPct
+			)
 			local dealt =
 				CombatService:Strike(caster, target, coefficient, e.critBonusPct, e.heavy or comboOn, {
 					skill = skill.id,
@@ -494,7 +536,14 @@ local function landSingle(caster: Entity, target: Entity, skill: Skill, rank: nu
 	applyEffects(caster, target, skill, rank)
 end
 
-local function landArea(caster: Entity, skill: Skill, rank: number, fixedCenter: Vector3?)
+local function landArea(
+	caster: Entity,
+	skill: Skill,
+	rank: number,
+	fixedCenter: Vector3?,
+	radius: number?,
+	scale: number?
+)
 	if not isAlive(caster) then
 		return
 	end
@@ -503,15 +552,65 @@ local function landArea(caster: Entity, skill: Skill, rank: number, fixedCenter:
 	local hostile = SkillDefinitions.isHostile(skill)
 	local limit = math.min(skill.maxTargets or 8, skillsConfig().MaxAreaTargets)
 	local count = 0
-	for _, entity in CombatService:EntitiesNear(center, skill.radius or 8) do
+	for _, entity in CombatService:EntitiesNear(center, radius or skill.radius or 8) do
 		if count >= limit then
 			break
 		end
 		if affects(caster, entity, hostile) then
-			applyEffects(caster, entity, skill, rank)
+			applyEffects(caster, entity, skill, rank, scale)
 			count += 1
 		end
 	end
+end
+
+--------------------------------------------------------------------------------
+-- Extender (D-103)
+--------------------------------------------------------------------------------
+
+-- Each player's last area skill while an Extender can still build on it.
+type ActiveArea = { skill: Skill, rank: number, center: Vector3?, radius: number, untilAt: number }
+local activeAreas: { [Player]: ActiveArea } = {}
+
+--[[
+	An Extender cast: if the caster's own area skill is still active, it
+	pulses again with a wider radius (once per area). Returns what the
+	clients draw, or nil when there was nothing to extend.
+]]
+local function extend(
+	player: Player,
+	caster: Entity,
+	e: Effect,
+	landAt: number,
+	t: number
+): { [string]: any }?
+	local area = activeAreas[player]
+	if area == nil or t > area.untilAt then
+		activeAreas[player] = nil
+		return nil
+	end
+	activeAreas[player] = nil
+	local config = skillsConfig()
+	local radius = SkillRules.extendedRadius(area.radius, e.pct or 0, config.ExtendMaxRadius)
+	local pulses = math.clamp(e.pulses or 1, 1, 3)
+	for pulse = 1, pulses do
+		task.delay(
+			landAt + (pulse - 1) * EXTEND_PULSE_GAP,
+			landArea,
+			caster,
+			area.skill,
+			area.rank,
+			area.center,
+			radius,
+			e.coefficient or 1
+		)
+	end
+	return {
+		skill = area.skill.id,
+		point = area.center,
+		radius = radius,
+		pulses = pulses,
+		delay = math.min(landAt, 5),
+	}
 end
 
 --------------------------------------------------------------------------------
@@ -570,6 +669,8 @@ local function onCast(player: Player, id: string, hint: Model?)
 	sendCooldown(player, id)
 
 	local dash = SkillDefinitions.effect(skill, "Dash")
+	-- D-103: a charge (`toward`) still lands its hit on the target.
+	local charge = dash ~= nil and dash.toward == true
 	if dash then
 		-- The client moves itself; the movement validator allows the burst.
 		local seconds = dash.seconds or 0.25
@@ -577,18 +678,32 @@ local function onCast(player: Player, id: string, hint: Model?)
 	end
 
 	local aim = resolved.target
+	local landAt = SkillDefinitions.hitTime(skill) + resolved.travel
+	local waves = skill.waves or 1
+	local gap = skill.waveGap or 0
+	local extender = SkillDefinitions.effect(skill, "Extend")
+	local extended = if extender
+		then extend(player, caster, SkillRules.effectAtRank(extender, rank), landAt, t)
+		else nil
+	if skill.target == "SelfArea" or skill.target == "EnemyArea" then
+		activeAreas[player] = {
+			skill = skill,
+			rank = rank,
+			center = if skill.target == "EnemyArea" then resolved.center else nil,
+			radius = skill.radius or 8,
+			untilAt = t + landAt + (waves - 1) * gap + config.ExtendWindowSeconds,
+		}
+	end
 	CombatService:Broadcast(caster.model, {
 		kind = "Skill",
 		target = caster.model,
 		skill = id,
 		aim = if aim and aim ~= caster then aim.model else nil,
 		point = if skill.target == "EnemyArea" then resolved.center else nil,
+		extend = extended,
 	})
 	log:Debug("%s cast %s (rank %d)", player.Name, id, rank)
 
-	local landAt = SkillDefinitions.hitTime(skill) + resolved.travel
-	local waves = skill.waves or 1
-	local gap = skill.waveGap or 0
 	if dash then
 		applySelf(caster, skill, rank)
 	else
@@ -599,7 +714,7 @@ local function onCast(player: Player, id: string, hint: Model?)
 		for wave = 1, waves do
 			task.delay(landAt + (wave - 1) * gap, landArea, caster, skill, rank, center)
 		end
-	elseif aim and not dash then
+	elseif aim and (not dash or charge) then
 		for wave = 1, waves do
 			task.delay(landAt + (wave - 1) * gap, landSingle, caster, aim, skill, rank)
 		end
@@ -681,6 +796,7 @@ function SkillService:Start()
 		cooldowns[player] = nil
 		globalReady[player] = nil
 		lastNotice[player] = nil
+		activeAreas[player] = nil
 	end)
 	log:Info(
 		"%d skills in 16 branches ready%s",

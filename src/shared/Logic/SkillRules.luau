@@ -87,6 +87,8 @@ SkillRules.CAPS = table.freeze({
 	Root = 3.5,
 	Silence = 3.5,
 	Pct = 60,
+	-- D-103: Reflect may return a whole hit (capped per hit on the server).
+	ReflectPct = 100,
 })
 
 -- Statuses whose duration counts as crowd control (PvP scale, boss immunity).
@@ -353,7 +355,8 @@ end
 function SkillRules.effectAtRank(effect: Effect, rank: number): Effect
 	local r = math.max(1, rank) - 1
 	local out = table.clone(effect) :: Effect
-	if out.coefficient then
+	-- An Extender's multiplier stays as written; ranks only widen its area.
+	if out.coefficient and effect.kind ~= "Extend" then
 		out.coefficient = out.coefficient * (1 + SkillRules.COEFFICIENT_PER_RANK * r)
 	end
 	local cap = (SkillRules.CAPS :: any)[effect.kind]
@@ -361,7 +364,8 @@ function SkillRules.effectAtRank(effect: Effect, rank: number): Effect
 		out.seconds = math.min(out.seconds * (1 + SkillRules.DURATION_PER_RANK * r), cap)
 	end
 	if out.pct then
-		out.pct = math.min(out.pct * (1 + SkillRules.PCT_PER_RANK * r), SkillRules.CAPS.Pct)
+		local pctCap = if effect.kind == "Reflect" then SkillRules.CAPS.ReflectPct else SkillRules.CAPS.Pct
+		out.pct = math.min(out.pct * (1 + SkillRules.PCT_PER_RANK * r), pctCap)
 	end
 	return out
 end
@@ -411,6 +415,46 @@ end
 -- Attack after Empower (+%) and Weaken (−%); never below 10%.
 function SkillRules.attackScale(empowerPct: number, weakenPct: number): number
 	return math.max(0.1, (1 + math.max(empowerPct, 0) / 100) * (1 - math.clamp(weakenPct, 0, 90) / 100))
+end
+
+--[[
+	D-103 Reflect: the damage sent back for a hit of `raw` with a Reflect of
+	`pct`%: at most `cap` (a share of the reflector's max HP), times `scale`
+	(PvP). Whole number >= 0.
+]]
+function SkillRules.reflected(raw: number, pct: number, cap: number, scale: number): number
+	local back =
+		math.min(math.max(raw, 0) * math.clamp(pct, 0, SkillRules.CAPS.ReflectPct) / 100, math.max(cap, 0))
+	return math.floor(back * math.clamp(scale, 0, 1))
+end
+
+--[[
+	D-103 ultimates: a Damage effect's coefficient with its extras. `points`
+	is what the caster put into `effect.attribute` (+perPointPct% each, the
+	total capped at `capPct`); `hpPct`% of `maxHp` is added as extra
+	coefficient against `attack` so it goes through the normal damage math.
+]]
+function SkillRules.boostedCoefficient(
+	coefficient: number,
+	effect: Effect,
+	points: number,
+	maxHp: number,
+	attack: number,
+	capPct: number
+): number
+	local out = coefficient
+	if effect.attribute and effect.perPointPct then
+		out *= 1 + math.min(math.max(points, 0) * effect.perPointPct, math.max(capPct, 0)) / 100
+	end
+	if effect.hpPct and attack > 0 then
+		out += maxHp * effect.hpPct / 100 / attack
+	end
+	return out
+end
+
+-- D-103 Extender: the extended area's radius (`pct`% more, capped).
+function SkillRules.extendedRadius(radius: number, pct: number, maxRadius: number): number
+	return math.min(radius * (1 + math.max(pct, 0) / 100), maxRadius)
 end
 
 --[[
@@ -491,7 +535,14 @@ function SkillRules.effectLine(effect: Effect, rank: number, target: SkillDefini
 	local k = e.kind
 	if k == "Damage" then
 		local crit = if e.critBonusPct then ` (+{e.critBonusPct}% crit chance)` else ""
-		return `Deals {pct(e.coefficient or 1)} Attack damage{crit}`
+		local extras = {}
+		if e.hpPct then
+			table.insert(extras, ` + {e.hpPct}% of your max HP`)
+		end
+		if e.attribute and e.perPointPct then
+			table.insert(extras, `, +{e.perPointPct}% per {e.attribute} point`)
+		end
+		return `Deals {pct(e.coefficient or 1)} Attack damage{table.concat(extras)}{crit}`
 	elseif k == "Heal" then
 		return `Heals {pct(e.coefficient or 1)} Attack`
 	elseif k == "Shield" then
@@ -521,7 +572,18 @@ function SkillRules.effectLine(effect: Effect, rank: number, target: SkillDefini
 	elseif k == "Cleanse" then
 		return `Removes stuns, freezes, roots, slows, silences, marks, weakness, poison and burns`
 	elseif k == "Dash" then
-		return `Dashes {e.studs or 0} studs`
+		return if e.toward
+			then `Charges {e.studs or 0} studs at the target`
+			else `Dashes {e.studs or 0} studs`
+	elseif k == "Reflect" then
+		return `Reflects {math.floor(e.pct or 0)}% of every hit back at the attacker for {secs(e.seconds or 0)}`
+	elseif k == "Immune" then
+		return `Makes {who} immune to damage for {secs(e.seconds or 0)} (less damage in PvP)`
+	elseif k == "Extend" then
+		local pulses = e.pulses or 1
+		return `EXTENDER: your active area grows {math.floor(e.pct or 0)}% and {if pulses > 1
+			then `strikes {pulses} more times`
+			else "strikes again"} at {pct(e.coefficient or 1)} power`
 	end
 	return `{STATUS_TEXT[k] or k} for {secs(e.seconds or 0)}`
 end
@@ -596,8 +658,10 @@ function SkillRules.describe(skill: Skill, rank: number): Description
 		local condition = if c.status
 			then `{STATUS_ADJECTIVE[c.status] or string.lower(c.status)} targets`
 			else `targets below {c.lowHpPct}% HP`
-		combo =
-			`COMBO · {c.name}: +{c.bonusPct}% damage on {condition}{if c.consume then " (ends it)" else ""}`
+		local execute = if c.execute then "; creatures fall at once (not bosses or players)" else ""
+		combo = `COMBO · {c.name}: +{c.bonusPct}% damage on {condition}{if c.consume
+			then " (ends it)"
+			else ""}{execute}`
 	end
 	local nextRank: { string }? = nil
 	if rank >= 1 and rank < skill.maxRank then
@@ -612,7 +676,7 @@ function SkillRules.describe(skill: Skill, rank: number): Description
 		nextRank = lines
 	end
 	return {
-		header = `{string.upper(skill.type)} · {category} · {skill.branch}`,
+		header = `{if skill.type == "Special" then "ULTIMATE" else "REGULAR"} · {category} · {skill.branch}`,
 		stats = table.concat(stats, "  ·  "),
 		target = TARGET_TEXT[skill.target] or skill.target,
 		effects = effects,

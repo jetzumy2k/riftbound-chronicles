@@ -62,6 +62,13 @@ return function(S: any)
 			StudioUnlockAll = S.boolean(),
 			StudioBonusPoints = S.int(0, 200),
 			ResetNeedsSafeZone = S.boolean(),
+			ExtendWindowSeconds = S.number(0, 15),
+			ExtendMaxRadius = S.number(5, 40),
+			ReflectCapPctOfMaxHp = S.number(0, 100),
+			PvPReflectScale = S.number(0, 1),
+			ImmunePvPCutPct = S.number(0, 90),
+			ExecuteCreatures = S.boolean(),
+			AttributeBonusCapPct = S.number(0, 200),
 		}),
 
 		Perf = S.struct({
