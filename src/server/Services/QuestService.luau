@@ -59,7 +59,9 @@ local PvPService = require(script.Parent.PvPService)
 local ProfileView = require(script.Parent.Parent.Persistence.ProfileView)
 local BodyStyle = require(script.Parent.Parent.Appearance.BodyStyle)
 local Wardrobe = require(script.Parent.Parent.Appearance.Wardrobe)
+local CharacterFactory = require(script.Parent.Parent.Appearance.Anime.CharacterFactory)
 
+local AnimeArchetypes = require(Shared.Definitions.AnimeArchetypes)
 local FacePresets = require(Shared.Definitions.FacePresets)
 
 local log = Log.new("QuestService")
@@ -470,12 +472,20 @@ local function buildGiver(race: string, giver: QuestDefinitions.Giver)
 		return
 	end
 	local style = GIVER_STYLE[race]
+	-- D-100: a commander whose realm has an anime warrior wears that look
+	-- (the Angel commander shows the Divine Angel Warrior).
+	local anime = ConfigurationService:Get("Appearance.AnimeStyle") == true
+		and AnimeArchetypes.forCharacter(race, "Warrior") ~= nil
 	local description = Instance.new("HumanoidDescription")
 	for _, part in { "Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg" } do
 		(description :: any)[`{part}Color`] = style.skin
 	end
-	description.HairAccessory = tostring(style.hair)
-	BodyStyle.dress(description, style.head)
+	if anime then
+		CharacterFactory.dress(description)
+	else
+		description.HairAccessory = tostring(style.hair)
+		BodyStyle.dress(description, style.head)
+	end
 	local ok, model = pcall(function()
 		return Players:CreateHumanoidModelFromDescriptionAsync(description, Enum.HumanoidRigType.R15)
 	end)
@@ -485,7 +495,9 @@ local function buildGiver(race: string, giver: QuestDefinitions.Giver)
 	end
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		BodyStyle.athlete(humanoid)
+		if not anime then
+			BodyStyle.athlete(humanoid)
+		end
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 		humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 		pcall(function()
@@ -504,7 +516,14 @@ local function buildGiver(race: string, giver: QuestDefinitions.Giver)
 	if root then
 		root.Anchored = true
 	end
-	Wardrobe.dress(model, race, FacePresets.defaultFor(race), "Warrior", GIVER_LOOK)
+	Wardrobe.dress(
+		model,
+		race,
+		FacePresets.defaultFor(race),
+		"Warrior",
+		GIVER_LOOK,
+		if anime then { variant = style.head } else nil
+	)
 	model:SetAttribute("RC_QuestGiver", race)
 	if humanoid then
 		local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator")

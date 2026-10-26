@@ -24,6 +24,7 @@ local Enums = require(script.Parent.Parent.Enums)
 local Constants = require(script.Parent.Parent.Constants)
 
 local FacePresets = require(script.Parent.Parent.Definitions.FacePresets)
+local Complexion = require(script.Parent.Parent.Definitions.Complexion)
 local AnimationClips = require(script.Parent.Parent.Definitions.AnimationClips)
 local SkillDefinitions = require(script.Parent.Parent.Definitions.SkillDefinitions)
 local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions)
@@ -148,6 +149,17 @@ return function(S: any)
 			kind = "Event",
 			args = { S.enum(Enums.HeadStyle) },
 			rate = { capacity = 2, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- The anime look's skin tone / hair colour (D-101): allowlisted ids
+		-- only (Complexion); the server checks the id belongs to the kind.
+		-- The client batches taps, so a few per second at most.
+		SetComplexion = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(Complexion.KINDS), S.enum(Complexion.ALL_IDS) },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
 			states = { "ProfileLoaded" },
 		},
 
@@ -840,6 +852,8 @@ return function(S: any)
 					Job = S.optional(S.enum(Enums.Job)),
 					FacePreset = S.int(1, FacePresets.maxId()),
 					HeadStyle = S.enum(Enums.HeadStyle),
+					SkinTone = S.enum(Complexion.SKIN_IDS),
+					HairColor = S.enum(Complexion.HAIR_IDS),
 					Level = S.int(0, MAX_LEVEL),
 					Experience = S.int(0),
 					XPToNext = S.int(0),

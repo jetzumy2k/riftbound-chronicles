@@ -184,6 +184,9 @@ return function(t)
 				-- D-72 review: enum only, ProfileLoaded, 2 per 10 s; the server maps
 				-- it to fixed official head ids (BodyStyle.HEADS), never client ids.
 				SetHeadStyle = true,
+				-- D-101: two enums (kind, allowlisted id), ProfileLoaded, 4 then
+				-- 1 per 2 s; the server checks the id belongs to the kind.
+				SetComplexion = true,
 				-- Phase 11 review (D-73): quest id enum only, ProfileLoaded + HasJob;
 				-- the server checks reach to its own giver, prerequisites, level and
 				-- status, and claims rewards once ("Q:<id>"). No progress remote.

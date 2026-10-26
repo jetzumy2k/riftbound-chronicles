@@ -13,7 +13,7 @@
 | AdminPlayerAction | Function | int(1..9007199254740991); enum(9); {Currency, DefId, Guid, Number, Quest, Rarity, Reason, Stackable} | 6 / 1 | ProfileLoaded | panel.open |
 | AdminPlayers | Function | string(<=20) | 6 / 1 | ProfileLoaded | player.inspect |
 | BasicAttack | Event | instance? | 6 / 4 | ProfileLoaded, HasJob, Alive | - |
-| BuyMallItem | Function | enum(14) | 4 / 1 | ProfileLoaded, HasJob | - |
+| BuyMallItem | Function | enum(12) | 4 / 1 | ProfileLoaded, HasJob | - |
 | ClientReady | Event | none | 2 / 0.05 |  | - |
 | CombineFragments | Event | int(1..100) | 4 / 1 | ProfileLoaded, HasJob | - |
 | DungeonLeave | Event | none | 3 / 0.5 | ProfileLoaded | - |
@@ -33,6 +33,7 @@
 | SalvageItems | Event | array<=25 of string(<=36) | 4 / 1 | ProfileLoaded, HasJob | - |
 | SelectJob | Event | enum(4) | 3 / 0.2 | ProfileLoaded, HasRace | - |
 | SelectRace | Event | enum(2); int(1..8) | 3 / 0.2 | ProfileLoaded | - |
+| SetComplexion | Event | enum(2); enum(21) | 4 / 0.5 | ProfileLoaded | - |
 | SetHeadStyle | Event | enum(2) | 2 / 0.2 | ProfileLoaded | - |
 | SetHudLayout | Event | map<=9 | 3 / 0.1 | ProfileLoaded | - |
 | SetLoadout | Event | array<=6 of enum(97); enum(97)? | 4 / 0.5 | ProfileLoaded, HasJob | - |

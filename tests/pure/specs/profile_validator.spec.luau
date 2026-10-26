@@ -122,6 +122,23 @@ return function(t)
 			t.eq(data.HeadStyle, "Man")
 		end)
 
+		t.it("skin tone / hair colour: kept when allowlisted, else Default (D-101)", function()
+			local data = fresh()
+			data.SkinTone = "Bronze"
+			data.HairColor = "Auburn"
+			t.eq(#ProfileValidator.repair(data), 0)
+			t.eq(data.SkinTone, "Bronze")
+			t.eq(data.HairColor, "Auburn")
+			data.SkinTone = nil -- an older profile
+			data.HairColor = "Bronze" -- a skin id is not a hair colour
+			ProfileValidator.repair(data)
+			t.eq(data.SkinTone, "Default")
+			t.eq(data.HairColor, "Default")
+			data.HairColor = { 255, 255, 255 }
+			ProfileValidator.repair(data)
+			t.eq(data.HairColor, "Default")
+		end)
+
 		t.it("a face preset must belong to the chosen race", function()
 			local data = fresh()
 			data.Race = "Devil"

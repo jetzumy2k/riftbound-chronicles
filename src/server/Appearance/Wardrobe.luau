@@ -20,9 +20,11 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
+local AnimeArchetypes = require(ReplicatedStorage.Shared.Definitions.AnimeArchetypes)
 local FacePresets = require(ReplicatedStorage.Shared.Definitions.FacePresets)
 local GearLook = require(ReplicatedStorage.Shared.Logic.GearLook)
 
+local CharacterFactory = require(script.Parent.Anime.CharacterFactory)
 local OutfitBuilder = require(script.Parent.OutfitBuilder)
 
 local KEEP_ACCESSORY_TYPES: { [Enum.AccessoryType]: boolean } = {
@@ -126,13 +128,19 @@ end
 	`job` selects the job outfit and weapon (nil = recruit look, e.g. the
 	realm-selection preview before a job is chosen). `look` is what the
 	player has equipped (D-65); nil draws the job's full look (previews).
+	`anime` (config Appearance.AnimeStyle on, D-100): the player's choices
+	(head style, skin tone, hair colour, D-101) for the Part-built anime
+	look (CharacterFactory) every realm and job has; the classic builder
+	then draws only the weapons the anime builder lacks. nil = the classic
+	look.
 ]]
 function Wardrobe.dress(
 	character: Model,
 	race: string,
 	presetId: number,
 	job: string?,
-	look: GearLook.Look?
+	look: GearLook.Look?,
+	anime: CharacterFactory.Look?
 ): boolean
 	local preset = FacePresets.get(presetId)
 	if preset == nil or preset.race ~= race then
@@ -141,6 +149,21 @@ function Wardrobe.dress(
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid == nil or character:FindFirstChild("Head") == nil then
 		return false
+	end
+
+	local archetype = if anime ~= nil then AnimeArchetypes.forCharacter(race, job) else nil
+	if archetype then
+		local hands = CharacterFactory.weaponPlan(archetype, look)
+		local skip: { [string]: boolean } = {}
+		for _, slot in OutfitBuilder.SLOTS do
+			skip[slot] = slot ~= "Weapon" or hands
+		end
+		local folder = OutfitBuilder.build(character, race, preset, skip, job, look)
+		if folder == nil then
+			return false
+		end
+		CharacterFactory.dressInto(folder, character, archetype, look, hands, anime)
+		return true
 	end
 
 	stripCasual(character)

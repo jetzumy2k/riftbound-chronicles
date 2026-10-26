@@ -66,6 +66,7 @@ return function(S: any)
 
 		Appearance = S.struct({
 			SmoothBody = S.boolean(),
+			AnimeStyle = S.boolean(),
 		}),
 
 		Loot = S.struct({

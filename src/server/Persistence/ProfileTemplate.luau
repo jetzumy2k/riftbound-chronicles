@@ -37,6 +37,10 @@ function ProfileTemplate.new(): { [string]: any }
 		FacePreset = 1,
 		-- D-72: the adult head (Enums.HeadStyle), changeable any time.
 		HeadStyle = "Man",
+		-- D-101: the anime look's skin tone and hair colour (Complexion ids;
+		-- "Default" = the realm's), changeable any time.
+		SkinTone = "Default",
+		HairColor = "Default",
 
 		-- Progression (Phase 2)
 		Level = 0,

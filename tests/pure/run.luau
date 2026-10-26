@@ -30,6 +30,8 @@ local specs = {
 	{ "reward_claims", require("./specs/reward_claims.spec") },
 	{ "profile_view", require("./specs/profile_view.spec") },
 	{ "race_definitions", require("./specs/race_definitions.spec") },
+	{ "anime_archetypes", require("./specs/anime_archetypes.spec") },
+	{ "complexion", require("./specs/complexion.spec") },
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },
 	{ "world_budget", require("./specs/world_budget.spec") },

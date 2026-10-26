@@ -26,6 +26,8 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local Enums = require(Shared.Enums)
+local AnimeArchetypes = require(Shared.Definitions.AnimeArchetypes)
+local Complexion = require(Shared.Definitions.Complexion)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
@@ -35,6 +37,7 @@ local HudSlots = require(Shared.Layout.HudSlots)
 
 local Wardrobe = require(script.Parent.Parent.Appearance.Wardrobe)
 local BodyStyle = require(script.Parent.Parent.Appearance.BodyStyle)
+local CharacterFactory = require(script.Parent.Parent.Appearance.Anime.CharacterFactory)
 
 local AuditLogService = require(script.Parent.AuditLogService)
 local NetService = require(script.Parent.NetService)
@@ -67,7 +70,8 @@ local function applyToCharacter(player: Player, character: Model)
 		return
 	end
 	-- D-70: the smooth body first (yields), then the outfit on top of it.
-	if ConfigurationService:Get("Appearance.SmoothBody") then
+	-- Anime characters (D-100) get their own body in Redress instead.
+	if ConfigurationService:Get("Appearance.SmoothBody") and not RaceService:IsAnime(player) then
 		-- Again if the head style changed during the yield (SetHeadStyle
 		-- leaves a character whose body is still being applied to this).
 		local data = PlayerDataService:GetData(player)
@@ -87,9 +91,32 @@ local function applyToCharacter(player: Player, character: Model)
 	RaceService:Redress(player)
 end
 
+-- Whether the player's realm and job wear an anime archetype (D-100).
+function RaceService:IsAnime(player: Player): boolean
+	local data = PlayerDataService:GetData(player)
+	return data ~= nil
+		and ConfigurationService:Get("Appearance.AnimeStyle") == true
+		and AnimeArchetypes.forCharacter(data.Race, data.Job) ~= nil
+end
+
+-- The player's anime look choices (D-100 / D-101).
+function RaceService:AnimeLook(player: Player): CharacterFactory.Look
+	local data = PlayerDataService:GetData(player)
+	return {
+		variant = data and data.HeadStyle or "Man",
+		skin = data and data.SkinTone,
+		hair = data and data.HairColor,
+	}
+end
+
+local ANIME_PENDING = "RC_AnimeBodyPending"
+local ANIME_TRIED = "RC_AnimeBodyTried"
+
 --[[
 	Dresses the player's current character in their race look and what they
 	have equipped (D-65). InventoryService calls this when gear changes.
+	An anime character (D-100) first gets the anime body (yields, once per
+	character: a job chosen mid-life switches the body here too).
 ]]
 function RaceService:Redress(player: Player)
 	local character = player.Character
@@ -97,8 +124,33 @@ function RaceService:Redress(player: Player)
 	if character == nil or data == nil or data.Race == nil then
 		return
 	end
+	local anime = RaceService:IsAnime(player)
+	if anime and character:GetAttribute(ANIME_TRIED) ~= true then
+		if character:GetAttribute(ANIME_PENDING) ~= true then
+			character:SetAttribute(ANIME_PENDING, true)
+			task.spawn(function()
+				local ok, err = CharacterFactory.applyBody(character)
+				if not ok then
+					log:Warn("anime body not applied for %d: %s", player.UserId, tostring(err))
+				end
+				character:SetAttribute(ANIME_TRIED, true)
+				character:SetAttribute(ANIME_PENDING, nil)
+				if player.Character == character then
+					RaceService:Redress(player)
+				end
+			end)
+		end
+		return
+	end
 	local look = GearLook.fromEquipment(data.Equipment, data.Inventory)
-	Wardrobe.dress(character, data.Race, data.FacePreset, data.Job, look)
+	Wardrobe.dress(
+		character,
+		data.Race,
+		data.FacePreset,
+		data.Job,
+		look,
+		if anime then RaceService:AnimeLook(player) else nil
+	)
 	-- D-69: how the hands hold what's worn, for the animation (display only).
 	local main, off = look.Weapon, look.OffHand
 	character:SetAttribute(
@@ -126,16 +178,28 @@ end
 local function buildPreviews(player: Player)
 	local description: HumanoidDescription
 	local fetched, result = false, nil
-	if player.UserId > 0 then
+	-- The anime look (D-100) replaces the whole avatar: no need to fetch it.
+	local animeLook = ConfigurationService:Get("Appearance.AnimeStyle") == true
+	if player.UserId > 0 and not animeLook then
 		fetched, result = pcall(function()
 			return Players:GetHumanoidDescriptionFromUserIdAsync(player.UserId)
 		end)
 	end
 	description = if fetched and result then result else Instance.new("HumanoidDescription")
-	-- D-70: previews show the same smooth body the character will get.
-	if ConfigurationService:Get("Appearance.SmoothBody") then
-		local owner = PlayerDataService:GetData(player)
-		BodyStyle.dress(description, owner and owner.HeadStyle)
+	-- D-70: previews show the same smooth body the character will get
+	-- (D-100: or the anime body).
+	local anime = ConfigurationService:Get("Appearance.AnimeStyle") == true
+	local owner = PlayerDataService:GetData(player)
+	local headStyle = owner and owner.HeadStyle or "Man"
+	local choice: CharacterFactory.Look = {
+		variant = headStyle,
+		skin = owner and owner.SkinTone,
+		hair = owner and owner.HairColor,
+	}
+	if anime then
+		CharacterFactory.dress(description)
+	elseif ConfigurationService:Get("Appearance.SmoothBody") then
+		BodyStyle.dress(description, headStyle)
 	end
 
 	local built, rig = pcall(function()
@@ -150,7 +214,7 @@ local function buildPreviews(player: Player)
 	-- long gap). Rebuild the rig, let it settle out of sight, then use it.
 	local rigHumanoid = rig:FindFirstChildOfClass("Humanoid")
 	if rigHumanoid then
-		if ConfigurationService:Get("Appearance.SmoothBody") then
+		if ConfigurationService:Get("Appearance.SmoothBody") and not anime then
 			BodyStyle.athlete(rigHumanoid)
 		end
 		pcall(function()
@@ -181,7 +245,7 @@ local function buildPreviews(player: Player)
 				descendant.Anchored = true
 			end
 		end
-		Wardrobe.dress(model, race, FacePresets.defaultFor(race))
+		Wardrobe.dress(model, race, FacePresets.defaultFor(race), nil, nil, if anime then choice else nil)
 		model:PivotTo(CFrame.new())
 		model.Parent = folder
 	end
@@ -231,12 +295,19 @@ local function onSetHeadStyle(player: Player, style: string)
 		task.spawn(buildPreviews, player)
 		return
 	end
+	if RaceService:IsAnime(player) then
+		-- D-100: the anime head style is the hair and face; just redress.
+		RaceService:Redress(player)
+		return
+	end
 	local character = player.Character
 	if
 		character == nil
 		or restyling[player]
 		or character:GetAttribute("RC_SmoothBody") ~= true
 		or not ConfigurationService:Get("Appearance.SmoothBody")
+		-- Anime characters (D-100) have a Part-built head; no head style.
+		or RaceService:IsAnime(player)
 	then
 		-- No body yet: the spawn path applies the new style when it gets there.
 		return
@@ -258,6 +329,29 @@ local function onSetHeadStyle(player: Player, style: string)
 	end)
 end
 
+-- D-101: the anime look's skin tone / hair colour (allowlisted ids only).
+local function onSetComplexion(player: Player, kind: string, id: string)
+	local data = PlayerDataService:GetData(player)
+	if data == nil then
+		return
+	end
+	if not Complexion.isValid(kind, id) then
+		AuditLogService:Security(player, "InvalidComplexion", `{kind}={id}`)
+		return
+	end
+	local field = if kind == "Skin" then "SkinTone" else "HairColor"
+	if data[field] == id then
+		return
+	end
+	data[field] = id
+	PlayerDataService:PushSnapshot(player)
+	if data.Race == nil then
+		task.spawn(buildPreviews, player)
+	elseif RaceService:IsAnime(player) then
+		RaceService:Redress(player)
+	end
+end
+
 local function watchPlayer(player: Player)
 	player.CharacterAdded:Connect(function(character)
 		task.spawn(applyToCharacter, player, character)
@@ -275,6 +369,7 @@ function RaceService:Init()
 
 	NetService:Handle("SelectRace", onSelectRace)
 	NetService:Handle("SetHeadStyle", onSetHeadStyle)
+	NetService:Handle("SetComplexion", onSetComplexion)
 	-- D-74: where the player moved their HUD pieces (display only).
 	NetService:Handle("SetHudLayout", function(player: Player, layout: any)
 		local data = PlayerDataService:GetData(player)

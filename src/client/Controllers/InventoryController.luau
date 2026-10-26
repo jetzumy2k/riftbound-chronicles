@@ -53,6 +53,7 @@ local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
 local CharacterPreview = require(UI.CharacterPreview)
+local ComplexionPicker = require(UI.ComplexionPicker)
 local Panels = require(UI.Panels)
 local Tooltip = require(UI.Tooltip)
 local HudLayout = require(UI.HudLayout)
@@ -408,6 +409,15 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 				NetClient.fire("SetHeadStyle", style)
 			end
 		end)
+	end
+	-- Skin tone and hair colour (D-101) over the doll's feet, when there is
+	-- room for them below the face buttons.
+	if doll.preview.h >= 200 then
+		local picker = ComplexionPicker.build(stage, UDim.new(1, -8), 3, function()
+			return state() :: any
+		end, PlayerDataController.Changed)
+		picker.AnchorPoint = Vector2.new(0.5, 1)
+		picker.Position = UDim2.new(0.5, 0, 1, -20)
 	end
 	Kit.new("TextLabel", {
 		BackgroundTransparency = 1,

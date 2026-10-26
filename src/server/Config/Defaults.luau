@@ -170,8 +170,11 @@ return {
 
 	-- Equipment overhaul stage 4 (D-70): every character gets the smooth
 	-- Base Body (Appearance/BodyStyle), keeping head, face, hair and skin.
+	-- D-100: realms and jobs with an anime archetype (AnimeArchetypes) are
+	-- built from Parts in the anime style; the rest keep the classic look.
 	Appearance = {
 		SmoothBody = true,
+		AnimeStyle = true,
 	},
 
 	-- Phase 10 dungeon loot (D-06 / D-07 / D-67). Each table: the chance

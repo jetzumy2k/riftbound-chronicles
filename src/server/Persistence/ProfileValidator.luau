@@ -21,6 +21,7 @@ local Enums = require(Shared.Enums)
 local XPTable = require(Shared.Logic.XPTable)
 local BuffRules = require(Shared.Logic.BuffRules)
 local AttributeRules = require(Shared.Logic.AttributeRules)
+local Complexion = require(Shared.Definitions.Complexion)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
@@ -169,6 +170,15 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	if not Enums.has(Enums.HeadStyle, data.HeadStyle) then
 		note(`HeadStyle: invalid '{tostring(data.HeadStyle)}' -> Man`)
 		data.HeadStyle = "Man"
+	end
+	local complexionFields: { [string]: string } = { SkinTone = "Skin", HairColor = "Hair" }
+	for field, kind in complexionFields do
+		if type(data[field]) ~= "string" or not Complexion.isValid(kind, data[field]) then
+			if data[field] ~= nil then
+				note(`{field}: invalid '{tostring(data[field])}' -> Default`)
+			end
+			data[field] = Complexion.DEFAULT
+		end
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)

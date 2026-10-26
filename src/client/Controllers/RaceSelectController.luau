@@ -36,6 +36,7 @@ local Log = require(Shared.Util.Log)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local ComplexionPicker = require(UI.ComplexionPicker)
 
 local PlayerDataController = require(script.Parent.PlayerDataController)
 
@@ -584,6 +585,27 @@ local function buildPreview(parent: Instance): (Frame, (string?, number?) -> ())
 	track(frame.Destroying:Connect(function()
 		facesChanged:Disconnect()
 	end))
+
+	-- Skin tone and hair colour (D-101), above the drag hint; shown with
+	-- the preview. The server rebuilds the previews with the new colours.
+	local picker = ComplexionPicker.build(
+		frame,
+		UDim.new(0.92, 0),
+		5,
+		function()
+			return PlayerDataController:Get()
+		end,
+		PlayerDataController.Changed,
+		function()
+			return state.race
+		end
+	)
+	picker.AnchorPoint = Vector2.new(0.5, 1)
+	picker.Position = UDim2.new(0.5, 0, 1, -28)
+	track(hint:GetPropertyChangedSignal("Visible"):Connect(function()
+		picker.Visible = hint.Visible
+	end))
+	picker.Visible = hint.Visible
 
 	table.insert(layoutAppliers, function(layout)
 		placeholderMedallion.Visible = layout.showBothCards
