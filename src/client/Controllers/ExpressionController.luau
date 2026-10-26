@@ -14,8 +14,15 @@
 
 	The animated head's FaceControls are eased toward the expression, and
 	its looping mood animation is stopped on the characters we drive (it
-	would overwrite the expression). Heads without FaceControls keep their
-	face unchanged.
+	would overwrite the expression).
+
+	D-103: the Part-built anime faces (RC_Outfit parts named
+	Eye_<side>_<layer>, Mouth; Appearance/Anime/HeadBuilder) follow the same
+	expressions through FaceExpressions.animePose: the eyes squash shut
+	(their sphere meshes scale), the lash lines drop with the lid, the brows
+	lift / tilt and the mouth opens, widens and smiles, by changing the
+	parts' weld offsets and sizes on this client only. Far away (or when the
+	outfit is rebuilt) the face goes back to how it was built.
 
 	Display only; local to this client.
 ]]
@@ -37,9 +44,36 @@ local RANGE = 70
 local FRAME_HZ = 30
 local MOOD_CHECK_SECONDS = 0.5
 
+-- One moving piece of an anime face and how it was built.
+type Piece = {
+	part: BasePart,
+	weld: Weld,
+	baseC0: CFrame,
+	baseSize: Vector3,
+	mesh: SpecialMesh?,
+	layer: string,
+	sign: number,
+}
+type AnimeRig = {
+	eyes: { Piece }, -- White, Iris, IrisLight, Pupil (squash)
+	shines: { Piece }, -- Shine, Shine2 (vanish when the eye narrows)
+	lashes: { Piece }, -- Lash, Flick, Flick2 (drop with the lid)
+	brows: { Piece },
+	mouth: Piece?,
+	probe: BasePart, -- a white of the eye: gone = the outfit was rebuilt
+	up: Vector3, -- the face's "up" in the rig head's space
+	eyeHeight: number,
+}
+
+local EYE_LAYERS = { White = true, Iris = true, IrisLight = true, Pupil = true }
+local SHINE_LAYERS = { Shine = true, Shine2 = true }
+local LASH_LAYERS = { Lash = true, Flick = true, Flick2 = true }
+local SIDE_SIGN = { Right = 1, Left = -1 }
+
 type Face = {
 	character: Model,
-	controls: FaceControls,
+	controls: FaceControls?,
+	anime: AnimeRig?,
 	weights: FaceExpressions.Weights,
 	hp: number,
 	level: number,
@@ -64,6 +98,123 @@ local function forget(character: Model)
 	for _, connection in face.connections do
 		connection:Disconnect()
 	end
+	-- Anime faces go back to how they were built.
+	local rig = face.anime
+	if rig then
+		for _, group in { rig.eyes, rig.shines, rig.lashes, rig.brows } do
+			for _, piece in group do
+				if piece.part.Parent then
+					piece.weld.C0 = piece.baseC0
+					if piece.mesh then
+						piece.mesh.Scale = Vector3.one
+					end
+				end
+			end
+		end
+		local mouth = rig.mouth
+		if mouth and mouth.part.Parent then
+			mouth.weld.C0 = mouth.baseC0
+			mouth.part.Size = mouth.baseSize
+		end
+	end
+end
+
+-- The anime face pieces in the character's outfit (nil = not an anime face).
+local function scanAnime(character: Model): AnimeRig?
+	local folder = character:FindFirstChild("RC_Outfit")
+	if folder == nil then
+		return nil
+	end
+	local rig: AnimeRig = {
+		eyes = {},
+		shines = {},
+		lashes = {},
+		brows = {},
+		mouth = nil,
+		probe = nil :: any,
+		up = Vector3.yAxis,
+		eyeHeight = 0.4,
+	}
+	for _, child in folder:GetChildren() do
+		if not child:IsA("BasePart") then
+			continue
+		end
+		local weld = child:FindFirstChildOfClass("Weld")
+		if weld == nil then
+			continue
+		end
+		local side, layer = string.match(child.Name, "^Eye_(%a+)_(%a+)$")
+		if child.Name == "Mouth" then
+			side, layer = "Right", "Mouth"
+		end
+		if side == nil or layer == nil then
+			continue
+		end
+		local piece: Piece = {
+			part = child,
+			weld = weld,
+			baseC0 = weld.C0,
+			baseSize = child.Size,
+			mesh = child:FindFirstChildOfClass("SpecialMesh"),
+			layer = layer,
+			sign = (SIDE_SIGN :: any)[side] or 1,
+		}
+		if layer == "Mouth" then
+			rig.mouth = piece
+		elseif EYE_LAYERS[layer] then
+			table.insert(rig.eyes, piece)
+			if layer == "White" then
+				rig.probe = child
+				rig.up = weld.C0.UpVector
+				rig.eyeHeight = child.Size.Y
+			end
+		elseif SHINE_LAYERS[layer] then
+			table.insert(rig.shines, piece)
+		elseif LASH_LAYERS[layer] then
+			table.insert(rig.lashes, piece)
+		elseif layer == "Brow" then
+			table.insert(rig.brows, piece)
+		end
+	end
+	if (rig.probe :: BasePart?) == nil then
+		return nil
+	end
+	return rig
+end
+
+-- Poses the anime face pieces for the current weights.
+local function applyAnime(rig: AnimeRig, weights: FaceExpressions.Weights)
+	local pose = FaceExpressions.animePose(weights)
+	local up, h = rig.up, rig.eyeHeight
+	for _, piece in rig.eyes do
+		if piece.mesh then
+			piece.mesh.Scale = Vector3.new(1, pose.eye, 1)
+		end
+	end
+	local shine = if pose.eye > 0.45 then 1 else 0
+	for _, piece in rig.shines do
+		if piece.mesh then
+			piece.mesh.Scale = Vector3.new(shine, shine, 1)
+		end
+	end
+	-- The lash line follows the lid down; shut, it is the closed eye.
+	local drop = CFrame.new(up * -(1 - pose.eye) * h * 0.45)
+	for _, piece in rig.lashes do
+		piece.weld.C0 = drop * piece.baseC0
+	end
+	local lift = CFrame.new(up * pose.browLift * h)
+	for _, piece in rig.brows do
+		piece.weld.C0 = lift * piece.baseC0 * CFrame.Angles(0, 0, math.rad(piece.sign * pose.browTilt))
+	end
+	local mouth = rig.mouth
+	if mouth then
+		local base = mouth.baseSize
+		local height = base.Y * pose.mouthOpen
+		mouth.part.Size = Vector3.new(base.X * pose.mouthWide, height, base.Z)
+		-- Opens downward from the lip line; a smile lifts it.
+		local mouthUp = mouth.baseC0.UpVector
+		mouth.weld.C0 = CFrame.new(mouthUp * (pose.mouthLift * h - (height - base.Y) / 2)) * mouth.baseC0
+	end
 end
 
 local function numberAttribute(character: Model, name: string): number
@@ -76,14 +227,17 @@ local function track(character: Model): Face?
 	if head == nil or not head:IsA("BasePart") then
 		return nil
 	end
-	local controls = head:FindFirstChildOfClass("FaceControls")
-	if controls == nil then
+	-- An anime face wins over the hidden rig head's FaceControls.
+	local anime = scanAnime(character)
+	local controls = if anime then nil else head:FindFirstChildOfClass("FaceControls")
+	if controls == nil and anime == nil then
 		return nil
 	end
 	local now = os.clock()
 	local face: Face = {
 		character = character,
 		controls = controls,
+		anime = anime,
 		weights = {},
 		hp = numberAttribute(character, "HP"),
 		level = numberAttribute(character, "Level"),
@@ -146,6 +300,10 @@ end
 
 local function applyControls(face: Face, name: string, dt: number, blink: number)
 	FaceExpressions.step(face.weights, name, dt, blink)
+	if face.anime then
+		applyAnime(face.anime, face.weights)
+		return
+	end
 	local controls = face.controls :: any
 	for control, value in face.weights do
 		pcall(function()
@@ -156,8 +314,20 @@ end
 
 local function update(face: Face, now: number, dt: number)
 	local character = face.character
+	local rig = face.anime
+	if rig and rig.probe.Parent == nil then
+		-- The outfit was rebuilt (new gear, colours): find the new face.
+		forget(character)
+		return
+	end
 	if now >= face.nextMoodCheck then
 		face.nextMoodCheck = now + MOOD_CHECK_SECONDS
+		if rig == nil and scanAnime(character) ~= nil then
+			-- The anime face arrived after the character spawned (the outfit
+			-- is drawn a moment later): drive it instead of the hidden head.
+			forget(character)
+			return
+		end
 		stopMood(character)
 	end
 	local acting = AnimationController.isAttacking(character)

@@ -78,5 +78,27 @@ return function(t)
 			t.ok(FaceExpressions.rateFor("Pain") > FaceExpressions.rateFor("Focused"))
 			t.ok(FaceExpressions.rateFor("Defeated") > FaceExpressions.rateFor("Happy"))
 		end)
+
+		t.it("anime faces (D-103): every expression reads clearly on the Part-built face", function()
+			local function pose(name)
+				return FaceExpressions.animePose(FaceExpressions.EXPRESSIONS[name])
+			end
+			local neutral = pose("Neutral")
+			t.eq(neutral.eye, 1)
+			t.eq(neutral.mouthOpen, 1)
+			t.eq(neutral.browTilt, 0)
+			t.ok(pose("Defeated").eye <= 0.1, "fainted: eyes shut")
+			t.ok(pose("Pain").eye < 0.5 and pose("Pain").mouthOpen > 2, "pain: squint and open mouth")
+			t.ok(pose("Pain").browTilt < 0, "pain: worried brows")
+			t.ok(pose("Effort").browTilt > 10 and pose("Effort").mouthOpen > 2, "effort: angry brows, shout")
+			t.ok(pose("Happy").mouthLift > 0 and pose("Happy").mouthWide > 1, "happy: smile")
+			t.ok(pose("Focused").browTilt > 0 and pose("Focused").eye < 1, "focused: brows down")
+			-- A blink shuts the eyes whatever the expression.
+			local w = FaceExpressions.step({}, "Neutral", 1, 1)
+			t.ok(FaceExpressions.animePose(w).eye <= 0.05)
+			-- Never out of range, even for wild weights.
+			local wild = FaceExpressions.animePose({ JawDrop = 5, LeftEyeClosed = -3, LeftLipStretcher = 9 })
+			t.ok(wild.mouthOpen <= 6 and wild.eye <= 1 and wild.mouthWide <= 1.8)
+		end)
 	end)
 end

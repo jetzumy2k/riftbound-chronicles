@@ -127,3 +127,23 @@ link to them pulse; nodes grow on hover / selection; learning bursts with a
 chime; the panel springs open; the detail pane has chips (ULTIMATE /
 REGULAR, Physical / Magic / Healing / Protection / Support, cooldown,
 Focus, range, EXTENDER).
+
+**Faces + stages B/C first pass, 2026-10-26, awaiting test** (creator: "facial
+expression animation is lacking, and the animation effect of the skills and
+combo"):
+- **Anime faces move:** `FaceExpressions.animePose` (tested) turns the
+  existing expression weights (Pain, Effort, Happy, Focused, Defeated,
+  blinking) into a pose of the Part-built face; `ExpressionController`
+  squashes the eye meshes, drops the lash lines, lifts / tilts the brows and
+  opens / widens the mouth through the parts' weld offsets and sizes, on
+  each client only; far faces go back to neutral.
+- **Weapon trails** (`Effects/WeaponTrail`): a glow streak on the weapon
+  hand for melee swings and weapon skills (none for bows).
+- **Ultimate cinematic** (`Effects/UltimateFx`): rune circle, light pillar
+  and flash for everyone; for the caster a name banner in the class colour,
+  edge flash, camera zoom-punch and shake (under 1.3 s).
+- **Combo counter** (`UI/ComboCounter`, `Logic/HitStreak` tested):
+  "12 HITS · GREAT" with a pop per hit, tiers COMBO / GREAT / AMAZING /
+  LEGENDARY, fades 2.5 s after the last hit.
+- **Class hit feel:** hit-stop and shake scale per class (Warrior 1.35,
+  Mage 1.1, Healer 0.85, Archer 0.7); golden starburst on crits.

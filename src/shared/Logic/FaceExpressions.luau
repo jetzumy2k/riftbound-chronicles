@@ -150,6 +150,52 @@ function FaceExpressions.step(current: Weights, name: string, dt: number, blink:
 	return current
 end
 
+--[[
+	D-103: the Part-built anime faces (Appearance/Anime/HeadBuilder) have no
+	FaceControls, so the same weights are turned into a pose of their parts:
+	  eye        how open the eyes are (1 = as built, 0.05 = shut)
+	  browLift   brows up (+) / down (-), in eye heights
+	  browTilt   extra brow angle in degrees (+ = inner ends down, angry;
+	             - = inner ends up, worried)
+	  mouthOpen  mouth height multiplier (1 = the built line)
+	  mouthWide  mouth width multiplier
+	  mouthLift  mouth up (+, smile) / down (-), in eye heights
+	The anime style exaggerates: a wince squeezes the eyes, a shout opens
+	the mouth wide.
+]]
+export type AnimePose = {
+	eye: number,
+	browLift: number,
+	browTilt: number,
+	mouthOpen: number,
+	mouthWide: number,
+	mouthLift: number,
+}
+
+function FaceExpressions.animePose(w: Weights): AnimePose
+	local function get(name: string): number
+		return math.clamp(w[name] or 0, 0, 1)
+	end
+	local closed = math.max(get("LeftEyeClosed"), get("RightEyeClosed"))
+	local tight = get("LeftLidTightener")
+	local cheek = get("LeftCheekRaiser")
+	local lower = get("LeftBrowLowerer")
+	local inner = get("LeftInnerBrowRaiser")
+	local smile = get("LeftLipCornerPuller")
+	local frown = get("LeftLipCornerDown")
+	local stretch = get("LeftLipStretcher")
+	local jaw = get("JawDrop")
+	local together = get("LipsTogether")
+	return {
+		eye = math.clamp(1 - closed - tight * 0.6 - cheek * 0.45, 0.05, 1),
+		browLift = inner * 0.4 - lower * 0.3,
+		browTilt = lower * 26 - inner * 36,
+		mouthOpen = math.clamp(1 + jaw * 26 + stretch * 3, 1, 6),
+		mouthWide = math.clamp(1 + stretch * 0.6 + smile * 0.6 - together * 0.3, 0.6, 1.8),
+		mouthLift = (smile - frown) * 0.12,
+	}
+end
+
 -- Eye closure (0..1) `t` seconds into a blink: closes, then opens.
 function FaceExpressions.blinkAt(t: number): number
 	local length = FaceExpressions.BLINK_SECONDS

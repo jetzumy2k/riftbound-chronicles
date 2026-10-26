@@ -34,6 +34,9 @@ local MobVisualController = require(script.Parent.MobVisualController)
 local CharacterMotionController = require(script.Parent.CharacterMotionController)
 local CombatVfx = require(script.Parent.Parent.Effects.CombatVfx)
 local CameraShake = require(script.Parent.Parent.Effects.CameraShake)
+local WeaponTrail = require(script.Parent.Parent.Effects.WeaponTrail)
+local UltimateFx = require(script.Parent.Parent.Effects.UltimateFx)
+local ComboCounter = require(script.Parent.Parent.UI.ComboCounter)
 local TelegraphVfx = require(script.Parent.Parent.Effects.TelegraphVfx)
 local SkillVfx = require(script.Parent.Parent.Effects.SkillVfx)
 local SkillBarController = require(script.Parent.SkillBarController)
@@ -207,6 +210,16 @@ local onExtend: (model: Model, info: any) -> ()
 local HIT_STOP_SECONDS = 0.055
 local HEAVY_HIT_STOP_SECONDS = 0.1
 
+-- D-103: each class hits differently (hit-stop and camera shake scale):
+-- Warrior heavy, Archer quick, Mage bursts, Healer soft.
+local HIT_FEEL: { [string]: number } = { Warrior = 1.35, Archer = 0.7, Mage = 1.1, Healer = 0.85 }
+
+local function feelOf(model: Model?): number
+	local player = model and Players:GetPlayerFromCharacter(model)
+	local job = player and player:GetAttribute("Job")
+	return if type(job) == "string" then HIT_FEEL[job] or 1 else 1
+end
+
 -- Combo step: animation, aim, wind-up effects, then the effect on its Hit frame.
 local function onAttack(model: Model, action: any, aim: any)
 	if type(action) ~= "string" then
@@ -239,6 +252,9 @@ local function onAttack(model: Model, action: any, aim: any)
 	end
 	if step.vfx == "PowerArrow" then
 		CombatVfx.chargeGlow(model, "Right", delay)
+	end
+	if attack.style == "Melee" or step.heavy then
+		WeaponTrail.swing(model, delay + 0.25)
 	end
 	task.delay(delay, function()
 		if model.Parent then
@@ -306,6 +322,13 @@ local function onSkill(model: Model, payload: any)
 	local clipHit = math.max(0, SkillDefinitions.hitTime(skill) - (skill.delay or 0) - elapsed)
 	local landIn = clipHit + (skill.delay or 0)
 	SkillVfx.cast(fx, model, clipHit + 0.15)
+	if fx.cast == "Weapon" or skill.melee then
+		WeaponTrail.swing(model, clipHit + 0.3 + ((skill.waves or 1) - 1) * (skill.waveGap or 0))
+	end
+	if skill.type == "Special" then
+		-- D-103: the ultimate's cinematic moment.
+		UltimateFx.play(model, skill, clipHit)
+	end
 
 	local waves = skill.waves or 1
 	local gap = skill.waveGap or 0
@@ -411,6 +434,13 @@ local function onDamage(model: Model, payload: any)
 	end
 	showNumber(model, payload.amount or 0, crit, false)
 	hitFlash(model)
+	if crit then
+		-- D-103: a golden starburst on critical hits.
+		local root = model:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") then
+			SkillVfx.particles(root.Position, Theme.Colors.GoldBright)
+		end
+	end
 	-- React, unless the target is mid-attack (never cancel its swing).
 	if MobVisualController.isCreature(model) then
 		MobVisualController.hit(model)
@@ -421,7 +451,8 @@ local function onDamage(model: Model, payload: any)
 	local source: Model? = if typeof(payload.source) == "Instance" and payload.source:IsA("Model")
 		then payload.source
 		else nil
-	local stop = if heavy or crit then HEAVY_HIT_STOP_SECONDS else HIT_STOP_SECONDS
+	local feel = feelOf(source)
+	local stop = (if heavy or crit then HEAVY_HIT_STOP_SECONDS else HIT_STOP_SECONDS) * feel
 	if source then
 		AnimationController.hitStop(source, stop)
 	end
@@ -429,7 +460,8 @@ local function onDamage(model: Model, payload: any)
 
 	local me = (Players.LocalPlayer :: Player).Character
 	if me and source == me then
-		CameraShake.add(if heavy then 0.45 elseif crit then 0.32 else 0.18)
+		ComboCounter.hit()
+		CameraShake.add((if heavy then 0.45 elseif crit then 0.32 else 0.18) * feel)
 	elseif me and model == me then
 		CameraShake.add(if heavy then 0.55 else 0.3)
 	end
@@ -486,6 +518,7 @@ end
 
 function CombatFeedbackController:Init()
 	NetClient.on("CombatEvent", onEvent)
+	ComboCounter.start()
 end
 
 return CombatFeedbackController
