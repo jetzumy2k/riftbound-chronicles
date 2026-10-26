@@ -147,3 +147,13 @@ combo"):
   LEGENDARY, fades 2.5 s after the last hit.
 - **Class hit feel:** hit-stop and shake scale per class (Warrior 1.35,
   Mage 1.1, Healer 0.85, Archer 0.7); golden starburst on crits.
+
+**Skill animations + combo hits, 2026-10-26, awaiting test:** 12 new
+data-authored clips (no external assets), 3 per class: Warrior Charge /
+Overhead / Cross, Archer Rapid / LeapShot / Charge (kneeling), Mage Thrust /
+Summon / Twirl, Healer Smite / Bless / Ascend; 41 skills moved onto them so a
+class's skills no longer share 5-8 motions (each clip's Hit marker also sets
+when the server lands that skill). Basic combo hits spark in the attacker's
+colour and the finisher lands with a shockwave and flash. Like every clip,
+the new ones play in Studio from data and must be published once before
+release (AnimationAssets, docs/ASSET_GUIDE.md).

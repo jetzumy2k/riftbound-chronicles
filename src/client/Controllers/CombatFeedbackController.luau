@@ -434,6 +434,21 @@ local function onDamage(model: Model, payload: any)
 	end
 	showNumber(model, payload.amount or 0, crit, false)
 	hitFlash(model)
+	local hitSource: Model? = if typeof(payload.source) == "Instance" and payload.source:IsA("Model")
+		then payload.source
+		else nil
+	local hitRoot = model:FindFirstChild("HumanoidRootPart")
+	if skill == nil and hitRoot and hitRoot:IsA("BasePart") then
+		-- D-103: basic combo hits spark in the attacker's colour; the
+		-- finisher (heavy) lands with a shockwave and a flash.
+		local color = if hitSource then CombatVfx.glowColor(hitSource) else Theme.Colors.GoldBright
+		if heavy then
+			SkillVfx.shockwave(SkillVfx.groundAt(hitRoot.Position), 7, color, 0.4)
+			SkillVfx.flash(hitRoot.Position, color, 6, 0.25)
+		else
+			SkillVfx.particles(hitRoot.Position, color, { count = 8, size = 0.5 })
+		end
+	end
 	if crit then
 		-- D-103: a golden starburst on critical hits.
 		local root = model:FindFirstChild("HumanoidRootPart")

@@ -147,6 +147,10 @@ local filter = "All"
 local confirm: string? = nil
 local confirmUntil = 0
 local gridScroll = Vector2.zero
+-- The detail and the filter bar keep their scroll across re-renders: a
+-- first Salvage tap re-renders, and "Tap again" must stay in view.
+local detailScroll = Vector2.zero
+local filterScroll = Vector2.zero
 local renderToken = 0
 -- The last enhancement result, shown in the detail for a few seconds.
 local lastEnhance: { guid: string, success: boolean, level: number, at: number }? = nil
@@ -186,6 +190,17 @@ end
 
 local function confirming(key: string): boolean
 	return confirm == key and os.clock() < confirmUntil
+end
+
+-- Puts a rebuilt scroller back where it was once its content is measured.
+local function restoreScroll(frame: ScrollingFrame, position: Vector2)
+	frame.CanvasPosition = position
+	local connection = frame:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(function()
+		frame.CanvasPosition = position
+	end)
+	task.delay(0.25, function()
+		connection:Disconnect()
+	end)
 end
 
 local function askConfirm(key: string)
@@ -359,6 +374,7 @@ end
 local function choose(guid: string?)
 	selected = guid
 	confirm = nil
+	detailScroll = Vector2.zero
 	render()
 end
 
@@ -618,8 +634,8 @@ local function drawFilters(parent: ScrollingFrame)
 	end
 	local candidates = bulkCandidates()
 	local bulk = button(
-		if confirming("bulk") then `Tap again: salvage {#candidates}` else "Salvage S + U",
-		128,
+		if confirming("bulk") then `Tap again: salvage {#candidates}` else `Salvage S + U ({#candidates})`,
+		150,
 		if confirming("bulk") then Color3.fromRGB(255, 140, 110) else nil
 	)
 	bulk.LayoutOrder = 10
@@ -957,6 +973,14 @@ function render()
 		if oldGrid and oldGrid:IsA("ScrollingFrame") then
 			gridScroll = oldGrid.CanvasPosition
 		end
+		local oldDetail = panel:FindFirstChild("Detail", true)
+		if oldDetail and oldDetail:IsA("ScrollingFrame") then
+			detailScroll = oldDetail.CanvasPosition
+		end
+		local oldFilters = panel:FindFirstChild("Filters", true)
+		if oldFilters and oldFilters:IsA("ScrollingFrame") then
+			filterScroll = oldFilters.CanvasPosition
+		end
 		-- The 3D preview is kept across re-renders.
 		CharacterPreview.detach()
 		panel:Destroy()
@@ -1047,6 +1071,7 @@ function render()
 	local filtersRect = layout.filters
 	local function filterBar(parent: Instance): ScrollingFrame
 		local bar = Kit.new("ScrollingFrame", {
+			Name = "Filters",
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(filtersRect.x, filtersRect.y),
 			Size = UDim2.fromOffset(filtersRect.w, filtersRect.h),
@@ -1057,6 +1082,7 @@ function render()
 			Parent = parent,
 		})
 		drawFilters(bar)
+		restoreScroll(bar, filterScroll)
 		return bar
 	end
 
@@ -1083,6 +1109,7 @@ function render()
 		Kit.corner(detail, 12)
 		Kit.padding(detail, 10, 12)
 		drawDetail(detail)
+		restoreScroll(detail, detailScroll)
 		return
 	end
 
@@ -1132,6 +1159,7 @@ function render()
 			h = layout.detail.h - 16,
 		}, sheet)
 		drawDetail(content)
+		restoreScroll(content, detailScroll)
 	end
 
 	-- Potion cooldowns count down while the screen is open.

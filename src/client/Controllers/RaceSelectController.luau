@@ -442,6 +442,13 @@ local function buildPreview(parent: Instance): (Frame, (string?, number?) -> ())
 		if preset == nil then
 			return
 		end
+		-- D-101: the anime look (an outfit with an archetype) takes its colours
+		-- from the archetype and the chosen skin tone / hair colour, which the
+		-- server already painted; the face preset's palette would undo them.
+		local outfit = model:FindFirstChild("RC_Outfit")
+		if outfit and outfit:GetAttribute("RC_Archetype") ~= nil then
+			return
+		end
 		for _, part in model:GetDescendants() do
 			if part:IsA("BasePart") then
 				local role = part:GetAttribute("RC_Role")
