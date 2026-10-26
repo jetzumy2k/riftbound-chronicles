@@ -116,7 +116,7 @@ With a Scroll of Insight (+50%): 12.5 h; with Double EXP: 9.4 h; both (2.5x): 7.
 ## 6. Enhancement and drops
 
 Expected Enhancement Stones per level (rates 100/100/100/100/100/90/80/70/60/50%): +1: 1.0, +2: 1.0, +3: 1.0, +4: 1.0, +5: 1.0, +6: 1.1, +7: 1.2, +8: 1.4, +9: 1.7, +10: 2.0.
-Expected stones from +0 to +10: **12.5** per item (failures never downgrade, D-08). In MP at 27 MP each (x10 pack): 336 MP per item.
+Expected stones from +0 to +10: **12.5** per item (failures never downgrade, D-08). Enhancement Stones come only from play; the Mall sells only Perfect Stones (D-99): a guaranteed +10 costs 10 Perfect Stones, 1,400 MP in x5 packs.
 
 Dungeon drop chance: regular 12% (Rare 30% of drops), elite 35%; bosses always drop (Legendary 20%).
 War-zone creatures: 25% chance of a stone (Perfect 30%).

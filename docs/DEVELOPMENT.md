@@ -255,7 +255,7 @@ Studio > Test > Device emulator. Start an event (e.g. Double EXP) and use a buff
 3. Buy a Scroll of Insight: first tap shows "Confirm 60 MP?", second buys; MP go down, the scroll is in the bag. Use it: "Scroll of Insight is active", a 📜 60m chip appears under the event chip; creature EXP is 1.5x (2.5x with Double EXP running, never above 3x).
 4. Draught of Might / Iron / Vigor / Clarity: damage, Defense, Max HP (HP bar), max Focus rise for 30 minutes and go back when they run out (chip disappears).
 5. Scroll of Rebirth with attribute points spent: all points come back at once (even right after a free reset).
-6. Stones tab: buy Enhancement / Perfect Stones; they appear in the bag.
+6. Stones tab: buy Perfect Stones (the only stones sold since D-99); they appear in the bag.
 7. Sets tab: each set lists every piece with its fixed attributes; buy one with a nearly full bag: refused ("not enough room"); with room: every piece arrives with exactly the listed attributes.
 8. Points tab: packs show "Not on sale yet" until product ids are set. After the creator sets them: a Studio test purchase adds the points once (re-test a purchase: no double points).
 9. Not enough MP: Buy is refused with "Not enough Mall Points".

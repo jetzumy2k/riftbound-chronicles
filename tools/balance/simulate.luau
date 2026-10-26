@@ -338,7 +338,7 @@ for i, rate in rates do
 	table.insert(cells, `+{i}: {f1(expected)}`)
 end
 p(`Expected Enhancement Stones per level (rates {table.concat(rates, "/")}%): {table.concat(cells, ", ")}.`)
-p(`Expected stones from +0 to +10: **{f1(stones)}** per item (failures never downgrade, D-08). In MP at 27 MP each (x10 pack): {f0(stones * 27)} MP per item.`)
+p(`Expected stones from +0 to +10: **{f1(stones)}** per item (failures never downgrade, D-08). Enhancement Stones come only from play; the Mall sells only Perfect Stones (D-99): a guaranteed +10 costs 10 Perfect Stones, 1,400 MP in x5 packs.`)
 p()
 local mob = Defaults.Loot.Tables.DungeonMob
 local elite = Defaults.Loot.Tables.DungeonElite

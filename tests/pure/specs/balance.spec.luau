@@ -53,6 +53,15 @@ return function(t)
 			t.eq(MallDefinitions.get("MythicalSet"), nil)
 		end)
 
+		t.it("the Mall sells only Perfect Stones (D-99: no Robux into a chance-based upgrade)", function()
+			for _, entry in MallDefinitions.CATALOG do
+				if entry.grant.kind == "Stackable" then
+					t.ok(entry.grant.id ~= "EnhancementStone", `{entry.id} sells plain Enhancement Stones`)
+				end
+			end
+			t.ok(MallDefinitions.get("Perfect1") ~= nil, "Perfect Stones still sold")
+		end)
+
 		t.it("bosses are sized for a normally geared player", function()
 			t.near(BossBalance.GEAR_FACTOR, 1.15, 1e-9)
 		end)

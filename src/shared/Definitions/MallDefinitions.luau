@@ -12,9 +12,10 @@
 	Legendary set is sold (D-95: a Mythical set gave a 3.8x PvP edge over
 	normal drop gear; Mythical stays a PvP-boss / endgame reward). Gear sets have
 	fixed attributes shown before buying (ItemRules.fixedRoll; creator
-	decision 2026-10-25), so they are not paid random items. Enhancement
-	Stones are sold as stones: the enhancement rates they are used with are
-	shown to players (D-08) and a Perfect Stone always succeeds. A human
+	decision 2026-10-25), so they are not paid random items. Only Perfect
+	Stones are sold (creator decision 2026-10-26, D-99): they
+	always succeed, so no Robux purchase feeds a chance-based upgrade; plain
+	Enhancement Stones come only from play. A human
 	must review Roblox's monetization rules before publishing (PLAN.md
 	D-93).
 ]]
@@ -56,7 +57,9 @@ MallDefinitions.TAB_NAMES = table.freeze({
 -- Section order inside each tab.
 MallDefinitions.SECTIONS = table.freeze({
 	Buffs = table.freeze({ "Boosts", "Combat draughts", "Utility" }),
-	Stones = table.freeze({ "Enhancement Stones", "Perfect Stones" }),
+	-- D-99: only Perfect Stones (always succeed) are sold, so nothing bought
+	-- with Robux feeds a chance-based upgrade.
+	Stones = table.freeze({ "Perfect Stones" }),
 	Sets = table.freeze({ "Complete sets" }),
 })
 
@@ -166,28 +169,6 @@ local CATALOG: { Entry } = {
 		description = "Ten potions that each restore 30% of your health.",
 	},
 	-- Stones.
-	{
-		id = "Stone1",
-		short = "Enhance gear by +1",
-		section = "Enhancement Stones",
-		name = "Enhancement Stone",
-		icon = "💎",
-		tab = "Stones",
-		price = 30,
-		grant = stack("EnhancementStone", 1),
-		description = "Raises a weapon or gear piece by +1 (success rates shown when enhancing).",
-	},
-	{
-		id = "Stone10",
-		short = "10 stones · 10% off",
-		section = "Enhancement Stones",
-		name = "Enhancement Stones x10",
-		icon = "💎",
-		tab = "Stones",
-		price = 270,
-		grant = stack("EnhancementStone", 10),
-		description = "Ten Enhancement Stones (10% off).",
-	},
 	{
 		id = "Perfect1",
 		short = "+1 that always succeeds",
