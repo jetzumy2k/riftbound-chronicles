@@ -47,16 +47,20 @@ MallDefinitions.PACKS = table.freeze({
 	table.freeze({ id = "MP2600", points = 2000, bonusPct = 30, robux = 1600, productId = 0 }),
 }) :: { Pack }
 
-MallDefinitions.TABS = table.freeze({ "Buffs", "Stones", "Sets", "Points" })
+-- D-116: scrolls, the rune and potions got their own tab (creator: the
+-- rune was hard to find under Buffs).
+MallDefinitions.TABS = table.freeze({ "Buffs", "Utility", "Stones", "Sets", "Points" })
 MallDefinitions.TAB_NAMES = table.freeze({
 	Buffs = "🧪 Buffs",
+	Utility = "📜 Scrolls & potions",
 	Stones = "💎 Stones",
 	Sets = "🔶 Gear sets",
 	Points = "💠 Get Mall Points",
 })
 -- Section order inside each tab.
 MallDefinitions.SECTIONS = table.freeze({
-	Buffs = table.freeze({ "Boosts", "Combat draughts", "Utility" }),
+	Buffs = table.freeze({ "Boosts", "Combat draughts" }),
+	Utility = table.freeze({ "Scrolls & runes", "Potions" }),
 	-- D-99: only Perfect Stones (always succeed) are sold, so nothing bought
 	-- with Robux feeds a chance-based upgrade.
 	Stones = table.freeze({ "Perfect Stones" }),
@@ -149,10 +153,10 @@ local CATALOG: { Entry } = {
 	{
 		id = "Rebirth",
 		short = "Get all attribute points back",
-		section = "Utility",
+		section = "Scrolls & runes",
 		name = "Scroll of Rebirth",
 		icon = "🔄",
-		tab = "Buffs",
+		tab = "Utility",
 		price = 100,
 		grant = stack("RebirthScroll", 1),
 		description = "Returns all your attribute points at once, even inside the 24-hour wait or when the free reset is off.",
@@ -160,21 +164,32 @@ local CATALOG: { Entry } = {
 	{
 		id = "Relearn",
 		short = "Get all skill points back",
-		section = "Utility",
+		section = "Scrolls & runes",
 		name = "Scroll of Relearning",
 		icon = "📜",
-		tab = "Buffs",
+		tab = "Utility",
 		price = 100,
 		grant = stack("RelearnScroll", 1),
 		description = "Returns every skill point (passives too) anywhere out of combat, even when the free reset is off.",
 	},
 	{
+		id = "RaceRune",
+		short = "Move to the other realm",
+		section = "Scrolls & runes",
+		name = "Race Conversion Rune",
+		icon = "🔮",
+		tab = "Utility",
+		price = 1500,
+		grant = stack("RaceRune", 1),
+		description = "Converts every character to the other realm after a rejoin. Levels, gear, weapons, bag and Gold are kept.",
+	},
+	{
 		id = "Potions10",
 		short = "10 potions · heal 30% each",
-		section = "Utility",
+		section = "Potions",
 		name = "Healing Potions x10",
 		icon = "🧪",
-		tab = "Buffs",
+		tab = "Utility",
 		price = 30,
 		grant = stack("HealingPotion", 10),
 		description = "Ten potions that each restore 30% of your health.",
@@ -183,10 +198,10 @@ local CATALOG: { Entry } = {
 	{
 		id = "GreaterPotions10",
 		short = "10 potions · heal 50% each",
-		section = "Utility",
+		section = "Potions",
 		name = "Greater Healing Potions x10",
 		icon = "🧪",
-		tab = "Buffs",
+		tab = "Utility",
 		price = 60,
 		grant = stack("GreaterHealingPotion", 10),
 		description = "Ten potions that each restore 50% of your health.",
@@ -194,10 +209,10 @@ local CATALOG: { Entry } = {
 	{
 		id = "MajorPotions10",
 		short = "10 potions · heal 75% each",
-		section = "Utility",
+		section = "Potions",
 		name = "Major Healing Potions x10",
 		icon = "🧪",
-		tab = "Buffs",
+		tab = "Utility",
 		price = 100,
 		grant = stack("MajorHealingPotion", 10),
 		description = "Ten potions that each restore 75% of your health.",
@@ -205,10 +220,10 @@ local CATALOG: { Entry } = {
 	{
 		id = "SupremePotions10",
 		short = "10 potions · heal 90% each",
-		section = "Utility",
+		section = "Potions",
 		name = "Supreme Healing Potions x10",
 		icon = "🧪",
-		tab = "Buffs",
+		tab = "Utility",
 		price = 160,
 		grant = stack("SupremeHealingPotion", 10),
 		description = "Ten potions that each restore 90% of your health.",

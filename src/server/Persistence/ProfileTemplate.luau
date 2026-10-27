@@ -26,6 +26,8 @@ ProfileTemplate.OPTIONAL_KEYS = table.freeze({
 	EquippedTitle = "string",
 	-- D-115: the slot to switch to on the next load.
 	PendingSlot = "number",
+	-- D-116: the realm the account converts to on the next load.
+	PendingRace = "string",
 })
 
 -- Whitelisted lifetime counter keys (DATA_MODEL.md §2). Later phases add keys.

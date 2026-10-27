@@ -430,6 +430,16 @@ local stackables: { [string]: StackableDef } = {
 		maxStack = 99,
 		use = { kind = "SkillReset", cooldown = 2 },
 	},
+	-- D-116: moves the whole account to the other realm (CharacterService).
+	RaceRune = {
+		id = "RaceRune",
+		name = "Race Conversion Rune",
+		short = "Move to the other realm",
+		description = "Converts the account and all its characters to the other realm after a rejoin. Levels, gear, weapons, bag, Gold and quests are kept; gear takes the new realm's look.",
+		glyph = "🔮",
+		maxStack = 5,
+		use = { kind = "RaceChange", cooldown = 5 },
+	},
 }
 
 local stackableIds = {}
@@ -456,6 +466,7 @@ ItemDefinitions.STACKABLE_ORDER = table.freeze({
 	"Buff_Clarity",
 	"RebirthScroll",
 	"RelearnScroll",
+	"RaceRune",
 	"EnhancementStone",
 	"PerfectStone",
 	"StoneFragment",

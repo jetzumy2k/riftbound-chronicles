@@ -222,6 +222,7 @@ return {
 			Clarity = 40,
 			Rebirth = 100,
 			Relearn = 100,
+			RaceRune = 1500,
 			Potions10 = 30,
 			GreaterPotions10 = 60,
 			MajorPotions10 = 100,

@@ -507,6 +507,10 @@ local function onUseConsumable(player: Player, id: string)
 		own[id] = t + use.cooldown
 		push(player, data, nil, nil)
 		return
+	elseif use.kind == "RaceChange" then
+		-- D-116: needs the confirmation screen (ConvertRace); the bag opens it.
+		notify(player, "Info", "race.useScreen")
+		return
 	elseif use.kind == "SkillReset" then
 		-- D-105: Scroll of Relearning (SkillService checks combat).
 		if not SkillService:ResetWithScroll(player, false) then

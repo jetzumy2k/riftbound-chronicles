@@ -221,6 +221,26 @@ function CharacterSlots.applyPending(data: Data): boolean
 end
 
 --[[
+	D-116: converts the account to `race` (Race Conversion Rune): the realm
+	changes and every character's face preset becomes the new realm's
+	default (presets belong to a realm). Gear, weapons and items are
+	realm-free ids (ItemDefinitions), so they carry over unchanged and draw
+	in the new realm's look. Returns true if anything changed.
+]]
+function CharacterSlots.convertRace(data: Data, race: string): boolean
+	if data.Race == nil or data.Race == race then
+		return false
+	end
+	data.Race = race
+	local face = FacePresets.defaultFor(race)
+	data.FacePreset = face
+	for _, blob in (if type(data.Characters) == "table" then data.Characters else {}) :: Data do
+		blob.FacePreset = face
+	end
+	return true
+end
+
+--[[
 	Deletes the character in `slot`. Returns (ok, reason, rejoin):
 	  - another slot: removed at once (no rejoin);
 	  - the played one: cleared, and the player rejoins on another character

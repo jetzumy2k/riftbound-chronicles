@@ -384,6 +384,16 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 		},
 
+		-- D-116: use a Race Conversion Rune: the realm to move to and the
+		-- typed confirmation (the server checks the rune, combat and realm).
+		ConvertRace = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = { S.enum(Enums.Race), S.string(10) },
+			rate = { capacity = 3, refillPerSecond = 0.2 },
+			states = { "ProfileLoaded" },
+		},
+
 		-- Admin / moderator panel (Phase 17, D-77, SECURITY_MODEL §6, T-19 /
 		-- T-20). Each remote names a permission that NetService checks
 		-- server-side (from Roles) before the handler runs; handlers check

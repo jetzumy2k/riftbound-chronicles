@@ -273,6 +273,9 @@ return function(t)
 				-- D-115: the player's own character slots (server validates the slot,
 				-- combat state and the typed delete confirmation).
 				CharacterSlots = true,
+				-- D-116: Race Conversion Rune (rune, combat, realm and the
+				-- typed confirmation checked on the server).
+				ConvertRace = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

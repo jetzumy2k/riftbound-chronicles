@@ -141,6 +141,8 @@ local InventoryController = {
 	OpenMall = nil :: (() -> ())?,
 	-- D-115: opens the character screen (set by CharacterSlotController).
 	OpenCharacters = nil :: (() -> ())?,
+	-- D-116: opens the Race Conversion Rune screen (CharacterSlotController).
+	OpenRaceRune = nil :: (() -> ())?,
 }
 
 local gui: ScreenGui
@@ -590,6 +592,11 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 				if wait <= 0 and have > 0 then Theme.Colors.Gold else nil
 			);
 			(action :: TextButton).Activated:Connect(function()
+				local openRune = InventoryController.OpenRaceRune
+				if def.use and def.use.kind == "RaceChange" and openRune then
+					openRune()
+					return
+				end
 				NetClient.fire("UseConsumable", id)
 			end)
 		elseif id == "StoneFragment" then

@@ -481,6 +481,10 @@ function repairCharacters(data: Data, note: (string) -> ())
 		note("PendingSlot: cleared")
 		data.PendingSlot = nil
 	end
+	if data.PendingRace ~= nil and (not Enums.has(Enums.Race, data.PendingRace) or data.Race == nil) then
+		note("PendingRace: cleared")
+		data.PendingRace = nil
+	end
 	local kept = {}
 	for key, blob in data.Characters do
 		local slot = tonumber(key)

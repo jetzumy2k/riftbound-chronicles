@@ -18,6 +18,13 @@
 	          character moves to another one; deleting the last one frees
 	          the realm (race selection opens again, D-116 option 1).
 
+	ConvertRace (D-116): with a Race Conversion Rune, CONVERT typed and the
+	other realm chosen, the rune is used and PendingRace saved; on the
+	rejoin, after a backup of the whole profile (RC_RaceChanges_v1), the
+	account and every character move to that realm
+	(CharacterSlots.convertRace). If the backup fails the change waits for
+	the next load (the rune is already spent, never lost twice).
+
 	Rejoin: TeleportService to this place; in Studio (no teleports) the
 	player is asked to rejoin. Every change is audit logged.
 ]]
@@ -38,7 +45,10 @@ local CombatService = require(script.Parent.CombatService)
 local log = Log.new("CharacterService")
 
 local BACKUP_STORE = "RC_DeletedCharacters_v1"
+local RACE_BACKUP_STORE = "RC_RaceChanges_v1"
 local CONFIRM = "DELETE"
+local CONVERT = "CONVERT"
+local RUNE = "RaceRune"
 local KICK_TEXT = "Switching character: please rejoin the game to continue."
 
 local CharacterService = {}
@@ -73,6 +83,71 @@ local function onLoad(player: Player, data: { [string]: any })
 	if CharacterSlots.applyPending(data) then
 		log:Info("user=%d switched character slot %d -> %d", player.UserId, from, data.ActiveSlot)
 	end
+	local race = data.PendingRace
+	if race ~= nil and race ~= data.Race then
+		local key = `Player_{player.UserId}_{os.time()}`
+		local saved, err = pcall(function()
+			DataStoreService:GetDataStore(RACE_BACKUP_STORE):SetAsync(key, data, { player.UserId })
+		end)
+		if not saved then
+			log:Error(
+				"race change backup failed for %d (%s); waits for the next load",
+				player.UserId,
+				tostring(err)
+			)
+			return
+		end
+		local before = data.Race
+		CharacterSlots.convertRace(data, race)
+		data.PendingRace = nil
+		AuditLogService:Audit({
+			actorUserId = player.UserId,
+			action = "RaceConverted",
+			target = race,
+			details = { from = before, characters = CharacterSlots.count(data), backup = key },
+		})
+		log:Info("user=%d converted %s -> %s", player.UserId, tostring(before), race)
+	elseif race ~= nil then
+		data.PendingRace = nil
+	end
+end
+
+-- D-116: the Race Conversion Rune, confirmed on its screen.
+local function onConvert(player: Player, race: string, confirm: string): { [string]: any }
+	local data = PlayerDataService:GetData(player)
+	if data == nil or data.Race == nil then
+		return { ok = false, reason = "notLoaded" }
+	end
+	if leaving[player] then
+		return { ok = false, reason = "busy" }
+	end
+	if confirm ~= CONVERT then
+		return { ok = false, reason = "confirm" }
+	end
+	if race == data.Race then
+		return { ok = false, reason = "same" }
+	end
+	if data.PendingRace ~= nil then
+		return { ok = false, reason = "pending" }
+	end
+	local entity = CombatService:GetPlayerEntity(player)
+	if entity and CombatService:IsEntityInCombat(entity) then
+		return { ok = false, reason = "combat" }
+	end
+	if (data.Stackables[RUNE] or 0) < 1 then
+		return { ok = false, reason = "noRune" }
+	end
+	-- Synchronous: spend the rune and record the change together.
+	data.Stackables[RUNE] -= 1
+	data.PendingRace = race
+	AuditLogService:Audit({
+		actorUserId = player.UserId,
+		action = "RaceRuneUsed",
+		target = race,
+		details = { from = data.Race },
+	})
+	rejoin(player)
+	return { ok = true, rejoin = true }
 end
 
 local function list(data: { [string]: any }): { [string]: any }
@@ -160,6 +235,7 @@ end
 function CharacterService:Init()
 	PlayerDataService:AddLoadHook(onLoad)
 	NetService:Handle("CharacterSlots", onRequest)
+	NetService:Handle("ConvertRace", onConvert)
 end
 
 function CharacterService:Start()

@@ -10,7 +10,7 @@
 	           with "Get MP" (opens the Mall Points tab) and Close
 	  Tabs     🧪 Buffs, 💎 Stones, 🔶 Gear sets, 💠 Get Mall Points
 	  Cards    each tab lists its items as cards under headings (Boosts,
-	           Combat draughts, Utility...): icon, name, price (red when
+	           Combat draughts; Utility: scrolls, the rune, potions): icon, name, price (red when
 	           you can't afford it)
 	  Details  tapping a card shows everything about it beside the cards (or,
 	           on a narrow screen, in place of them with "← Back to list"):
@@ -578,10 +578,12 @@ function render()
 		for order, section in sections do
 			local heading = text(grid, section.title, 14, Theme.Colors.GoldBright, true)
 			heading.LayoutOrder = order * 2 - 1
+			-- Exact height (rows of cards): a grid inside an auto-sized frame
+			-- can come up short and hide the last row.
+			local rows = math.max(1, math.ceil(#section.items / columns))
 			local cells = Kit.new("Frame", {
 				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
+				Size = UDim2.new(1, 0, 0, rows * l.cardH + (rows - 1) * 8),
 				LayoutOrder = order * 2,
 				Parent = grid,
 			})
