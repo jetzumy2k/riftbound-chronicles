@@ -148,7 +148,7 @@ combo"):
 - **Class hit feel:** hit-stop and shake scale per class (Warrior 1.35,
   Mage 1.1, Healer 0.85, Archer 0.7); golden starburst on crits.
 
-**Skill animations + combo hits, 2026-10-26, awaiting test:** 12 new
+**Skill animations + combo hits, 2026-10-26, done (633e020):** 12 new
 data-authored clips (no external assets), 3 per class: Warrior Charge /
 Overhead / Cross, Archer Rapid / LeapShot / Charge (kneeling), Mage Thrust /
 Summon / Twirl, Healer Smite / Bless / Ascend; 41 skills moved onto them so a
@@ -157,3 +157,13 @@ when the server lands that skill). Basic combo hits spark in the attacker's
 colour and the finisher lands with a shockwave and flash. Like every clip,
 the new ones play in Studio from data and must be published once before
 release (AnimationAssets, docs/ASSET_GUIDE.md).
+
+**Stage C extras, 2026-10-26, awaiting test:**
+- **Skill chaining:** a skill pressed during a basic attack already cut the
+  swing on screen; now the server agrees: a swing whose hit was still pending
+  when a skill cast started deals no damage (`CombatService` `castAt`), so
+  swing + instant skill can't double-dip. A skill after the hit frame cancels
+  only the recovery.
+- **Combo-window cue** (`UI/ComboCue`, rules in `ComboMath.window`, tested):
+  "NEXT 2/3" or "FINISHER!" with a shrinking bar above the skill bar while
+  the next press still continues the chain.

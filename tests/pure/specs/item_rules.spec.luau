@@ -280,6 +280,38 @@ return function(t)
 			t.ok(GearLook.SPARKLE.Mythical and not GearLook.SPARKLE.Rare)
 		end)
 
+		t.it("enhancement aura stages stack with every armor level (D-110)", function()
+			local GearLook = load("src/shared/Logic/GearLook")
+			t.eq(GearLook.auraStage(3), 0)
+			t.eq(GearLook.auraStage(4), 1)
+			t.eq(GearLook.auraStage(9), 2)
+			t.eq(GearLook.auraStage(10), 3)
+			local function piece(rarity: string, plus: number)
+				return { tier = 1, rarity = rarity, kind = "Chest", enhancement = plus }
+			end
+			local none = GearLook.aura({})
+			t.eq(none.weaponStage, 0)
+			t.eq(none.armorStage, 0)
+			local look = { Weapon = piece("Rare", 10), Chest = piece("Epic", 10), Boots = piece("Rare", 10) }
+			local a = GearLook.aura(look)
+			t.eq(a.weaponStage, 3)
+			t.eq(a.armor, 20 / 6)
+			t.eq(a.armorStage, 0, "two +10 pieces of six: no body aura yet")
+			for _, slot in GearLook.ARMOR_SLOTS do
+				look[slot] = piece("Standard", 7)
+			end
+			look.Helm = piece("Legendary", 7)
+			local b = GearLook.aura(look)
+			t.eq(b.armorStage, 2)
+			t.eq(b.armorColor, GearLook.RARITY_GLOW.Legendary, "best rarity colours the aura")
+			for _, slot in GearLook.ARMOR_SLOTS do
+				look[slot] = piece("Standard", 10)
+			end
+			local c = GearLook.aura(look)
+			t.eq(c.armorStage, 3)
+			t.eq(c.armorColor, GearLook.AURA_PLAIN)
+		end)
+
 		t.it("every weapon profile has a full animation set (D-69)", function()
 			local WeaponRules = load("src/shared/Definitions/WeaponRules")
 			local AnimationClips = load("src/shared/Definitions/AnimationClips")

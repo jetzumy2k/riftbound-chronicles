@@ -13,6 +13,7 @@ local StatFormulas = require(ReplicatedStorage.Shared.Logic.StatFormulas)
 local ItemRules = require(ReplicatedStorage.Shared.Logic.ItemRules)
 local AttributeRules = require(ReplicatedStorage.Shared.Logic.AttributeRules)
 local BuffRules = require(ReplicatedStorage.Shared.Logic.BuffRules)
+local PassiveRules = require(ReplicatedStorage.Shared.Logic.PassiveRules)
 
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
@@ -45,8 +46,10 @@ function StatsService:GetStats(player: Player): ItemRules.Stats?
 	-- frozen; writing into them stopped combat setup, creator report
 	-- 2026-10-25 "no damage").
 	local withAttributes = AttributeRules.applyTo(stats, data.Attributes or AttributeRules.empty(), data.Job)
+	-- D-104: learned class passives (always on, no bar slot).
+	local withPassives = PassiveRules.applyTo(withAttributes, data.OwnedSkills, data.Job)
 	-- D-93: running Mall stat buffs (Might, Iron, Vigor, Clarity).
-	return BuffRules.applyTo(withAttributes, data.Buffs, os.time())
+	return BuffRules.applyTo(withPassives, data.Buffs, os.time())
 end
 
 return StatsService

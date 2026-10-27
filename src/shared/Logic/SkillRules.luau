@@ -6,8 +6,10 @@
 
 	Skills are stored per character as `owned[id] = rank` (1..maxRank).
 
-	  pointsFor / spent / available   skill points: 1 at level 0 plus 1 per
-	                                  level (+ a Studio-only test bonus)
+	  pointsFor / spent / available   skill points: 1 at level 0 plus
+	                                  POINTS_PER_LEVEL per level (+ a
+	                                  Studio-only test bonus); class
+	                                  passives (D-104) spend the same pool
 	  rankCap         highest rank open at a level: rank 1 at level 0, one
 	                  more every RANK_LEVEL_STEP levels (rank 5 at 24)
 	  canLearn        learn a skill or raise its rank by one: own job, level
@@ -35,6 +37,7 @@
 ]]
 
 local SkillDefinitions = require(script.Parent.Parent.Definitions.SkillDefinitions)
+local PassiveDefinitions = require(script.Parent.Parent.Definitions.PassiveDefinitions)
 local JobDefinitions = require(script.Parent.Parent.Definitions.JobDefinitions)
 
 type Skill = SkillDefinitions.Skill
@@ -73,6 +76,10 @@ local SkillRules = {}
 
 -- Mirrors Constants.Loadout.RegularSlots (D-75; checked in enums_constants.spec).
 SkillRules.REGULAR_SLOTS = 6
+-- D-104 (creator, 2026-10-26): 3 per level (was 1), 91 at level 30 — one
+-- full build, every passive and most of a second branch, never the whole
+-- tree.
+SkillRules.POINTS_PER_LEVEL = 3
 -- A skill's rank can rise once per this many levels (rank 5 opens at 24).
 SkillRules.RANK_LEVEL_STEP = 6
 -- Per rank above 1: damage / heal / shield / over-time numbers.
@@ -103,7 +110,7 @@ SkillRules.CLEANSED =
 --------------------------------------------------------------------------------
 
 function SkillRules.pointsFor(level: number, bonus: number?): number
-	return 1 + math.max(0, math.floor(level)) + math.max(0, bonus or 0)
+	return 1 + math.max(0, math.floor(level)) * SkillRules.POINTS_PER_LEVEL + math.max(0, bonus or 0)
 end
 
 function SkillRules.spent(owned: Owned): number
@@ -133,8 +140,13 @@ function SkillRules.rankLevel(rank: number): number
 	return math.max(0, rank - 1) * SkillRules.RANK_LEVEL_STEP
 end
 
--- Highest rank of `skill` a character of `level` may reach.
-function SkillRules.rankCap(skill: Skill, level: number, unlockAll: boolean?): number
+-- A tree skill or a class passive (D-104) by id.
+local function learnable(id: any): any
+	return SkillDefinitions.get(id) or PassiveDefinitions.get(id)
+end
+
+-- Highest rank of `skill` (or a passive) a character of `level` may reach.
+function SkillRules.rankCap(skill: { maxRank: number }, level: number, unlockAll: boolean?): number
 	if unlockAll then
 		return skill.maxRank
 	end
@@ -158,23 +170,24 @@ function SkillRules.canLearn(
 	id: any
 ): (boolean, string?)
 	local skill = SkillDefinitions.get(id)
+	local entry = learnable(id)
 	if job == nil then
 		return false, "noJob"
 	elseif SkillDefinitions.isBasic(skill) then
 		return false, "basic"
 	elseif
-		skill == nil
-		or skill.job ~= job
-		or not JobDefinitions.allowsSkillCategory(job, skill.category)
+		entry == nil
+		or entry.job ~= job
+		or (skill ~= nil and not JobDefinitions.allowsSkillCategory(job, skill.category))
 	then
 		return false, "wrongJob"
-	elseif SkillRules.rankOf(owned, skill.id) >= skill.maxRank then
+	elseif SkillRules.rankOf(owned, entry.id) >= entry.maxRank then
 		return false, "maxRank"
-	elseif not unlockAll and level < skill.unlockLevel then
+	elseif not unlockAll and level < entry.unlockLevel then
 		return false, "locked"
-	elseif SkillRules.rankOf(owned, skill.id) >= SkillRules.rankCap(skill, level, unlockAll) then
+	elseif SkillRules.rankOf(owned, entry.id) >= SkillRules.rankCap(entry, level, unlockAll) then
 		return false, "rankLocked"
-	elseif skill.requires and not learned(owned, skill.requires) then
+	elseif entry.requires and not learned(owned, entry.requires) then
 		return false, "requires"
 	elseif SkillRules.available(owned, level, bonus) <= 0 then
 		return false, "noPoints"
@@ -192,7 +205,7 @@ function SkillRules.fitToLevel(owned: Owned, level: number, unlockAll: boolean?)
 	local out: Owned = {}
 	local changed = false
 	for id, rank in owned do
-		local skill = SkillDefinitions.get(id)
+		local skill = learnable(id)
 		if skill == nil or (not unlockAll and level < skill.unlockLevel) then
 			changed = true
 			continue

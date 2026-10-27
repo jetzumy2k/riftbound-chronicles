@@ -43,6 +43,7 @@ local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local PotionRules = require(Shared.Logic.PotionRules)
 local WeaponRules = require(Shared.Definitions.WeaponRules)
 local EnhanceRules = require(Shared.Logic.EnhanceRules)
 local InventoryLayout = require(Shared.Layout.InventoryLayout)
@@ -125,6 +126,16 @@ local CONFIRM_SECONDS = 3
 -- Bag rows shown even at 0 (the rest only when owned).
 local ALWAYS_LISTED = { HealingPotion = true, EnhancementStone = true, PerfectStone = true }
 
+-- Share of max HP missing (0..100), from the server-mirrored Humanoid.
+local function missingHpPct(): number
+	local character = Players.LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid == nil or humanoid.MaxHealth <= 0 then
+		return 100
+	end
+	return math.clamp(100 - humanoid.Health / humanoid.MaxHealth * 100, 0, 100)
+end
+
 local InventoryController = {
 	-- D-93: opens the Item Mall (set by MallController).
 	OpenMall = nil :: (() -> ())?,
@@ -137,7 +148,8 @@ local toggleCompact: () -> boolean = function()
 	return false
 end
 local potionButton: TextButton
-local POTION = "HealingPotion"
+-- D-106: four potion sizes share one cooldown; the button picks the size.
+local POTION = PotionRules.IDS[1]
 local potionTicking = false
 local panel: Frame? = nil
 local open = false
@@ -1180,7 +1192,7 @@ end
 -- be used. The server still checks everything (UseConsumable).
 local function refreshPotion()
 	local data = state()
-	local have = data.Stackables[POTION] or 0
+	local have = PotionRules.count(data.Stackables)
 	local wait = math.ceil((data.ReadyAt[POTION] or 0) - os.clock())
 	-- Mouse and keyboard: over the SKILLS / BAG column (D-98).
 	local slot = if UserInputService.TouchEnabled
@@ -1205,8 +1217,9 @@ local function refreshPotion()
 end
 
 local function drinkPotion()
-	if (state().Stackables[POTION] or 0) > 0 then
-		NetClient.fire("UseConsumable", POTION)
+	local id = PotionRules.pick(state().Stackables, missingHpPct())
+	if id then
+		NetClient.fire("UseConsumable", id)
 	end
 end
 
@@ -1266,9 +1279,16 @@ function InventoryController:Start()
 		Parent = gui,
 	})
 	Tooltip.attach(potionButton, function()
-		local have = state().Stackables[POTION] or 0
-		return "🧪 Healing Potion",
-			`Restores 30% of your health at once. Usable every 15 seconds. You have {have}. Key: H.`
+		local stackables = state().Stackables
+		local lines = {}
+		for _, id in PotionRules.IDS do
+			table.insert(lines, `{PotionRules.pctOf(id)}%: {stackables[id] or 0}`)
+		end
+		return "🧪 Healing Potions",
+			`Drinks the smallest potion that heals what you are missing, else your biggest. They share a 15-second wait. Key: H.\nYou have {table.concat(
+				lines,
+				" · "
+			)}.`
 	end)
 	Kit.corner(potionButton, 26)
 	Kit.goldStroke(potionButton, 1.5, 0.2)

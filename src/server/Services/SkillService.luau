@@ -35,6 +35,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage.Shared
 local CombatMath = require(Shared.Logic.CombatMath)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
+local PassiveDefinitions = require(Shared.Definitions.PassiveDefinitions)
 local QuestRules = require(Shared.Logic.QuestRules)
 local SkillRules = require(Shared.Logic.SkillRules)
 local Log = require(Shared.Util.Log)
@@ -191,7 +192,8 @@ local function onLearn(player: Player, id: string)
 	end
 	local ok, reason =
 		SkillRules.canLearn(data.Job, data.OwnedSkills, data.Level, bonusPoints(data), unlockAll(), id)
-	local skill = SkillDefinitions.get(id)
+	-- A tree skill or a class passive (D-104).
+	local skill = (SkillDefinitions.get(id) or PassiveDefinitions.get(id)) :: any
 	if not ok or skill == nil then
 		if reason == "wrongJob" or reason == "noJob" then
 			AuditLogService:Security(player, "LearnNotAllowed", `{id}: {tostring(reason)}`)
@@ -216,7 +218,10 @@ local function onLearn(player: Player, id: string)
 	-- Synchronous commit: one point, one rank.
 	local rank = SkillRules.rankOf(data.OwnedSkills, id) + 1
 	data.OwnedSkills[id] = rank
-	if rank == 1 then
+	if PassiveDefinitions.get(id) then
+		-- Passives change stats, never the bar.
+		CombatService:RefreshStats(player)
+	elseif rank == 1 then
 		setLoadout(data, SkillRules.autoFill(data.Job, data.OwnedSkills, loadoutOf(data)))
 	end
 	log:Info("user=%d learned %s rank %d", player.UserId, id, rank)
@@ -228,10 +233,56 @@ local function onLearn(player: Player, id: string)
 	PlayerDataService:PushSnapshot(player)
 end
 
+local RELEARN_SCROLL = "RelearnScroll"
+
+-- Refunds every point (passives too) and clears the bar.
+local function resetTree(player: Player, data: { [string]: any })
+	data.OwnedSkills = {}
+	data.EquippedSkills = { Regular = {} }
+	CombatService:RefreshStats(player) -- passives are refunded too
+	NetService:FireClient("Notify", player, { kind = "Info", textKey = "skill.reset.done" })
+end
+
+--[[
+	D-105: a Scroll of Relearning resets the tree anywhere out of combat.
+	`consume`: take the scroll here (the Reset button); the bag's Use takes
+	it itself. False (and the player is told why) if it can't be used.
+]]
+function SkillService:ResetWithScroll(player: Player, consume: boolean): boolean
+	local data = PlayerDataService:GetData(player)
+	local entity = CombatService:GetPlayerEntity(player)
+	if data == nil or entity == nil then
+		return false
+	end
+	if next(data.OwnedSkills or {}) == nil then
+		NetService:FireClient("Notify", player, { kind = "Info", textKey = "skill.reset.nothing" })
+		return false
+	elseif CombatService:IsEntityInCombat(entity) then
+		NetService:FireClient("Notify", player, { kind = "Warning", textKey = "skill.reset.combat" })
+		return false
+	elseif consume and (data.Stackables[RELEARN_SCROLL] or 0) <= 0 then
+		NetService:FireClient("Notify", player, { kind = "Warning", textKey = "skill.reset.needScroll" })
+		return false
+	end
+	if consume then
+		data.Stackables[RELEARN_SCROLL] -= 1
+	end
+	resetTree(player, data)
+	AuditLogService:Audit({ actorUserId = player.UserId, action = "SkillReset", target = RELEARN_SCROLL })
+	log:Info("user=%d reset the skill tree with a scroll", player.UserId)
+	PlayerDataService:PushSnapshot(player)
+	return true
+end
+
 local function onReset(player: Player)
 	local data = PlayerDataService:GetData(player)
 	local entity = CombatService:GetPlayerEntity(player)
 	if data == nil then
+		return
+	end
+	-- D-105: with the free reset off (admin), the button uses a scroll.
+	if not skillsConfig().FreeTreeReset then
+		SkillService:ResetWithScroll(player, true)
 		return
 	end
 	if skillsConfig().ResetNeedsSafeZone then
@@ -244,10 +295,8 @@ local function onReset(player: Player)
 			return
 		end
 	end
-	data.OwnedSkills = {}
-	data.EquippedSkills = { Regular = {} }
+	resetTree(player, data)
 	log:Info("user=%d reset the skill tree", player.UserId)
-	NetService:FireClient("Notify", player, { kind = "Info", textKey = "skill.reset.done" })
 	PlayerDataService:PushSnapshot(player)
 end
 

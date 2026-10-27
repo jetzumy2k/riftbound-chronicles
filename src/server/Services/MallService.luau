@@ -31,6 +31,7 @@ local ItemRules = require(Shared.Logic.ItemRules)
 local Log = require(Shared.Util.Log)
 
 local AuditLogService = require(script.Parent.AuditLogService)
+local ConfigurationService = require(script.Parent.ConfigurationService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local InventoryService = require(script.Parent.InventoryService)
@@ -104,12 +105,21 @@ function MallService:SetSize(player: Player): number
 	return #setPieces(data.Job, data.Race, math.clamp(data.Level, 0, 30))
 end
 
+-- D-109: the admin's price for an entry, else the catalog's.
+function MallService:PriceOf(entry: MallDefinitions.Entry): number
+	local price = ConfigurationService:Get("Mall").Prices[entry.id]
+	return if type(price) == "number" and price >= 1 then price else entry.price
+end
+
 local function onBuy(player: Player, entryId: string): { [string]: any }
-	local entry = MallDefinitions.get(entryId)
+	local catalog = MallDefinitions.get(entryId)
 	local data = PlayerDataService:GetData(player)
-	if entry == nil or data == nil or data.Job == nil then
+	if catalog == nil or data == nil or data.Job == nil then
 		return { ok = false, reason = "unknown" }
 	end
+	-- The price is read once, so a change mid-purchase can't split it.
+	local entry = table.clone(catalog) :: any
+	entry.price = MallService:PriceOf(catalog)
 	local wallet = data.Wallet
 	local have = wallet.MallPoints or 0
 	if have < entry.price then

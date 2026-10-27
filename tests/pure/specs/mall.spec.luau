@@ -19,6 +19,16 @@ local NOW = 1800000000
 
 return function(t)
 	t.describe("Item Mall", function()
+		t.it("admin price list covers every entry at its catalog price (D-109)", function()
+			local prices = Defaults.Mall.Prices
+			for _, entry in MallDefinitions.CATALOG do
+				t.eq(prices[entry.id], entry.price, entry.id)
+			end
+			for id in prices do
+				t.ok(MallDefinitions.get(id) ~= nil, `unknown Mall id {id}`)
+			end
+		end)
+
 		t.it("every catalog entry gives something real for a fixed price", function()
 			t.ok(#MallDefinitions.CATALOG >= 10, "catalog size")
 			for _, entry in MallDefinitions.CATALOG do

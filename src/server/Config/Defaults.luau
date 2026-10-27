@@ -101,6 +101,10 @@ return {
 		StudioBonusPoints = 0,
 		-- Resetting the tree (free) is allowed only in a safe zone, out of combat.
 		ResetNeedsSafeZone = true,
+		-- D-105: the free Reset buttons. Off: the skill tree's Reset uses a
+		-- Scroll of Relearning, the attributes' Reset a Scroll of Rebirth.
+		FreeTreeReset = true,
+		FreeAttributeReset = true,
 		-- D-103 combat modernization (creator decisions 2026-10-26).
 		-- Extender: seconds after an area skill's last wave it can still be extended.
 		ExtendWindowSeconds = 4,
@@ -181,6 +185,13 @@ return {
 		-- D-49: the five war-zone bosses per zone return this long after falling.
 		BossRespawnMinutes = 45,
 		StudioBossRespawnSeconds = 120,
+		-- D-108: camp guardians strike players of the other realm who come
+		-- within GuardRadius studs of a camp's centre (the camp ring is 40),
+		-- for GuardHitPct of their max HP every GuardHitSeconds. No PvP credit.
+		Guards = true,
+		GuardRadius = 110,
+		GuardHitPct = 20,
+		GuardHitSeconds = 1,
 	},
 
 	-- Equipment overhaul stage 4 (D-70): every character gets the smooth
@@ -195,6 +206,30 @@ return {
 	Appearance = {
 		SmoothBody = true,
 		AnimeStyle = true,
+	},
+
+	-- D-109: Item Mall prices in Mall Points, by catalog id (admin). Must
+	-- list every MallDefinitions entry (tested); a missing id falls back to
+	-- the catalog price.
+	Mall = {
+		Prices = {
+			Insight = 60,
+			Fortune = 80,
+			StoneSeeker = 60,
+			Might = 50,
+			Iron = 50,
+			Vigor = 50,
+			Clarity = 40,
+			Rebirth = 100,
+			Relearn = 100,
+			Potions10 = 30,
+			GreaterPotions10 = 60,
+			MajorPotions10 = 100,
+			SupremePotions10 = 160,
+			Perfect1 = 150,
+			Perfect5 = 700,
+			LegendarySet = 2500,
+		},
 	},
 
 	-- Phase 10 dungeon loot (D-06 / D-07 / D-67). Each table: the chance

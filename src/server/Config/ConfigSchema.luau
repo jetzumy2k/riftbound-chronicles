@@ -62,6 +62,8 @@ return function(S: any)
 			StudioUnlockAll = S.boolean(),
 			StudioBonusPoints = S.int(0, 200),
 			ResetNeedsSafeZone = S.boolean(),
+			FreeTreeReset = S.boolean(),
+			FreeAttributeReset = S.boolean(),
 			ExtendWindowSeconds = S.number(0, 15),
 			ExtendMaxRadius = S.number(5, 40),
 			ReflectCapPctOfMaxHp = S.number(0, 100),
@@ -78,6 +80,10 @@ return function(S: any)
 		Appearance = S.struct({
 			SmoothBody = S.boolean(),
 			AnimeStyle = S.boolean(),
+		}),
+
+		Mall = S.struct({
+			Prices = S.map(S.string(32, 1), S.int(1, 1000000), 64),
 		}),
 
 		Loot = S.struct({
@@ -158,6 +164,10 @@ return function(S: any)
 			CampRespawnSeconds = S.number(5, 600),
 			BossRespawnMinutes = S.number(1, 1440),
 			StudioBossRespawnSeconds = S.number(5, 7200),
+			Guards = S.boolean(),
+			GuardRadius = S.number(45, 300),
+			GuardHitPct = S.number(1, 100),
+			GuardHitSeconds = S.number(0.25, 10),
 		}),
 
 		Events = S.struct({

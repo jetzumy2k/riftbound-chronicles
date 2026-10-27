@@ -78,6 +78,11 @@ Constants.Attributes = table.freeze({
 	ConfigVersion = "RC_ConfigVersion",
 	-- Flags.AutoAttack, mirrored for clients (the Auto-attack switch).
 	AutoAttack = "RC_AutoAttack",
+	-- D-105: Skills.FreeTreeReset / FreeAttributeReset (the Reset buttons).
+	FreeTreeReset = "RC_FreeTreeReset",
+	FreeAttributeReset = "RC_FreeAttributeReset",
+	-- D-109: Mall.Prices, one attribute per entry: RC_MallPrice_<id>.
+	MallPricePrefix = "RC_MallPrice_",
 })
 
 return table.freeze(Constants)

@@ -22,6 +22,7 @@ local Log = require(Shared.Util.Log)
 
 local ProfileView = require(script.Parent.Parent.Persistence.ProfileView)
 local AuditLogService = require(script.Parent.AuditLogService)
+local ConfigurationService = require(script.Parent.ConfigurationService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local LevelService = require(script.Parent.LevelService)
@@ -67,6 +68,18 @@ local function onReset(player: Player)
 	end
 	if AttributeRules.spent(data.Attributes) == 0 then
 		notify(player, "Info", "attributes.nothingToReset")
+		return
+	end
+	-- D-105: with the free reset off (admin), the button uses a Scroll of
+	-- Rebirth.
+	if ConfigurationService:Get("Skills").FreeAttributeReset ~= true then
+		if (data.Stackables.RebirthScroll or 0) <= 0 then
+			notify(player, "Warning", "attributes.needScroll")
+			return
+		end
+		data.Stackables.RebirthScroll -= 1
+		AttributeService:ResetNow(player)
+		PlayerDataService:PushSnapshot(player)
 		return
 	end
 	local now = os.time()

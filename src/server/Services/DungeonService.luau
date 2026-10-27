@@ -623,7 +623,8 @@ local function besideCFrame(ally: Player): CFrame?
 end
 
 -- D-39: defeated inside a dungeon -> beside your leader / a party member in
--- the same dungeon, else outside the gate.
+-- the same dungeon, else (D-107) at the entrance of the floor you fell on,
+-- still inside the dungeon (the capital gate only if that is unknown).
 local function resolveRespawn(player: Player): CFrame?
 	local copy = copyOfPlayer[player]
 	if copy == nil then
@@ -650,6 +651,11 @@ local function resolveRespawn(player: Player): CFrame?
 	if target then
 		notify(player, "Info", "dungeon.respawnAlly")
 		return target
+	end
+	local floorIndex = floorOfPlayer[player]
+	if floorIndex and copy.dungeon.floors[floorIndex] then
+		notify(player, "Info", "dungeon.respawnEntrance")
+		return arrivalCFrame(copy, floorIndex)
 	end
 	copyOfPlayer[player] = nil
 	floorOfPlayer[player] = nil
@@ -786,7 +792,7 @@ end
 function DungeonService:Init()
 	NetService:Handle("DungeonLeave", leave)
 	MobService.MobDefeated:Connect(onMobDefeated)
-	TravelService:SetRespawnResolver(resolveRespawn)
+	TravelService:AddRespawnResolver(resolveRespawn)
 	serverId = if game.JobId ~= "" then game.JobId else HttpService:GenerateGUID(false)
 end
 

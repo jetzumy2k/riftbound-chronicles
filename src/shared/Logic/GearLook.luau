@@ -41,6 +41,64 @@ function GearLook.sparkles(worn: SlotLook): boolean
 	return GearLook.SPARKLE[worn.rarity] == true or worn.enhancement >= GearLook.SPARKLE_ENHANCEMENT
 end
 
+-- Enhancement aura (creator request 2026-10-27, PLAN.md D-110): stages
+-- by enhancement. The weapon's own level sets its glow; the body aura
+-- stacks with the AVERAGE enhancement of the six armor slots (an empty
+-- slot counts 0), so every piece raised adds to it.
+GearLook.AURA_STEPS = table.freeze({ 4, 7, 10 })
+GearLook.ARMOR_SLOTS = table.freeze({ "Helm", "Shoulders", "Chest", "Hands", "Legs", "Boots" })
+-- Aura colour of Standard gear (no rarity glow): soft gold.
+GearLook.AURA_PLAIN = table.freeze({ 255, 220, 150 })
+local RARITY_RANK = { Standard = 1, Uncommon = 2, Rare = 3, Epic = 4, Legendary = 5, Mythical = 6 }
+
+-- 0 (none) .. 3 for an enhancement level (or an average of levels).
+function GearLook.auraStage(level: number): number
+	local stage = 0
+	for index, step in GearLook.AURA_STEPS do
+		if level >= step then
+			stage = index
+		end
+	end
+	return stage
+end
+
+export type Aura = {
+	weapon: number, -- weapon enhancement (0..10)
+	weaponStage: number,
+	weaponColor: { number },
+	armor: number, -- average armor enhancement (0..10)
+	armorStage: number,
+	armorColor: { number }, -- best rarity among the enhanced armor
+}
+
+function GearLook.aura(look: Look): Aura
+	local weapon = look.Weapon
+	local weaponLevel = if weapon then weapon.enhancement else 0
+	local sum, bestRank, bestColor = 0, 0, GearLook.AURA_PLAIN
+	for _, slot in GearLook.ARMOR_SLOTS do
+		local worn = look[slot]
+		if worn and worn.enhancement > 0 then
+			sum += worn.enhancement
+			local rank = RARITY_RANK[worn.rarity] or 0
+			if rank > bestRank then
+				bestRank = rank
+				bestColor = GearLook.RARITY_GLOW[worn.rarity] or GearLook.AURA_PLAIN
+			end
+		end
+	end
+	local armor = sum / #GearLook.ARMOR_SLOTS
+	return {
+		weapon = weaponLevel,
+		weaponStage = GearLook.auraStage(weaponLevel),
+		weaponColor = if weapon
+			then GearLook.RARITY_GLOW[weapon.rarity] or GearLook.AURA_PLAIN
+			else GearLook.AURA_PLAIN,
+		armor = armor,
+		armorStage = GearLook.auraStage(armor),
+		armorColor = bestColor,
+	}
+end
+
 --[[
 	The look of what's equipped. `equipment` maps slot -> guid, `inventory`
 	guid -> item; unknown, missing or wrong-slot entries draw nothing.

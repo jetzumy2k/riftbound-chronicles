@@ -39,8 +39,10 @@
 	once per spawn (WarZoneBoss: 80% Rare / 20% Mythical, plus
 	PvP.MarksPerBoss PvP Marks); a field creature rolls the WarZoneMob stone
 	table (30% Perfect / 70% Enhancement Stone, given a drop) per helper.
-	Defeat itself (no loss, back to your own capital) is CombatService +
-	TravelService: nothing here changes items or EXP.
+	Defeat itself (no loss) is CombatService + TravelService: nothing here
+	changes items or EXP. D-107 (creator, 2026-10-27): defeated inside a
+	war zone, you come back in your own realm's camp there (the nearest
+	safe zone), not in the capital.
 ]]
 
 local Players = game:GetService("Players")
@@ -366,7 +368,9 @@ local function sweep()
 		local root = rootOf(player)
 		local zone = if root then WorldLayout.warZoneAt(root.Position.X, root.Position.Z) else nil
 		local id = if zone then zone.id else nil
-		if player:GetAttribute("WarZone") ~= id then
+		-- Without a body (fell out of the world) keep the last zone: the
+		-- respawn resolver reads it (D-107).
+		if root and player:GetAttribute("WarZone") ~= id then
 			player:SetAttribute("WarZone", id)
 		end
 		if zone == nil or root == nil then
@@ -387,7 +391,25 @@ local function sweep()
 	end
 end
 
+-- D-107: a player defeated in a war zone respawns in their realm's camp.
+local function resolveRespawn(player: Player): CFrame?
+	local data = PlayerDataService:GetData(player)
+	if data == nil or data.Race == nil then
+		return nil
+	end
+	local root = rootOf(player)
+	local zone: WorldLayout.WarZone? = if root
+		then WorldLayout.warZoneAt(root.Position.X, root.Position.Z)
+		else (WorldLayout.WarZones :: any)[player:GetAttribute("WarZone") or ""]
+	if zone == nil then
+		return nil
+	end
+	log:Info("user=%d respawns in the %s camp of the %s", player.UserId, data.Race, zone.id)
+	return arrivalCFrame(zone, data.Race)
+end
+
 function PvPService:Init()
+	TravelService:AddRespawnResolver(resolveRespawn)
 	-- Phase 23 audit (D-102): forget leavers' notice times.
 	Players.PlayerRemoving:Connect(function(player)
 		lastCampNotice[player] = nil

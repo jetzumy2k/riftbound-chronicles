@@ -35,6 +35,8 @@ local specs = {
 	{ "detail_rules", require("./specs/detail_rules.spec") },
 	{ "class_themes", require("./specs/class_themes.spec") },
 	{ "hit_streak", require("./specs/hit_streak.spec") },
+	{ "passives", require("./specs/passives.spec") },
+	{ "potions", require("./specs/potions.spec") },
 	{ "perf_budget", require("./specs/perf_budget.spec") },
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },

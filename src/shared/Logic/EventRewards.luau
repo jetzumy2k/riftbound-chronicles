@@ -44,7 +44,11 @@ EventRewards.GROUP_ITEMS = table.freeze({
 		"Buff_Vigor",
 		"Buff_Clarity",
 		"RebirthScroll",
+		"RelearnScroll",
 		"HealingPotion",
+		"GreaterHealingPotion",
+		"MajorHealingPotion",
+		"SupremeHealingPotion",
 	}),
 })
 
@@ -86,7 +90,11 @@ EventRewards.ITEMS = table.freeze({
 	"Buff_Vigor",
 	"Buff_Clarity",
 	"RebirthScroll",
+	"RelearnScroll",
 	"HealingPotion",
+	"GreaterHealingPotion",
+	"MajorHealingPotion",
+	"SupremeHealingPotion",
 	"EnhancementStone",
 	"PerfectStone",
 })

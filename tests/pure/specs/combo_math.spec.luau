@@ -115,6 +115,22 @@ return function(t)
 			t.ok(BasicAttacks.forJob("Healer").range < BasicAttacks.forJob("Archer").range)
 		end)
 
+		t.it("the chain window opens after recovery and closes on time", function()
+			local state = ComboMath.new()
+			t.eq(ComboMath.window(state, 0, STEPS), nil, "resting: no window")
+			press(state, 0)
+			t.eq(ComboMath.window(state, 0.2, STEPS), nil, "still recovering")
+			local left, nextStep = ComboMath.window(state, 0.4, STEPS)
+			t.eq(left, 1)
+			t.eq(nextStep, 2)
+			left = ComboMath.window(state, 0.7, STEPS)
+			t.ok(left ~= nil and math.abs(left - 0.5) < 1e-6, "half the window left")
+			t.eq(ComboMath.window(state, 1.01, STEPS), nil, "closed")
+			press(state, 0.5)
+			press(state, 1.0)
+			t.eq(ComboMath.window(state, 1.9, STEPS), nil, "no window after the finisher")
+		end)
+
 		t.it("full-chain damage keeps the Phase 6 balance", function()
 			-- Same damage per second as the single attacks they replace (±10%).
 			local expected = { Warrior = 1.25, Healer = 0.7, Mage = 0.955, Archer = 0.944 }

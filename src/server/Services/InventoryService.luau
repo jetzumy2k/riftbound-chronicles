@@ -33,6 +33,7 @@ local Shared = ReplicatedStorage.Shared
 local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local PotionRules = require(Shared.Logic.PotionRules)
 local Log = require(Shared.Util.Log)
 
 local ProfileView = require(script.Parent.Parent.Persistence.ProfileView)
@@ -45,6 +46,7 @@ local RaceService = require(script.Parent.RaceService)
 local JobService = require(script.Parent.JobService)
 local CombatService = require(script.Parent.CombatService)
 local AttributeService = require(script.Parent.AttributeService)
+local SkillService = require(script.Parent.SkillService)
 local BuffService = require(script.Parent.BuffService)
 
 type Item = ItemRules.Item
@@ -505,6 +507,15 @@ local function onUseConsumable(player: Player, id: string)
 		own[id] = t + use.cooldown
 		push(player, data, nil, nil)
 		return
+	elseif use.kind == "SkillReset" then
+		-- D-105: Scroll of Relearning (SkillService checks combat).
+		if not SkillService:ResetWithScroll(player, false) then
+			return
+		end
+		data.Stackables[id] -= 1
+		own[id] = t + use.cooldown
+		push(player, data, nil, nil)
+		return
 	end
 	local entity = CombatService:GetPlayerEntity(player)
 	if entity == nil or entity.defeated then
@@ -514,9 +525,12 @@ local function onUseConsumable(player: Player, id: string)
 		notify(player, "Warning", "use.fullHp")
 		return
 	end
-	-- Synchronous: consume, start the cooldown, heal.
+	-- Synchronous: consume, start the cooldown (every potion size shares
+	-- it, D-106), heal.
 	data.Stackables[id] -= 1
-	own[id] = t + use.cooldown
+	for _, potion in PotionRules.IDS do
+		own[potion] = t + use.cooldown
+	end
 	CombatService:RestoreHpPct(player, use.pct :: number)
 	push(player, data, nil, nil)
 end

@@ -24,6 +24,7 @@ local AttributeRules = require(Shared.Logic.AttributeRules)
 local Complexion = require(Shared.Definitions.Complexion)
 local FacePresets = require(Shared.Definitions.FacePresets)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
+local PassiveDefinitions = require(Shared.Definitions.PassiveDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
 local QuestRules = require(Shared.Logic.QuestRules)
@@ -210,7 +211,8 @@ local function repairSkills(data: Data, note: (string) -> ())
 	-- Phase 5 (D-45): real skills of the character's own job, a whole rank
 	-- within 1..maxRank, and the skill above it in the tree learned too.
 	filterMap(data.OwnedSkills, "OwnedSkills", note, function(id, rank)
-		local skill = SkillDefinitions.get(id)
+		-- Tree skills and class passives (D-104) share the map.
+		local skill: any = SkillDefinitions.get(id) or PassiveDefinitions.get(id)
 		return skill ~= nil
 			and skill.job == data.Job
 			and isFinite(rank)

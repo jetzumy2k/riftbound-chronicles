@@ -27,6 +27,7 @@ local FacePresets = require(script.Parent.Parent.Definitions.FacePresets)
 local Complexion = require(script.Parent.Parent.Definitions.Complexion)
 local AnimationClips = require(script.Parent.Parent.Definitions.AnimationClips)
 local SkillDefinitions = require(script.Parent.Parent.Definitions.SkillDefinitions)
+local PassiveDefinitions = require(script.Parent.Parent.Definitions.PassiveDefinitions)
 local ItemDefinitions = require(script.Parent.Parent.Definitions.ItemDefinitions)
 local ItemRules = require(script.Parent.Parent.Logic.ItemRules)
 local QuestDefinitions = require(script.Parent.Parent.Definitions.QuestDefinitions)
@@ -42,6 +43,11 @@ local MAX_LEVEL = Constants.Level.Max
 
 local ACTION_NAMES = table.clone(AnimationClips.NAMES)
 local SKILL_IDS = table.clone(SkillDefinitions.IDS)
+-- What LearnSkill accepts and OwnedSkills holds: tree skills + passives (D-104).
+local LEARNABLE_IDS = table.clone(SKILL_IDS)
+for _, id in PassiveDefinitions.IDS do
+	table.insert(LEARNABLE_IDS, id)
+end
 local COMBO_NAMES = {}
 for _, skill in SkillDefinitions.All do
 	if skill.combo and table.find(COMBO_NAMES, skill.combo.name) == nil then
@@ -238,7 +244,7 @@ return function(S: any)
 		LearnSkill = {
 			direction = "ClientToServer",
 			kind = "Event",
-			args = { S.enum(SKILL_IDS) },
+			args = { S.enum(LEARNABLE_IDS) },
 			rate = { capacity = 6, refillPerSecond = 2 },
 			states = { "ProfileLoaded", "HasJob" },
 		},
@@ -529,7 +535,7 @@ return function(S: any)
 					Equipment = equipment,
 					Stackables = stackables,
 					Wallet = wallet,
-					ReadyIn = S.optional(S.map(S.enum(CONSUMABLE_IDS), S.number(0, 600), 8)),
+					ReadyIn = S.optional(S.map(S.enum(CONSUMABLE_IDS), S.number(0, 600), 24)),
 				}),
 			},
 		},
@@ -869,7 +875,7 @@ return function(S: any)
 					Experience = S.int(0),
 					XPToNext = S.int(0),
 					-- Phase 5 (D-45): learned skill id -> rank, and the 6 + 1 bar (D-75).
-					OwnedSkills = S.map(S.enum(SKILL_IDS), S.int(1, 5), 64),
+					OwnedSkills = S.map(S.enum(LEARNABLE_IDS), S.int(1, 5), 64),
 					EquippedSkills = S.struct({
 						Regular = S.array(S.enum(SKILL_IDS), Constants.Loadout.RegularSlots),
 						Special = S.optional(S.enum(SKILL_IDS)),

@@ -43,6 +43,25 @@ function ComboMath.commit(state: State, now: number, steps: { any }, index: numb
 	state.readyAt = now + steps[index].recovery + (if index == #steps then finisherCooldown else 0)
 end
 
+--[[
+	The chain window (D-103 stage C cue): once a step's recovery is over, a
+	press continues the combo until the window closes. Returns the share of
+	the window left (1 just opened, 0 closing) and the step that press
+	starts, or nil while resting, still recovering, or after the finisher.
+]]
+function ComboMath.window(state: State, now: number, steps: { any }): (number?, number?)
+	local current = steps[state.index]
+	if current == nil or state.index >= #steps or current.window <= 0 then
+		return nil, nil
+	end
+	local opens = math.max(state.startedAt + current.recovery, state.readyAt)
+	local closes = state.startedAt + current.recovery + current.window
+	if now < opens or now > closes then
+		return nil, nil
+	end
+	return (closes - now) / current.window, state.index + 1
+end
+
 -- Seconds until a press is accepted (0 when ready).
 function ComboMath.waitTime(state: State, now: number): number
 	return math.max(0, state.readyAt - now)

@@ -15,6 +15,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Constants = require(Shared.Constants)
 local XPTable = require(Shared.Logic.XPTable)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
+local PassiveDefinitions = require(Shared.Definitions.PassiveDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
 
@@ -24,10 +25,12 @@ local ProfileView = {}
 local function ownedSkills(data: { [string]: any }): { [string]: number }
 	local out = {}
 	local owned = if type(data.OwnedSkills) == "table" then data.OwnedSkills else {}
-	for _, id in SkillDefinitions.IDS do
-		local rank = owned[id]
-		if type(rank) == "number" and rank >= 1 then
-			out[id] = rank
+	for _, ids in { SkillDefinitions.IDS, PassiveDefinitions.IDS } do
+		for _, id in ids do
+			local rank = owned[id]
+			if type(rank) == "number" and rank >= 1 then
+				out[id] = rank
+			end
 		end
 	end
 	return out

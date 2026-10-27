@@ -9,7 +9,7 @@
 	  respawnChoice  where a member defeated in a dungeon comes back:
 	                 next to the party leader if the leader is alive in the
 	                 run, else next to any living member, else (the whole
-	                 party is down) outside the dungeon gate
+	                 party is down) at the floor entrance (D-107)
 
 	Pure module.
 ]]

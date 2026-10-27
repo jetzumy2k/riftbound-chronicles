@@ -60,6 +60,7 @@ local NetClient = require(Shared.Net.Client)
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
 local Kit = require(UI.Kit)
+local ComboCue = require(UI.ComboCue)
 local Tooltip = require(UI.Tooltip)
 local SkillIcon = require(UI.SkillIcon)
 
@@ -569,8 +570,14 @@ function CombatController:Start()
 	end)
 
 	-- Buffered presses and hold-to-attack fire the moment the next step is allowed.
+	ComboCue.start()
 	RunService.Heartbeat:Connect(function()
 		stepHunt(os.clock())
+		local definition = currentAttack()
+		if definition then
+			local left, nextStep = ComboMath.window(combo, os.clock(), definition.steps)
+			ComboCue.update(left, nextStep, #definition.steps)
+		end
 		local auto = autoTarget
 		if auto then
 			local selected = TargetController.current()

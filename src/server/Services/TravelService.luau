@@ -17,9 +17,11 @@
 	    spawn and corrects it if not.
 
 	Phase 9:
-	  - A respawn resolver (DungeonService) may pick a different spawn, e.g.
-	    the dungeon checkpoint while rejoin charges remain (D-20) or a run a
-	    disconnected member is rejoining. Otherwise: the race home spawn.
+	  - Respawn resolvers may pick a different spawn, e.g. the dungeon
+	    checkpoint while rejoin charges remain (D-20) or a run a
+	    disconnected member is rejoining. D-107: defeated in a war zone ->
+	    your realm's camp in that zone (PvPService). Otherwise: the race
+	    home spawn.
 	  - `Teleport` moves a living character (dungeon entry / return home);
 	    destinations always come from server data, never from clients.
 
@@ -62,7 +64,12 @@ local TravelService = {}
 local spawning: { [Player]: boolean } = {}
 -- Where each player's current character is supposed to appear.
 local expected: { [Player]: CFrame } = {}
-local respawnResolver: ((Player) -> CFrame?)? = nil
+-- The portal each player is standing in (false: just teleported, must step
+-- out of every portal first), and when portals may fire again for them.
+local insidePortal: { [Player]: BasePart | false } = {}
+local portalReadyAt: { [Player]: number } = {}
+-- Asked in order; the first CFrame wins (D-107: nearest safe spawn).
+local respawnResolvers: { (Player) -> CFrame? } = {}
 
 local function homeSpawn(player: Player): SpawnLocation?
 	local data = PlayerDataService:GetData(player)
@@ -111,6 +118,11 @@ local function verifySpawn(player: Player, character: Model)
 			end
 			AntiExploitService:GrantGrace(player, 2)
 			character:PivotTo(target :: CFrame)
+			-- A respawn point may sit in a portal (a war-zone camp's return
+			-- portal, a dungeon floor's entrance): arriving never fires it
+			-- (D-107); walk out and back in to use it.
+			insidePortal[player] = false
+			portalReadyAt[player] = os.clock() + PORTAL_COOLDOWN
 			-- Stop any fall speed carried over from the spawn point.
 			root.AssemblyLinearVelocity = Vector3.zero
 			corrected += 1
@@ -134,8 +146,15 @@ function TravelService:SpawnAtHome(player: Player)
 	if spawn == nil then
 		return
 	end
-	-- A dungeon checkpoint (or a run being rejoined) overrides home.
-	local override = if respawnResolver then respawnResolver(player) else nil
+	-- A dungeon checkpoint (or a run being rejoined) or a war-zone camp
+	-- overrides home.
+	local override: CFrame? = nil
+	for _, resolve in respawnResolvers do
+		override = resolve(player)
+		if override then
+			break
+		end
+	end
 	local target = override or (spawn.CFrame + Vector3.new(0, 4, 0))
 
 	spawning[player] = true
@@ -157,19 +176,16 @@ function TravelService:SpawnAtHome(player: Player)
 end
 
 --[[
-	Sets who decides non-home respawns (DungeonService). `resolver(player)`
-	returns a CFrame to spawn at, or nil for the home spawn. Must not yield.
+	Adds a decider for non-home respawns (DungeonService, PvPService).
+	`resolver(player)` returns a CFrame to spawn at, or nil to pass. Must
+	not yield.
 ]]
-function TravelService:SetRespawnResolver(resolver: (Player) -> CFrame?)
-	respawnResolver = resolver
+function TravelService:AddRespawnResolver(resolver: (Player) -> CFrame?)
+	table.insert(respawnResolvers, resolver)
 end
 
 type WalkPortal = { surface: BasePart, onEnter: (Player) -> () }
 local portals: { WalkPortal } = {}
--- The portal each player is standing in (false: just teleported, must step
--- out of every portal first), and when portals may fire again for them.
-local insidePortal: { [Player]: BasePart | false } = {}
-local portalReadyAt: { [Player]: number } = {}
 
 --[[
 	Walking into `surface` (a portal's plane: thinnest axis is its depth)

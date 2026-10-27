@@ -33,6 +33,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local MallDefinitions = require(Shared.Definitions.MallDefinitions)
+local Constants = require(Shared.Constants)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local BuffRules = require(Shared.Logic.BuffRules)
@@ -85,6 +86,12 @@ local REWARD_CATEGORIES = { XP = true, DropChance = true, StoneChance = true }
 
 local function state()
 	return PlayerDataController:Get()
+end
+
+-- D-109: the admin can change prices; the server mirrors them.
+local function priceOf(entry: MallDefinitions.Entry): number
+	local price = ReplicatedStorage:GetAttribute(Constants.Attributes.MallPricePrefix .. entry.id)
+	return if type(price) == "number" then price else entry.price
 end
 
 local function points(): number
@@ -309,7 +316,7 @@ local function card(parent: Instance, choice: Choice, isSelected: boolean)
 		if entry then
 			local have = owned(entry)
 			return `{entry.icon} {entry.name}`,
-				`{entry.description}\nPrice: {entry.price} MP{if have then `  ·  You have {have}` else ""}`
+				`{entry.description}\nPrice: {priceOf(entry)} MP{if have then `  ·  You have {have}` else ""}`
 		end
 		local pk = pack :: any
 		return `💠 {MallDefinitions.pointsOf(pk)} Mall Points`,
@@ -317,10 +324,10 @@ local function card(parent: Instance, choice: Choice, isSelected: boolean)
 				then "Not on sale yet."
 				else `{pk.robux} Robux through Roblox's purchase window.`
 	end)
-	local affordable = entry == nil or points() >= entry.price
+	local affordable = entry == nil or points() >= priceOf(entry)
 	local price = Kit.label(
 		if entry
-			then `{entry.price} MP`
+			then `{priceOf(entry)} MP`
 			else (if (pack :: any).productId == 0
 				then "Not on sale yet"
 				else `{(pack :: any).robux} Robux`),
@@ -412,20 +419,20 @@ local function detail(parent: Instance, choice: Choice)
 			text(parent, "• " .. line, 11, Theme.Colors.Text)
 		end
 	end
-	local affordable = points() >= e.price
+	local affordable = points() >= priceOf(e)
 	local asking = confirming == e.id and os.clock() <= confirmUntil
 	text(
 		parent,
 		if affordable
-			then `Price: {e.price} MP  ·  You have {points()} MP`
-			else `Price: {e.price} MP  ·  You need {e.price - points()} more MP`,
+			then `Price: {priceOf(e)} MP  ·  You have {points()} MP`
+			else `Price: {priceOf(e)} MP  ·  You need {priceOf(e) - points()} more MP`,
 		13,
 		if affordable then Theme.Colors.Safe else TOO_DEAR,
 		true
 	)
 	button(
 		parent,
-		if asking then `Tap again to confirm ({e.price} MP)` else `Buy for {e.price} MP`,
+		if asking then `Tap again to confirm ({priceOf(e)} MP)` else `Buy for {priceOf(e)} MP`,
 		240,
 		affordable or asking,
 		function()

@@ -47,10 +47,13 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
+local PassiveDefinitions = require(Shared.Definitions.PassiveDefinitions)
 local SkillRules = require(Shared.Logic.SkillRules)
+local PassiveRules = require(Shared.Logic.PassiveRules)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local SkillTreeLayout = require(Shared.Layout.SkillTreeLayout)
 local NetClient = require(Shared.Net.Client)
+local Constants = require(Shared.Constants)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -131,8 +134,8 @@ local function attributePoints(): number
 	return math.max(0, AttributeRules.unspent(s.Attributes, s.Level))
 end
 
--- Why a skill can't be learned / ranked right now (nil = it can).
-local function blocker(skill: Skill): string?
+-- Why a skill or passive can't be learned / ranked right now (nil = it can).
+local function blocker(skill: { id: string, unlockLevel: number, requires: string? }): string?
 	local ok, reason =
 		SkillRules.canLearn(state().Job, owned(), state().Level, bonus(), unlockAll(), skill.id)
 	if ok then
@@ -147,7 +150,7 @@ local function blocker(skill: Skill): string?
 		local need = SkillDefinitions.get(skill.requires)
 		return `Requires {if need then need.name else "the skill above"}`
 	elseif reason == "noPoints" then
-		return "No skill points (1 per level)"
+		return "No skill points (3 per level)"
 	elseif reason == "maxRank" then
 		return "Max rank"
 	end
@@ -544,6 +547,232 @@ local function drawNode(
 	end)
 end
 
+--------------------------------------------------------------------------------
+-- Class passives (D-104): always on once learned, no bar slot
+--------------------------------------------------------------------------------
+
+local PASSIVE_TEAL = Color3.fromRGB(120, 230, 220)
+
+local function drawPassiveDetail(parent: Instance, passive: PassiveDefinitions.Passive)
+	for _, child in parent:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	local rank = SkillRules.rankOf(owned(), passive.id)
+	local why = blocker(passive)
+	local function add(text: string, size: number, font: Font, color: Color3, order: number)
+		local label = Kit.label(text, size, font, color)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.LayoutOrder = order
+		label.Parent = parent
+	end
+	add(passive.name, 18, Theme.Fonts.Display, colors().text, 1)
+	add(
+		`PASSIVE · ALWAYS ON · no slot needed · rank {rank}/{passive.maxRank}`,
+		11,
+		Theme.Fonts.BodyBold,
+		PASSIVE_TEAL,
+		2
+	)
+	add(passive.description, 13, Theme.Fonts.Body, Theme.Colors.TextDim, 3)
+	local now = PassiveRules.describe(passive, rank)
+	add(
+		if #now > 0 then "Now: " .. table.concat(now, ", ") else "Not learned yet.",
+		13,
+		Theme.Fonts.BodyBold,
+		if #now > 0 then LEARNABLE else Theme.Colors.TextMuted,
+		4
+	)
+	if rank < passive.maxRank then
+		add(
+			`Rank {rank + 1}: ` .. table.concat(PassiveRules.describe(passive, rank + 1), ", "),
+			13,
+			Theme.Fonts.BodyBold,
+			Theme.Colors.Text,
+			5
+		)
+	end
+	if why and why ~= "Max rank" then
+		add(why, 12, Theme.Fonts.BodyBold, Color3.fromRGB(255, 170, 130), 6)
+	end
+	local learnText = if rank >= passive.maxRank
+		then "Max rank"
+		elseif rank == 0 then "Learn (1 pt)"
+		else `Rank {rank + 1} (1 pt)`
+	local learn = smallButton(learnText, 140, if why == nil then Theme.Colors.Gold else nil)
+	learn.LayoutOrder = 7
+	learn.Parent = parent
+	if why then
+		learn.TextColor3 = Theme.Colors.TextMuted
+	end
+	learn.Activated:Connect(function()
+		if rank >= passive.maxRank then
+			return
+		end
+		pending = { id = passive.id, rank = rank }
+		NetClient.fire("LearnSkill", passive.id)
+	end)
+end
+
+-- A diamond node: passives look different from skills at a glance (and are
+-- labelled, so not by shape alone).
+local function drawPassive(
+	parent: Instance,
+	passive: PassiveDefinitions.Passive,
+	center: { x: number, y: number },
+	size: number,
+	width: number
+)
+	local rank = SkillRules.rankOf(owned(), passive.id)
+	local why = blocker(passive)
+	local learnable = why == nil
+	local levelLocked = rank == 0 and not unlockAll() and state().Level < passive.unlockLevel
+	local isSelected = selected == passive.id
+	local tile = Kit.new("TextButton", {
+		Name = passive.id,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(center.x, center.y),
+		Size = UDim2.fromOffset(size, size),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = 3,
+		Parent = parent,
+	})
+	local scale = Kit.new("UIScale", { Scale = if isSelected then 1.1 else 1, Parent = tile })
+	local rest = scale.Scale
+	tile.MouseEnter:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = rest + 0.08 }):Play()
+	end)
+	tile.MouseLeave:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.12), { Scale = rest }):Play()
+	end)
+	local diamond = Kit.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(size * 0.78, size * 0.78),
+		Rotation = 45,
+		BackgroundColor3 = colors().dark,
+		BackgroundTransparency = if rank >= 1 then 0.1 else 0.45,
+		ZIndex = 1,
+		Parent = tile,
+	}, { Kit.new("UICorner", { CornerRadius = UDim.new(0, 6) }) })
+	local stroke = Kit.new("UIStroke", {
+		Thickness = if isSelected then 3 else 2,
+		Color = if isSelected
+			then Color3.new(1, 1, 1)
+			elseif learnable then LEARNABLE
+			elseif rank >= 1 then PASSIVE_TEAL
+			else LOCKED_LINE,
+		Parent = diamond,
+	})
+	if learnable and not isSelected then
+		ClassTheme.pulse(stroke, 0.7, { Transparency = 0.65 })
+	end
+	local icon = SkillIcon.forSkill(passive, math.floor(size * 0.62), {
+		plain = true,
+		dim = rank == 0,
+		lock = levelLocked,
+		zIndex = 2,
+	})
+	icon.AnchorPoint = Vector2.new(0.5, 0.5)
+	icon.Position = UDim2.fromScale(0.5, 0.5)
+	icon.Parent = tile
+	if pending and pending.id == passive.id and rank > pending.rank then
+		pending = nil
+		task.defer(burst, tile, PASSIVE_TEAL)
+	end
+	Kit.new("TextLabel", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, -4, 1, 4),
+		Size = UDim2.fromOffset(26, 14),
+		BackgroundColor3 = if rank >= 1 then PASSIVE_TEAL else Theme.Colors.Ink,
+		BackgroundTransparency = 0.05,
+		Text = `{rank}/{passive.maxRank}`,
+		TextSize = 10,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = if rank >= 1 then Color3.fromRGB(8, 30, 30) else Theme.Colors.TextMuted,
+		ZIndex = 6,
+		Parent = tile,
+	}, { Kit.new("UICorner", { CornerRadius = UDim.new(0, 5) }) })
+	if learnable then
+		Kit.new("TextLabel", {
+			BackgroundColor3 = LEARNABLE,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0),
+			Size = UDim2.fromOffset(44, 14),
+			Text = if rank == 0 then "LEARN" else "+RANK",
+			TextSize = 9,
+			FontFace = Theme.Fonts.BodyBold,
+			TextColor3 = Color3.fromRGB(10, 40, 20),
+			ZIndex = 6,
+			Parent = tile,
+		}, { Kit.new("UICorner", { CornerRadius = UDim.new(0, 5) }) })
+	end
+	local label = Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromOffset(center.x, center.y + size / 2 + 2),
+		Size = UDim2.fromOffset(math.max(width - 6, size), SkillTreeLayout.LABEL_HEIGHT),
+		Text = if levelLocked then `{passive.name}\nLv {passive.unlockLevel}` else passive.name,
+		TextSize = 10,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = if rank >= 1
+			then PASSIVE_TEAL
+			elseif levelLocked then Theme.Colors.TextMuted
+			else Theme.Colors.TextDim,
+		TextWrapped = true,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		ZIndex = 3,
+		Parent = parent,
+	})
+	label.TextTruncate = Enum.TextTruncate.AtEnd
+	tile.Activated:Connect(function()
+		selected = passive.id
+		render()
+	end)
+end
+
+local function drawPassiveRow(parent: Instance, layout: SkillTreeLayout.Layout)
+	local passives = PassiveDefinitions.forJob(state().Job)
+	if #passives == 0 then
+		return
+	end
+	local theme = colors()
+	Kit.new("Frame", {
+		Position = UDim2.fromOffset(3, layout.passiveTop),
+		Size = UDim2.fromOffset(layout.tree.w - 6, layout.tree.h - layout.passiveTop - 2),
+		BackgroundColor3 = PASSIVE_TEAL,
+		BackgroundTransparency = 0.9,
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = parent,
+	}, {
+		Kit.new("UICorner", { CornerRadius = UDim.new(0, 12) }),
+		Kit.new("UIStroke", { Color = PASSIVE_TEAL, Transparency = 0.7, Thickness = 1 }),
+	})
+	Kit.new("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, layout.passiveTop + 4),
+		Size = UDim2.fromOffset(layout.tree.w - 20, 18),
+		Text = "◆ PASSIVES · always on, no slot needed",
+		TextSize = 12,
+		FontFace = Theme.Fonts.Display,
+		TextColor3 = theme.text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = parent,
+	})
+	local width = layout.tree.w / SkillTreeLayout.PASSIVES
+	for index, passive in passives do
+		local center = layout.passives[index]
+		if center then
+			drawPassive(parent, passive, center, layout.node, width)
+		end
+	end
+end
+
 local function drawTree(parent: Instance, layout: SkillTreeLayout.Layout)
 	local job = state().Job
 	local branches = (SkillDefinitions.Branches :: any)[job or ""] or {}
@@ -555,7 +784,7 @@ local function drawTree(parent: Instance, layout: SkillTreeLayout.Layout)
 		-- D-103: a tinted card behind each branch column.
 		local card = Kit.new("Frame", {
 			Position = UDim2.fromOffset((index - 1) * columnWidth + 3, 0),
-			Size = UDim2.fromOffset(columnWidth - 6, layout.tree.h),
+			Size = UDim2.fromOffset(columnWidth - 6, layout.passiveTop - 4),
 			BackgroundColor3 = theme.primary,
 			BackgroundTransparency = 0.86,
 			BorderSizePixel = 0,
@@ -644,6 +873,7 @@ local function drawTree(parent: Instance, layout: SkillTreeLayout.Layout)
 			end
 		end
 	end
+	drawPassiveRow(parent, layout)
 end
 
 local function drawBar(parent: Instance, layout: SkillTreeLayout.Layout)
@@ -899,9 +1129,29 @@ function render()
 		Parent = right,
 	})
 	pointsLabel.TextWrapped = true
-	local reset = smallButton("Reset", 72)
+	-- D-105: with the free reset switched off (admin) the button uses a
+	-- scroll and shows how many you have.
+	local free = ReplicatedStorage:GetAttribute(
+		if attributesPage then Constants.Attributes.FreeAttributeReset else Constants.Attributes.FreeTreeReset
+	) ~= false
+	local scrollId = if attributesPage then "RebirthScroll" else "RelearnScroll"
+	local scrolls = state().Stackables[scrollId] or 0
+	local reset = smallButton(if free then "Reset" else `📜 ×{scrolls}`, 72)
 	reset.LayoutOrder = 2
 	reset.Parent = right
+	if not free and scrolls <= 0 then
+		reset.TextColor3 = Theme.Colors.TextMuted
+	end
+	Tooltip.attach(reset, function()
+		local name = if attributesPage then "Scroll of Rebirth" else "Scroll of Relearning"
+		if free then
+			return "Reset",
+				if attributesPage
+					then "Get every attribute point back (free once a day)."
+					else "Get every skill point back (free, in a safe zone)."
+		end
+		return `📜 {name}`, `The free reset is off. Uses one {name} (Item Mall). You have {scrolls}.`
+	end)
 	reset.Activated:Connect(function()
 		NetClient.fire(if attributesPage then "ResetAttributes" else "ResetSkills")
 	end)
@@ -998,7 +1248,12 @@ function render()
 	local detailLayout =
 		Kit.list(detailParent, Enum.FillDirection.Vertical, 10, Enum.HorizontalAlignment.Left)
 	detailLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-	drawDetail(detailParent, SkillDefinitions.get(selected))
+	local passive = PassiveDefinitions.get(selected)
+	if passive then
+		drawPassiveDetail(detailParent, passive)
+	else
+		drawDetail(detailParent, SkillDefinitions.get(selected))
+	end
 	body.CanvasPosition = scroll
 end
 

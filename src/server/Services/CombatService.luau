@@ -188,6 +188,9 @@ export type Entity = {
 	ccImmuneUntil: number,
 	-- Basic attacks wait until then (a skill's cast animation is playing).
 	attackLockUntil: number,
+	-- When the last skill cast started: it cancels a swing whose hit is
+	-- still pending (D-103 stage C).
+	castAt: number,
 	-- NPCs: outgoing damage multiplier (an enraged boss, D-47).
 	outgoingScale: number,
 	-- Players: resting (out of combat, no creature near) and when to re-check.
@@ -428,6 +431,7 @@ local function newEntity(
 		controlImmune = false,
 		ccImmuneUntil = -math.huge,
 		attackLockUntil = -math.huge,
+		castAt = -math.huge,
 		outgoingScale = 1,
 		resting = false,
 		restCheckAt = 0,
@@ -857,11 +861,14 @@ local function landHit(
 	attacker: Entity,
 	target: Entity,
 	attack: BasicAttacks.BasicAttack,
-	step: BasicAttacks.ComboStep
+	step: BasicAttacks.ComboStep,
+	swungAt: number
 )
 	if
 		entitiesByModel[attacker.model] ~= attacker
 		or entitiesByModel[target.model] ~= target
+		-- A skill cut into the swing before it landed.
+		or attacker.castAt > swungAt
 		or attacker.defeated
 		or target.defeated
 	then
@@ -952,7 +959,7 @@ local function onBasicAttack(player: Player, targetModel: Model?)
 	end
 
 	local travel = if step.projectileSpeed then distance / step.projectileSpeed else 0
-	task.delay(BasicAttacks.hitTime(step) + travel, landHit, attacker, target, attack, step)
+	task.delay(BasicAttacks.hitTime(step) + travel, landHit, attacker, target, attack, step, t)
 end
 
 --------------------------------------------------------------------------------
@@ -1251,6 +1258,53 @@ function CombatService:NpcStrike(
 		defense = defenseOf(target),
 	}, config)
 	applyDamage(target, amount, attacker, crit, heavy)
+	return true
+end
+
+-- D-108: camp guardians are not combatants (nothing can target them);
+-- each strikes through a private entity of its own.
+local guardEntities: { [Model]: Entity } = setmetatable({}, { __mode = "k" }) :: any
+
+--[[
+	A war-zone camp guardian (GuardService) strikes `targetModel`, a player
+	of the other realm, for `pctOfMaxHp` of their max HP (mitigation,
+	shields and Immune still apply). Never in a safe zone, never on a
+	protected or defeated player, never between same-realm players. A
+	defeat by a guardian credits no player (no PvP victory). Returns true
+	if damage was dealt.
+]]
+function CombatService:GuardStrike(
+	guardModel: Model,
+	race: string,
+	targetModel: Model,
+	pctOfMaxHp: number
+): boolean
+	local target = entitiesByModel[targetModel]
+	if
+		target == nil
+		or target.kind ~= "Player"
+		or target.defeated
+		or target.race == nil
+		or target.race == race
+		or isProtected(target)
+		or inSafeZone(target)
+	then
+		return false
+	end
+	local guard = guardEntities[guardModel]
+	if guard == nil then
+		local humanoid = guardModel:FindFirstChildOfClass("Humanoid")
+		local root = guardModel:FindFirstChild("HumanoidRootPart")
+		if humanoid == nil or root == nil or not root:IsA("BasePart") then
+			return false
+		end
+		guard = newEntity("Npc", guardModel, humanoid, root, guardModel.Name)
+		guard.race = race
+		guard.autoRevive = true
+		guardEntities[guardModel] = guard
+	end
+	local amount = target.maxHp * math.clamp(pctOfMaxHp, 0, 100) / 100
+	applyDamage(target, math.max(1, amount), guard :: Entity, false, true)
 	return true
 end
 
@@ -1670,6 +1724,7 @@ end
 -- spawn protection ends for hostile skills, the combo chain restarts.
 function CombatService:CastStarted(entity: Entity, lockSeconds: number, hostile: boolean)
 	entity.attackLockUntil = now() + lockSeconds
+	entity.castAt = now()
 	entity.combo = ComboMath.new()
 	if hostile then
 		entity.protectedUntil = 0

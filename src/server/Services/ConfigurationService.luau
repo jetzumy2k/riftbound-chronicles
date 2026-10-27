@@ -24,6 +24,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 local Constants = require(Shared.Constants)
+local MallDefinitions = require(Shared.Definitions.MallDefinitions)
 local Schema = require(Shared.Logic.Schema)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
@@ -64,6 +65,18 @@ local function publishVersion()
 	ReplicatedStorage:SetAttribute(Constants.Attributes.ConfigVersion, currentVersion)
 	-- Client-visible switches (read-only for clients).
 	ReplicatedStorage:SetAttribute(Constants.Attributes.AutoAttack, effective.Flags.AutoAttack == true)
+	ReplicatedStorage:SetAttribute(Constants.Attributes.FreeTreeReset, effective.Skills.FreeTreeReset == true)
+	ReplicatedStorage:SetAttribute(
+		Constants.Attributes.FreeAttributeReset,
+		effective.Skills.FreeAttributeReset == true
+	)
+	-- D-109: the price each Mall card shows (the server charges its own).
+	for _, entry in MallDefinitions.CATALOG do
+		ReplicatedStorage:SetAttribute(
+			Constants.Attributes.MallPricePrefix .. entry.id,
+			effective.Mall.Prices[entry.id] or entry.price
+		)
+	end
 end
 
 local function fetchOverride(): (boolean, any)

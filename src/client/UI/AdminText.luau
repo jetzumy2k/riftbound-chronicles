@@ -10,6 +10,9 @@
 	words, so a new config value never disappears from the panel.
 ]]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MallDefinitions = require(ReplicatedStorage.Shared.Definitions.MallDefinitions)
+
 local AdminText = {}
 
 export type Section = { title: string, help: string }
@@ -39,6 +42,7 @@ AdminText.SECTIONS = {
 	Skills = { title = "🌟 Skills", help = "Cooldowns, crowd control and area skills." },
 	Combat = { title = "💥 Combat", help = "Damage formula, regeneration, protection timers and Focus." },
 	Appearance = { title = "👤 Appearance", help = "How player characters look." },
+	Mall = { title = "🛒 Item Mall prices", help = "What each Item Mall entry costs in Mall Points." },
 } :: { [string]: Section }
 
 -- Card titles for grouped values (the path between the section and the leaf).
@@ -112,6 +116,25 @@ local LEAVES: { [string]: Leaf } = {
 		name = "Boss respawn",
 		help = "A fallen war-zone boss returns after this.",
 		unit = "min",
+	},
+	["PvP.Guards"] = {
+		name = "Camp guardians",
+		help = "ON: guardians around each war-zone camp strike players of the other realm who come close.",
+	},
+	["PvP.GuardRadius"] = {
+		name = "Guardian reach",
+		help = "Distance from a camp's centre the guardians defend (the camp ring is 40).",
+		unit = "studs",
+	},
+	["PvP.GuardHitPct"] = {
+		name = "Guardian hit",
+		help = "Each guardian strike takes this % of the intruder's max HP.",
+		unit = "%",
+	},
+	["PvP.GuardHitSeconds"] = {
+		name = "Guardian strike rate",
+		help = "Seconds between guardian strikes on an intruder.",
+		unit = "s",
 	},
 	["PvP.StudioBossRespawnSeconds"] = {
 		name = "Studio: boss respawn",
@@ -206,6 +229,14 @@ local LEAVES: { [string]: Leaf } = {
 	["Skills.ResetNeedsSafeZone"] = {
 		name = "Skill reset only in safe zone",
 		help = "ON: the free skill tree reset works only in a safe zone, out of combat.",
+	},
+	["Skills.FreeTreeReset"] = {
+		name = "Free skill tree reset",
+		help = "OFF: the skill tree's Reset button needs a Scroll of Relearning.",
+	},
+	["Skills.FreeAttributeReset"] = {
+		name = "Free attribute reset",
+		help = "OFF: the attributes' Reset button needs a Scroll of Rebirth (no free daily reset).",
 	},
 	["Skills.StudioUnlockAll"] = { name = "Studio: unlock all skills", help = "Studio tests only." },
 	["Skills.StudioBonusPoints"] = { name = "Studio: bonus skill points", help = "Studio tests only." },
@@ -319,6 +350,16 @@ function AdminText.describe(path: string): (string, string, Leaf)
 	if sectionName == "Enhancement" and parts[2] == "RatesPct" then
 		local group = "Enhancement.RatesPct"
 		return group, AdminText.GROUPS[group], { name = `Upgrade to +{last}`, unit = "%" }
+	end
+	if sectionName == "Mall" and parts[2] == "Prices" then
+		local entry = MallDefinitions.get(last)
+		return "Mall.Prices",
+			AdminText.section("Mall").title,
+			{
+				name = if entry then `{entry.icon} {entry.name}` else last,
+				help = if entry then entry.short else nil,
+				unit = "MP",
+			}
 	end
 	local leaf = LEAVES[path] or { name = AdminText.words(last) }
 	return sectionName, AdminText.section(sectionName).title, leaf

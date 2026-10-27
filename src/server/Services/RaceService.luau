@@ -36,6 +36,7 @@ local WeaponRules = require(Shared.Definitions.WeaponRules)
 local HudSlots = require(Shared.Layout.HudSlots)
 
 local Wardrobe = require(script.Parent.Parent.Appearance.Wardrobe)
+local EnhanceAura = require(script.Parent.Parent.Appearance.EnhanceAura)
 local BodyStyle = require(script.Parent.Parent.Appearance.BodyStyle)
 local CharacterFactory = require(script.Parent.Parent.Appearance.Anime.CharacterFactory)
 
@@ -151,6 +152,8 @@ function RaceService:Redress(player: Player)
 		look,
 		if anime then RaceService:AnimeLook(player) else nil
 	)
+	-- D-110: enhanced gear glows, stronger with every level.
+	EnhanceAura.apply(character, look)
 	-- D-69: how the hands hold what's worn, for the animation (display only).
 	local main, off = look.Weapon, look.OffHand
 	character:SetAttribute(

@@ -51,7 +51,9 @@ export type StackableDef = {
 	maxStack: number,
 	-- Consumables: what using one does (applied by the server). HealPct
 	-- restores `pct` of max HP; Buff starts BuffRules `buff` (D-93);
-	-- AttributeReset returns every attribute point (Scroll of Rebirth).
+	-- AttributeReset returns every attribute point (Scroll of Rebirth);
+	-- SkillReset every skill point (Scroll of Relearning, D-105). Potions
+	-- (HealPct) share one cooldown (D-106).
 	use: { kind: string, pct: number?, buff: string?, cooldown: number }?,
 }
 
@@ -312,10 +314,38 @@ local stackables: { [string]: StackableDef } = {
 		id = "HealingPotion",
 		name = "Healing Potion",
 		short = "Heal 30% of your HP",
-		description = "Restores 30% of your health at once. Usable every 15 seconds.",
+		description = "Restores 30% of your health at once. Potions share a 15-second wait.",
 		glyph = "🧪",
 		maxStack = 999,
 		use = { kind = "HealPct", pct = 30, cooldown = 15 },
+	},
+	-- D-106 (creator, 2026-10-27): bigger potions, dearer in the Mall.
+	GreaterHealingPotion = {
+		id = "GreaterHealingPotion",
+		name = "Greater Healing Potion",
+		short = "Heal 50% of your HP",
+		description = "Restores 50% of your health at once. Potions share a 15-second wait.",
+		glyph = "🧪",
+		maxStack = 999,
+		use = { kind = "HealPct", pct = 50, cooldown = 15 },
+	},
+	MajorHealingPotion = {
+		id = "MajorHealingPotion",
+		name = "Major Healing Potion",
+		short = "Heal 75% of your HP",
+		description = "Restores 75% of your health at once. Potions share a 15-second wait.",
+		glyph = "🧪",
+		maxStack = 999,
+		use = { kind = "HealPct", pct = 75, cooldown = 15 },
+	},
+	SupremeHealingPotion = {
+		id = "SupremeHealingPotion",
+		name = "Supreme Healing Potion",
+		short = "Heal 90% of your HP",
+		description = "Restores 90% of your health at once. Potions share a 15-second wait.",
+		glyph = "🧪",
+		maxStack = 999,
+		use = { kind = "HealPct", pct = 90, cooldown = 15 },
 	},
 	-- Item Mall consumables (D-93): buffs (BuffRules) and the Scroll of Rebirth.
 	Buff_Insight = {
@@ -390,6 +420,16 @@ local stackables: { [string]: StackableDef } = {
 		maxStack = 99,
 		use = { kind = "AttributeReset", cooldown = 2 },
 	},
+	-- D-105: the skill tree's counterpart of the Scroll of Rebirth.
+	RelearnScroll = {
+		id = "RelearnScroll",
+		name = "Scroll of Relearning",
+		short = "Get all skill points back",
+		description = "Returns every skill point (passives too) anywhere out of combat, even when the free reset is off.",
+		glyph = "📜",
+		maxStack = 99,
+		use = { kind = "SkillReset", cooldown = 2 },
+	},
 }
 
 local stackableIds = {}
@@ -404,6 +444,9 @@ ItemDefinitions.STACKABLE_IDS = table.freeze(stackableIds)
 -- Display order in the inventory.
 ItemDefinitions.STACKABLE_ORDER = table.freeze({
 	"HealingPotion",
+	"GreaterHealingPotion",
+	"MajorHealingPotion",
+	"SupremeHealingPotion",
 	"Buff_Insight",
 	"Buff_Fortune",
 	"Buff_StoneSeeker",
@@ -412,6 +455,7 @@ ItemDefinitions.STACKABLE_ORDER = table.freeze({
 	"Buff_Vigor",
 	"Buff_Clarity",
 	"RebirthScroll",
+	"RelearnScroll",
 	"EnhancementStone",
 	"PerfectStone",
 	"StoneFragment",
