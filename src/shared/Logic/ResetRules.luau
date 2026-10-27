@@ -97,6 +97,10 @@ function ResetRules.apply(
 	reset("QuestState")
 	reset("StoryFlags")
 	reset("EventProgress")
+	-- D-119: the Warden's chain restarts with the quests.
+	if fresh.Chain ~= nil then
+		reset("Chain")
+	end
 	local claims = data.ClaimedRewardIds
 	if type(claims) == "table" then
 		for id in claims do

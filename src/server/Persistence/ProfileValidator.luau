@@ -183,6 +183,15 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
+	-- D-119: the Warden's chain.
+	do
+		local ChainRules = require(Shared.Logic.ChainRules) :: any
+		local fixed, changed = ChainRules.repair(data.Chain)
+		if changed and type(data.Chain) == "table" then
+			note("Chain: repaired")
+		end
+		data.Chain = fixed
+	end
 	-- D-117: the Exchanger's daily counts.
 	local exchange = data.ExchangeDay
 	if type(exchange) == "table" then

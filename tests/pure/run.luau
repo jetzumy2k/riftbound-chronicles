@@ -42,6 +42,7 @@ local specs = {
 	{ "character_slots", require("./specs/character_slots.spec") },
 	{ "shop", require("./specs/shop.spec") },
 	{ "durability", require("./specs/durability.spec") },
+	{ "chain_quest", require("./specs/chain_quest.spec") },
 	{ "perf_budget", require("./specs/perf_budget.spec") },
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },

@@ -58,6 +58,7 @@ CharacterSlots.CHARACTER_FIELDS = table.freeze({
 	"EquippedTitle",
 	"PvPStats",
 	"EventProgress",
+	"Chain",
 })
 -- Per-character wallet keys (Mall Points stay with the account).
 CharacterSlots.WALLET_FIELDS = table.freeze({ "Gold", "PvPMarks" })

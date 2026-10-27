@@ -55,6 +55,16 @@ NpcDefinitions.List = table.freeze({
 		at = table.freeze({ -34, 0, -8 }),
 		look = "Warrior",
 	}),
+	-- D-119: gives the trial chain (ChainQuestService).
+	table.freeze({
+		id = "Warden",
+		names = table.freeze({ Angel = "Warden Selene", Devil = "Warden Draven" }),
+		title = "The Warden's Trials",
+		icon = "🗝️",
+		prompt = "Trials",
+		at = table.freeze({ -34, 0, 32 }),
+		look = "Archer",
+	}),
 } :: { Npc })
 
 NpcDefinitions.IDS = {} :: { string }

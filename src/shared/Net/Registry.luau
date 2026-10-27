@@ -99,7 +99,7 @@ return function(S: any)
 	local stackables = S.map(S.enum(STACKABLE_IDS), S.int(0), 16)
 	local wallet = S.struct({ Gold = S.int(0), PvPMarks = S.int(0), MallPoints = S.optional(S.int(0)) })
 	-- D-93: running buffs, id -> seconds left.
-	local buffsView = S.map(S.enum(table.clone(BuffRules.IDS)), S.int(0, 6 * 3600), 16)
+	local buffsView = S.map(S.enum(table.clone(BuffRules.IDS)), S.int(0, BuffRules.MAX_SECONDS), 16)
 	-- D-74: moved HUD pieces, centre as a screen fraction.
 	local hudLayout = S.map(
 		S.enum(table.clone(HudSlots.IDS)),
@@ -413,6 +413,16 @@ return function(S: any)
 				}),
 			},
 			rate = { capacity = 10, refillPerSecond = 2 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- D-119: the Warden's trial chain (reach, level, cooldown and the
+		-- reward claim are checked on the server).
+		ChainQuest = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = { S.enum({ "Status", "Start", "Claim" }), S.optional(S.enum({ "Legendary", "Buff" })) },
+			rate = { capacity = 6, refillPerSecond = 1 },
 			states = { "ProfileLoaded" },
 		},
 

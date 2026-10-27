@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local NpcDefinitions = require(Shared.Definitions.NpcDefinitions)
+local ChainQuestDefinitions = require(Shared.Definitions.ChainQuestDefinitions)
 local NetClient = require(Shared.Net.Client)
 
 local UI = script.Parent.Parent.UI
@@ -60,6 +61,10 @@ local REASONS = {
 	equipped = "A ticked item is equipped.",
 	stock = "That item isn't sold.",
 	nothing = "Nothing needs repairing.",
+	level = "You need a higher level for the trials.",
+	cooldown = "The Warden needs time before your next trials.",
+	active = "You are already on the trials.",
+	notDone = "Finish every trial first.",
 	amount = "Enter an amount from 1 to 100,000.",
 	RateLimited = "Too many requests; wait a moment.",
 }
@@ -72,6 +77,8 @@ local page = "Buy"
 local buyCategory = "Potions"
 local buyRarity = "Standard"
 local selectedPick: string? = nil
+-- D-119: the trial shown in detail (nil: the current one).
+local chainPick: number? = nil
 local listed: any = nil
 local picked: { [string]: boolean? } = {}
 local confirming: string? = nil
@@ -94,7 +101,10 @@ end
 
 local function call(action: string, args: { [string]: any }): any
 	args.Npc = npc
-	local result = NetClient.invoke("NpcShop", action, args)
+	-- D-119: the Warden has its own remote.
+	local result = if npc == "Warden"
+		then NetClient.invoke("ChainQuest", action, args.Reward)
+		else NetClient.invoke("NpcShop", action, args)
 	if type(result) ~= "table" then
 		setStatus("No answer from the server.", true)
 		return nil
@@ -636,6 +646,171 @@ local function drawRepair(body: Instance, l: any, width: number): (string, strin
 		end
 end
 
+local function span(seconds: number): string
+	local h = seconds // 3600
+	local m = (seconds % 3600) // 60
+	return if h > 0 then `{h}h {m}m` else `{math.max(1, m)}m`
+end
+
+-- D-119: the Warden's trial chain. On top, the chosen trial in detail (what
+-- to hunt, where, how to get there); below, all eight to pick from (creator
+-- review 2026-10-27: the first version only named the zone).
+local function drawChain(body: Instance, l: any): (string, string?, (() -> ())?)
+	local steps = ChainQuestDefinitions.Steps
+	local current = if l.active and not l.ready then l.step else nil
+	local shown = chainPick or current or 1
+	local step = steps[shown]
+	local done = l.active and shown < l.step
+	local isCurrent = shown == current
+
+	local intro = text(
+		body,
+		`🗝️ {ChainQuestDefinitions.NAME} · {#steps} trials in order · from level {l.minLevel} · Reward: a Legendary gear piece or a 1-day buff (you choose)`,
+		12,
+		Theme.Colors.TextDim
+	)
+	intro.LayoutOrder = 1
+
+	-- The detail card.
+	local card = Kit.new("Frame", {
+		BackgroundColor3 = Theme.Colors.GlassRaised,
+		BackgroundTransparency = 0.05,
+		Size = UDim2.new(1, -4, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 2,
+		Parent = body,
+	})
+	Kit.corner(card, 12)
+	Kit.goldStroke(card, 1.5, 0.15)
+	Kit.padding(card, 12, 14)
+	local list = Kit.list(card, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Left)
+	list.VerticalAlignment = Enum.VerticalAlignment.Top
+	local order = 0
+	local function line(body2: string, size: number, color: Color3, bold: boolean?)
+		order += 1
+		text(card, body2, size, color, bold).LayoutOrder = order
+	end
+	local state = if done then "✅ Done" elseif isCurrent then "▶ Your current trial" else "Upcoming"
+	line(
+		`Trial {shown} of {#steps} · {state}`,
+		12,
+		if done then Theme.Colors.Safe else Theme.Colors.GoldBright,
+		true
+	)
+	line(`{step.icon} {step.label}`, 18, Theme.Colors.Text, true)
+	if isCurrent then
+		order += 1
+		local barRow = Kit.new("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 0, 22),
+			LayoutOrder = order,
+			Parent = card,
+		})
+		local back = Kit.new("Frame", {
+			Position = UDim2.fromOffset(0, 5),
+			Size = UDim2.new(1, -90, 0, 12),
+			BackgroundColor3 = Color3.fromRGB(30, 26, 30),
+			BorderSizePixel = 0,
+			Parent = barRow,
+		})
+		Kit.corner(back, 6)
+		local fill = Kit.new("Frame", {
+			Size = UDim2.fromScale(math.clamp(l.progress / step.count, 0, 1), 1),
+			BackgroundColor3 = Theme.Colors.Gold,
+			BorderSizePixel = 0,
+			Parent = back,
+		})
+		Kit.corner(fill, 6)
+		local count = text(barRow, `{l.progress} / {step.count}`, 15, Theme.Colors.GoldBright, true)
+		count.AutomaticSize = Enum.AutomaticSize.None
+		count.AnchorPoint = Vector2.new(1, 0)
+		count.Position = UDim2.fromScale(1, 0)
+		count.Size = UDim2.fromOffset(80, 22)
+		count.TextXAlignment = Enum.TextXAlignment.Right
+	end
+	line(`🎯 Hunt: {step.target}  ({step.levels})`, 14, Theme.Colors.Text, true)
+	if step.kind == "Collect" then
+		line(
+			`🎲 Each {step.target} you defeat has a {l.chance}% chance to drop a {step.item}. You need {step.count}.`,
+			13,
+			Theme.Colors.Text
+		)
+	end
+	line(`📍 Where: {step.where}`, 14, Theme.Colors.Text, true)
+	line(`🧭 How to get there: {step.route}`, 13, Theme.Colors.Text)
+	if step.tip then
+		line(`💡 {step.tip}`, 12, Theme.Colors.TextDim)
+	end
+
+	-- All trials, compact; tap one to read it above.
+	local heading = text(body, "All trials (tap one to see where to go)", 13, Theme.Colors.GoldBright, true)
+	heading.LayoutOrder = 3
+	for index, s2 in steps do
+		local isDone = l.active and index < l.step
+		local isNow = index == current
+		local entry = Kit.new("TextButton", {
+			BackgroundColor3 = if index == shown then Theme.Colors.GlassRaised else Theme.Colors.Ink,
+			BackgroundTransparency = if index == shown then 0.1 else 0.45,
+			Size = UDim2.new(1, -4, 0, 34),
+			Text = "",
+			AutoButtonColor = true,
+			LayoutOrder = 3 + index,
+			Parent = body,
+		})
+		Kit.corner(entry, 8)
+		if index == shown then
+			Kit.goldStroke(entry, 1.5, 0.2)
+		end
+		local mark = if isDone then "✅" elseif isNow then "▶" else tostring(index)
+		local left = text(
+			entry,
+			`{mark}  {s2.icon} {s2.label}`,
+			13,
+			if isDone then Theme.Colors.Safe elseif isNow then Theme.Colors.GoldBright else Theme.Colors.Text,
+			true
+		)
+		left.AutomaticSize = Enum.AutomaticSize.None
+		left.Position = UDim2.fromOffset(10, 0)
+		left.Size = UDim2.new(1, -190, 1, 0)
+		left.TextTruncate = Enum.TextTruncate.AtEnd
+		left.TextWrapped = false
+		local right =
+			text(entry, if isNow then `{l.progress} / {s2.count}` else s2.levels, 12, Theme.Colors.TextDim)
+		right.AutomaticSize = Enum.AutomaticSize.None
+		right.AnchorPoint = Vector2.new(1, 0)
+		right.Position = UDim2.new(1, -10, 0, 0)
+		right.Size = UDim2.fromOffset(170, 34)
+		right.TextXAlignment = Enum.TextXAlignment.Right
+		entry.Activated:Connect(function()
+			chainPick = index
+			render()
+		end)
+	end
+
+	if l.ready then
+		return "🎉 All trials done! Choose your reward:", nil, nil
+	elseif l.active then
+		return `Trial {l.step} of {#steps}: {steps[l.step].label} ({l.progress}/{steps[l.step].count})`,
+			nil,
+			nil
+	elseif l.canStart then
+		return `Ready to begin{if l.cycles > 0 then ` (finished {l.cycles} time(s))` else ""}.`,
+			"Begin the trials",
+			function()
+				if call("Start", {}) then
+					chainPick = nil
+					setStatus("✅ The trials begin! First: " .. steps[1].label)
+				end
+				render()
+			end
+	elseif l.why == "level" then
+		return `Reach level {l.minLevel} to take the trials.`, nil, nil
+	elseif l.why == "cooldown" then
+		return `Next trials in {span(l.cooldown)}.`, nil, nil
+	end
+	return "The trials are closed for now.", nil, nil
+end
+
 function render()
 	local frame = content
 	if frame == nil then
@@ -768,6 +943,8 @@ function render()
 	local summary, actionText, action
 	if npc == "Blacksmith" then
 		summary, actionText, action = drawRepair(scroll, l, width)
+	elseif npc == "Warden" then
+		summary, actionText, action = drawChain(scroll, l)
 	elseif page == "Sell" then
 		summary, actionText, action = drawSell(scroll, l, width)
 	else
@@ -805,6 +982,35 @@ function render()
 				end
 			)
 		end
+	elseif npc == "Warden" and l.ready then
+		local buttons = Kit.new("Frame", {
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -8, 0.5, 0),
+			Size = UDim2.fromOffset(330, 36),
+			Parent = bar,
+		})
+		Kit.list(buttons, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Right)
+		for _, choice in
+			{ { id = "Legendary", label = "🔶 Legendary gear" }, { id = "Buff", label = "✨ 1-day buff" } }
+		do
+			local key = `claim{choice.id}`
+			button(
+				buttons,
+				if confirming == key then "Tap to confirm" else choice.label,
+				160,
+				true,
+				function()
+					twice(key, function()
+						local result = call("Claim", { Reward = choice.id })
+						if result then
+							setStatus(`🎉 You received: {result.given or choice.label}`)
+						end
+					end)
+					render()
+				end
+			)
+		end
 	elseif actionText and action then
 		local go = button(bar, actionText, 200, true, action)
 		go.AnchorPoint = Vector2.new(1, 0.5)
@@ -817,6 +1023,7 @@ local function open(id: string)
 	npc = id
 	page, listed, picked, confirming = "Buy", nil, {}, nil
 	buyCategory, buyRarity, selectedPick = "Potions", "Standard", nil
+	chainPick = nil
 	setStatus("")
 	Panels.opened("shop")
 	local layer = Panels.layer()
@@ -834,7 +1041,7 @@ local function open(id: string)
 	content = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = panel })
 	render()
 	task.spawn(function()
-		call("Catalog", {})
+		call(if npc == "Warden" then "Status" else "Catalog", {})
 		render()
 	end)
 end

@@ -94,6 +94,9 @@ function ProfileTemplate.new(): { [string]: any }
 		Cosmetics = {},
 		EquippedCosmetics = {},
 
+		-- D-119: the Warden's trial chain (Logic/ChainRules).
+		Chain = { Active = false, Step = 1, Progress = 0, CompletedAt = 0, Cycles = 0 },
+
 		-- PvP (Phase 12/14)
 		PvPStats = {
 			Victories = 0,

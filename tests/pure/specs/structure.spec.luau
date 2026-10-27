@@ -279,6 +279,8 @@ return function(t)
 				-- D-117: Merchant / Exchanger (reach, prices, funds and bag
 				-- room checked on the server).
 				NpcShop = true,
+				-- D-119: the Warden's chain (state and claims on the server).
+				ChainQuest = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

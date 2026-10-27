@@ -30,7 +30,10 @@ export type Buff = {
 	description: string,
 }
 
-BuffRules.MAX_SECONDS = 6 * 3600
+-- Using more of a buff stacks its time up to STACK_SECONDS left; nothing
+-- runs longer than MAX_SECONDS (D-119: a chain reward lasts a day).
+BuffRules.STACK_SECONDS = 6 * 3600
+BuffRules.MAX_SECONDS = 24 * 3600
 
 local BUFFS: { [string]: Buff } = {
 	Insight = {
@@ -133,7 +136,19 @@ function BuffRules.extend(buffs: { [string]: number }, id: string, now: number):
 		return nil
 	end
 	local from = math.max(buffs[id] or 0, now)
-	local expires = math.min(from + buff.minutes * 60, now + BuffRules.MAX_SECONDS)
+	local expires =
+		math.max(buffs[id] or 0, math.min(from + buff.minutes * 60, now + BuffRules.STACK_SECONDS))
+	buffs[id] = expires
+	return expires
+end
+
+-- D-119: runs buff `id` for `seconds` from now (a reward), unless more is
+-- already left. Returns the expiry, or nil for an unknown buff.
+function BuffRules.grantFor(buffs: { [string]: number }, id: string, seconds: number, now: number): number?
+	if BUFFS[id] == nil then
+		return nil
+	end
+	local expires = math.max(buffs[id] or 0, now + math.min(seconds, BuffRules.MAX_SECONDS))
 	buffs[id] = expires
 	return expires
 end

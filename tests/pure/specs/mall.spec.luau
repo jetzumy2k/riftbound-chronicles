@@ -98,7 +98,10 @@ return function(t)
 			for _ = 1, 10 do
 				BuffRules.extend(buffs, "Insight", NOW)
 			end
-			t.eq(buffs.Insight, NOW + BuffRules.MAX_SECONDS)
+			t.eq(buffs.Insight, NOW + BuffRules.STACK_SECONDS)
+			-- D-119: a reward runs a day; using one more never shortens it.
+			t.eq(BuffRules.grantFor(buffs, "Might", 86400, NOW), NOW + 86400)
+			t.eq(BuffRules.extend(buffs, "Might", NOW), NOW + 86400)
 			t.eq(BuffRules.extend(buffs, "Nope", NOW), nil)
 			t.eq(#BuffRules.active({ Might = NOW - 1, Iron = NOW + 5 }, NOW), 1)
 		end)

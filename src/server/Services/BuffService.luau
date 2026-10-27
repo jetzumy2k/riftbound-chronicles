@@ -55,6 +55,29 @@ function BuffService:Activate(player: Player, id: string): boolean
 	return true
 end
 
+-- D-119: a buff as a reward, for `seconds` (not stacked like using one).
+function BuffService:GrantFor(player: Player, id: string, seconds: number): boolean
+	local data = PlayerDataService:GetData(player)
+	if data == nil then
+		return false
+	end
+	data.Buffs = data.Buffs or {}
+	local expires = BuffRules.grantFor(data.Buffs, id, seconds, os.time())
+	if expires == nil then
+		return false
+	end
+	runningCount[player] = #BuffRules.active(data.Buffs, os.time())
+	AuditLogService:Audit({
+		actorUserId = player.UserId,
+		action = "BuffGranted",
+		target = id,
+		details = { expires = expires },
+	})
+	CombatService:RefreshStats(player)
+	push(player, data)
+	return true
+end
+
 function BuffService:Start()
 	task.spawn(function()
 		while true do

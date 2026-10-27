@@ -240,6 +240,14 @@ return {
 		RepairGoldPerPoint = { Standard = 1, Uncommon = 2, Rare = 4, Epic = 8, Legendary = 15, Mythical = 30 },
 		RepairLevelStepPct = 10,
 	},
+	-- D-119: the Warden's trial chain. CollectChancePct: chance a Collect
+	-- step's creature drops its trophy; CooldownHours between chains.
+	ChainQuest = {
+		Enabled = true,
+		MinLevel = 25,
+		CollectChancePct = 50,
+		CooldownHours = 20,
+	},
 	-- D-117: the Exchanger. 1 MP -> GoldPerMallPoint Gold; 1 MP costs
 	-- GoldForMallPoint Gold. Daily limits in Mall Points per account (0 =
 	-- none).

@@ -47,6 +47,10 @@ AdminText.SECTIONS = {
 		title = "🛍️ Merchant",
 		help = "Gold prices of the capital Merchant: potions, gear it sells (Standard / Uncommon / Rare) and what it pays for gear.",
 	},
+	ChainQuest = {
+		title = "🗝️ Warden's chain",
+		help = "The 8-step trial chain: level to start, trophy drop chance on Collect steps, hours between chains.",
+	},
 	Durability = {
 		title = "🔨 Durability",
 		help = "How fast worn gear wears down and what the Blacksmith charges to repair it. Broken gear (0) gives no stats until repaired; it is never destroyed.",

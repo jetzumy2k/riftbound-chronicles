@@ -110,6 +110,13 @@ return function(S: any)
 			RepairLevelStepPct = S.int(0, 500),
 		}),
 
+		ChainQuest = S.struct({
+			Enabled = S.boolean(),
+			MinLevel = S.int(0, 30),
+			CollectChancePct = S.int(1, 100),
+			CooldownHours = S.number(0, 720),
+		}),
+
 		Exchange = S.struct({
 			Enabled = S.boolean(),
 			GoldPerMallPoint = S.int(1, 1000000),

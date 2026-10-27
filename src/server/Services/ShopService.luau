@@ -100,6 +100,11 @@ local function near(player: Player, data: { [string]: any }, id: string): boolea
 	return (root.Position - at).Magnitude <= NpcDefinitions.REACH + REACH_TOLERANCE
 end
 
+-- D-119: the reach check for the other NPC services.
+function ShopService:Near(player: Player, data: { [string]: any }, id: string): boolean
+	return near(player, data, id)
+end
+
 local function level(data: { [string]: any }): number
 	return math.clamp(data.Level or 0, 0, 30)
 end
