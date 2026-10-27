@@ -47,6 +47,10 @@ AdminText.SECTIONS = {
 		title = "🛍️ Merchant",
 		help = "Gold prices of the capital Merchant: potions, gear it sells (Standard / Uncommon / Rare) and what it pays for gear.",
 	},
+	Roulette = {
+		title = "🎡 Fortune Wheel",
+		help = "Free spins a day, the Gold price of more, and each prize's chance out of 100 (they must add up to 100; the wheel shows these odds).",
+	},
 	ChainQuest = {
 		title = "🗝️ Warden's chain",
 		help = "The 8-step trial chain: level to start, trophy drop chance on Collect steps, hours between chains.",

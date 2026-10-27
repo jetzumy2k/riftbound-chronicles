@@ -34,6 +34,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 local CombatMath = require(Shared.Logic.CombatMath)
+local AttributeRules = require(Shared.Logic.AttributeRules)
 local SkillDefinitions = require(Shared.Definitions.SkillDefinitions)
 local PassiveDefinitions = require(Shared.Definitions.PassiveDefinitions)
 local QuestRules = require(Shared.Logic.QuestRules)
@@ -489,8 +490,9 @@ local function attributePoints(caster: Entity, attribute: string?): number
 		return 0
 	end
 	local data = PlayerDataService:GetData(player)
-	local attributes = data and data.Attributes
-	local points = if type(attributes) == "table" then attributes[attribute] else nil
+	-- D-120: the Fortune Wheel's bonus points count too.
+	local attributes = data and AttributeRules.combine(data.Attributes, data.BonusAttributes)
+	local points = if type(attributes) == "table" then (attributes :: any)[attribute] else nil
 	return if type(points) == "number" then points else 0
 end
 

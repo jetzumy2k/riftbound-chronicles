@@ -88,6 +88,10 @@ function ResetRules.apply(
 		end
 		reset("OwnedSkills")
 		reset("EquippedSkills")
+		-- D-120: Fortune Wheel bonus points go with the levels.
+		if fresh.BonusAttributes ~= nil then
+			reset("BonusAttributes")
+		end
 		table.insert(cleared, "Levels")
 	end
 	if not keep.Rankings then

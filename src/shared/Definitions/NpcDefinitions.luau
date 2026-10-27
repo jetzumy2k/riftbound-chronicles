@@ -55,6 +55,16 @@ NpcDefinitions.List = table.freeze({
 		at = table.freeze({ -34, 0, -8 }),
 		look = "Warrior",
 	}),
+	-- D-120: the Fortune Wheel (RouletteService).
+	table.freeze({
+		id = "Fortune",
+		names = table.freeze({ Angel = "Fortune Teller Lyra", Devil = "Fortune Teller Mordra" }),
+		title = "Fortune Wheel",
+		icon = "🎡",
+		prompt = "Spin",
+		at = table.freeze({ 34, 0, 32 }),
+		look = "Healer",
+	}),
 	-- D-119: gives the trial chain (ChainQuestService).
 	table.freeze({
 		id = "Warden",

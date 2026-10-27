@@ -111,6 +111,9 @@ return function(S: any)
 	local attributesView = S.struct({
 		Attributes = S.struct({ REC = points, INT = points, WIS = points, STR = points, AGI = points }),
 		ResetIn = S.int(0, 24 * 3600),
+		Bonus = S.optional(
+			S.struct({ REC = points, INT = points, WIS = points, STR = points, AGI = points })
+		),
 	})
 	-- Phase 11 (D-73): the owner's quests and story state (ProfileView.quests).
 	local questsView = S.struct({
@@ -423,6 +426,16 @@ return function(S: any)
 			kind = "Function",
 			args = { S.enum({ "Status", "Start", "Claim" }), S.optional(S.enum({ "Legendary", "Buff" })) },
 			rate = { capacity = 6, refillPerSecond = 1 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- D-120: the Fortune Wheel (free spins, Gold price, odds and the
+		-- prize all decided on the server).
+		Roulette = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = { S.enum({ "Status", "Spin" }) },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
 			states = { "ProfileLoaded" },
 		},
 

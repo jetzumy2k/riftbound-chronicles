@@ -45,7 +45,8 @@ function StatsService:GetStats(player: Player): ItemRules.Stats?
 	-- D-90: attribute points on top, as a new table (the gear stats are
 	-- frozen; writing into them stopped combat setup, creator report
 	-- 2026-10-25 "no damage").
-	local withAttributes = AttributeRules.applyTo(stats, data.Attributes or AttributeRules.empty(), data.Job)
+	local withAttributes =
+		AttributeRules.applyTo(stats, AttributeRules.combine(data.Attributes, data.BonusAttributes), data.Job)
 	-- D-104: learned class passives (always on, no bar slot).
 	local withPassives = PassiveRules.applyTo(withAttributes, data.OwnedSkills, data.Job)
 	-- D-93: running Mall stat buffs (Might, Iron, Vigor, Clarity).

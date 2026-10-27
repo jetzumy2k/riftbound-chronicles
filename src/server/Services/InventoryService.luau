@@ -34,6 +34,8 @@ local Enums = require(Shared.Enums)
 local Constants = require(Shared.Constants)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local pieceRandom = Random.new()
+local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local PotionRules = require(Shared.Logic.PotionRules)
 local Log = require(Shared.Util.Log)
 
@@ -270,6 +272,43 @@ function InventoryService:RemoveItem(player: Player, guid: string, why: string?)
 	push(player, data, nil, { guid })
 	log:Info("user=%d -item %s %s (%s)", player.UserId, guid, item.DefId, why or "admin")
 	return true, nil
+end
+
+--[[
+	D-119 / D-120: a random piece of the player's class (any kind; weapons
+	from their realm's families) at `rarity`, at their level, with a normal
+	attribute roll. Returns its name, or nil (no class, bag full).
+]]
+function InventoryService:GrantRandomPiece(player: Player, rarity: string, source: string): string?
+	local data = PlayerDataService:GetData(player)
+	local job = data and data.Job
+	if data == nil or job == nil then
+		return nil
+	end
+	local kinds = ItemDefinitions.kindsOf(job)
+	local kind = kinds[pieceRandom:NextInteger(1, #kinds)]
+	local family: string? = nil
+	if kind == "Weapon" then
+		local definition = JobDefinitions.get(job)
+		local families = definition and definition.weaponsByRace[data.Race]
+		if families == nil or #families == 0 then
+			return nil
+		end
+		family = families[pieceRandom:NextInteger(1, #families)]
+	end
+	local level = math.clamp(data.Level or 0, 0, 30)
+	local def = ItemDefinitions.defFor(job, kind, family, level)
+	if def == nil then
+		return nil
+	end
+	local item = InventoryService:GrantItem(
+		player,
+		def.id,
+		rarity,
+		math.clamp(level, def.minItemLevel, def.maxItemLevel),
+		source
+	)
+	return if item then def.name else nil
 end
 
 -- Tells the owner about changed items (other item services, e.g. enhancement).

@@ -183,6 +183,20 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
+	-- D-120: Fortune Wheel bonus points and free spins.
+	local bonus = data.BonusAttributes
+	dropUnknownKeys(
+		bonus,
+		{ REC = true, INT = true, WIS = true, STR = true, AGI = true },
+		"BonusAttributes",
+		note
+	)
+	for _, id in { "REC", "INT", "WIS", "STR", "AGI" } do
+		fixInt(bonus, id, 0, 50, 0, `BonusAttributes.{id}`, note)
+	end
+	dropUnknownKeys(data.Roulette, { Day = true, Used = true }, "Roulette", note)
+	fixInt(data.Roulette, "Day", 0, math.huge, 0, "Roulette.Day", note)
+	fixInt(data.Roulette, "Used", 0, 1000, 0, "Roulette.Used", note)
 	-- D-119: the Warden's chain.
 	do
 		local ChainRules = require(Shared.Logic.ChainRules) :: any

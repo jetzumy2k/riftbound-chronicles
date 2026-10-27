@@ -281,6 +281,8 @@ return function(t)
 				NpcShop = true,
 				-- D-119: the Warden's chain (state and claims on the server).
 				ChainQuest = true,
+				-- D-120: the Fortune Wheel (odds and prize on the server).
+				Roulette = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

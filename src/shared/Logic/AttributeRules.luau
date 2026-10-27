@@ -188,6 +188,19 @@ end
 	fields CombatService reads (DamagePct, MagicHit, MagicResistPct,
 	MagicAccuracyPct, EvasionPct, FocusBonus).
 ]]
+-- D-120: spent points plus the permanent bonus points (Fortune Wheel).
+function AttributeRules.combine(attributes: any, bonus: any): Attributes
+	local out = AttributeRules.empty()
+	for _, id in AttributeRules.IDS do
+		local a = if type(attributes) == "table" and type(attributes[id]) == "number"
+			then attributes[id]
+			else 0
+		local b = if type(bonus) == "table" and type(bonus[id]) == "number" then bonus[id] else 0
+		out[id] = a + b
+	end
+	return out
+end
+
 function AttributeRules.applyTo(stats: any, attributes: Attributes, job: string?): any
 	local b = AttributeRules.bonuses(attributes, job)
 	local out = table.clone(stats)

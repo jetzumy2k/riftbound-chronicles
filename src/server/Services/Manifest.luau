@@ -53,6 +53,8 @@ return {
 	{ name = "ShopService", layer = 6 },
 	-- D-119: the Warden's trial chain (after ShopService: its NPC).
 	{ name = "ChainQuestService", layer = 6 },
+	-- D-120: the Fortune Wheel (after ShopService: its NPC).
+	{ name = "RouletteService", layer = 6 },
 	-- D-115: character slots (switch / create / delete).
 	{ name = "CharacterService", layer = 6 },
 	-- Phase 17 (D-77): the admin panel uses the services below it.

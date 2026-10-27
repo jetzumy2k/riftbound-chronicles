@@ -55,6 +55,7 @@ local Shared = ReplicatedStorage.Shared
 local AdminRules = require(Shared.Logic.AdminRules)
 local StaffRules = require(Shared.Logic.StaffRules)
 local LootRules = require(Shared.Logic.LootRules)
+local RouletteRules = require(Shared.Logic.RouletteRules)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
 local Constants = require(Shared.Constants)
@@ -382,6 +383,11 @@ end
 
 -- Loot weights must sum to 100 (the schema alone can't say that).
 local function lootProblem(config: any): string?
+	-- D-120: the Fortune Wheel odds must add up to 100.
+	local wheelOk, wheelWhy = RouletteRules.validate(config.Roulette.Weights)
+	if not wheelOk then
+		return `Roulette.Weights: {wheelWhy}`
+	end
 	for id, t in config.Loot.Tables do
 		local ok, reason = LootRules.validate(t)
 		if not ok then

@@ -73,7 +73,9 @@ function AttributePanel.draw(
 	level: number,
 	job: string?,
 	resetIn: number,
-	spend: (string, number) -> ()
+	spend: (string, number) -> (),
+	-- D-120: permanent bonus points (Fortune Wheel), shown beside each.
+	bonus: { [string]: number }?
 )
 	local left = AttributeRules.unspent(attributes, level)
 	local scroll = Kit.new("ScrollingFrame", {
@@ -133,7 +135,9 @@ function AttributePanel.draw(
 			l.Parent = text
 		end
 		line(
-			`{ICONS[id]} {AttributeRules.NAMES[id]} ({id}): {value}`,
+			`{ICONS[id]} {AttributeRules.NAMES[id]} ({id}): {value}{if bonus and (bonus[id] or 0) > 0
+				then `  (+{bonus[id]} bonus)`
+				else ""}`,
 			15,
 			Theme.Fonts.BodyBold,
 			Theme.Colors.GoldBright

@@ -240,6 +240,22 @@ return {
 		RepairGoldPerPoint = { Standard = 1, Uncommon = 2, Rare = 4, Epic = 8, Legendary = 15, Mythical = 30 },
 		RepairLevelStepPct = 10,
 	},
+	-- D-120: the Fortune Wheel. Free spins a day per character, then Gold
+	-- (never Robux / Mall Points). Weights out of 100, must add up to 100.
+	Roulette = {
+		Enabled = true,
+		FreeSpinsPerDay = 1,
+		GoldPerSpin = 500,
+		Weights = {
+			ThankYou = 40,
+			Standard = 25,
+			Rare = 17,
+			Consumable = 10,
+			Attribute = 4,
+			Level = 2,
+			Legendary = 2,
+		},
+	},
 	-- D-119: the Warden's trial chain. CollectChancePct: chance a Collect
 	-- step's creature drops its trophy; CooldownHours between chains.
 	ChainQuest = {

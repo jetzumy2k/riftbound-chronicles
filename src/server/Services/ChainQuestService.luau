@@ -23,8 +23,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local ChainQuestDefinitions = require(Shared.Definitions.ChainQuestDefinitions)
-local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
-local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local ChainRules = require(Shared.Logic.ChainRules)
 local BuffRules = require(Shared.Logic.BuffRules)
 local Log = require(Shared.Util.Log)
@@ -73,35 +71,6 @@ local function status(data: { [string]: any }): { [string]: any }
 	}
 end
 
--- A Legendary piece of the player's class (random kind), at their level.
-local function legendaryFor(player: Player, data: { [string]: any }): (boolean, string?)
-	local job = data.Job
-	local kinds = ItemDefinitions.kindsOf(job)
-	local kind = kinds[random:NextInteger(1, #kinds)]
-	local family: string? = nil
-	if kind == "Weapon" then
-		local definition = JobDefinitions.get(job)
-		local families = definition and definition.weaponsByRace[data.Race]
-		if families == nil or #families == 0 then
-			return false, nil
-		end
-		family = families[random:NextInteger(1, #families)]
-	end
-	local level = math.clamp(data.Level or 0, 0, 30)
-	local def = ItemDefinitions.defFor(job, kind, family, level)
-	if def == nil then
-		return false, nil
-	end
-	local item = InventoryService:GrantItem(
-		player,
-		def.id,
-		"Legendary",
-		math.clamp(level, def.minItemLevel, def.maxItemLevel),
-		"Chain:Warden"
-	)
-	return item ~= nil, def.name
-end
-
 local function onRequest(player: Player, action: string, reward: string?): { [string]: any }
 	local data = PlayerDataService:GetData(player)
 	if data == nil or data.Job == nil then
@@ -142,8 +111,8 @@ local function onRequest(player: Player, action: string, reward: string?): { [st
 		local given = ""
 		local status_ = (PlayerDataService :: any):ClaimReward(player, ChainRules.claimId(chain), function()
 			if reward == "Legendary" then
-				local ok, name = legendaryFor(player, data)
-				given = if ok then `Legendary {name}` else ""
+				local name = InventoryService:GrantRandomPiece(player, "Legendary", "Chain:Warden")
+				given = if name then `Legendary {name}` else ""
 			else
 				local id = BuffRules.IDS[random:NextInteger(1, #BuffRules.IDS)]
 				if BuffService:GrantFor(player, id, ChainQuestDefinitions.BUFF_SECONDS) then

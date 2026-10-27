@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local NpcDefinitions = require(Shared.Definitions.NpcDefinitions)
 local ChainQuestDefinitions = require(Shared.Definitions.ChainQuestDefinitions)
+local RouletteRules = require(Shared.Logic.RouletteRules)
 local NetClient = require(Shared.Net.Client)
 
 local UI = script.Parent.Parent.UI
@@ -79,6 +80,10 @@ local buyRarity = "Standard"
 local selectedPick: string? = nil
 -- D-119: the trial shown in detail (nil: the current one).
 local chainPick: number? = nil
+-- D-120: the wheel: the prize lit up while it spins, and the last win.
+local wheelLit: string? = nil
+local spinning = false
+local lastWin: string? = nil
 local listed: any = nil
 local picked: { [string]: boolean? } = {}
 local confirming: string? = nil
@@ -104,6 +109,7 @@ local function call(action: string, args: { [string]: any }): any
 	-- D-119: the Warden has its own remote.
 	local result = if npc == "Warden"
 		then NetClient.invoke("ChainQuest", action, args.Reward)
+		elseif npc == "Fortune" then NetClient.invoke("Roulette", action)
 		else NetClient.invoke("NpcShop", action, args)
 	if type(result) ~= "table" then
 		setStatus("No answer from the server.", true)
@@ -811,6 +817,93 @@ local function drawChain(body: Instance, l: any): (string, string?, (() -> ())?)
 	return "The trials are closed for now.", nil, nil
 end
 
+-- D-120: the Fortune Wheel: every prize with its chance; the spin lights
+-- the prizes in turn and stops on the one the server rolled.
+local function drawFortune(body: Instance, l: any, width: number): (string, string?, (() -> ())?)
+	local intro = text(
+		body,
+		`🎡 {l.free > 0 and `You have {l.free} free spin(s) today.` or "No free spins left today."} More spins cost {l.price} Gold each (never Robux or Mall Points). Every prize and its chance:`,
+		13,
+		Theme.Colors.Text
+	)
+	intro.LayoutOrder = 1
+	local cards = grid(body, width)
+	cards.LayoutOrder = 2
+	for order, prize in RouletteRules.PRIZES do
+		local info = RouletteRules.INFO[prize]
+		local lit = wheelLit == prize
+		itemCard(
+			cards,
+			order,
+			`{info.icon} {info.name}`,
+			if prize == "Attribute"
+				then "permanent bonus point"
+				elseif prize == "Level" then "+1 level (Lv 30: a consumable)"
+				elseif prize == "Consumable" then "potions, stones or a buff"
+				elseif prize == "ThankYou" then "better luck next spin"
+				else "a piece of your class",
+			`{l.weights[prize] or 0}% chance`,
+			if prize == "Legendary"
+				then RARITY_COLOR.Legendary
+				elseif prize == "Rare" then RARITY_COLOR.Rare
+				else Theme.Colors.Text,
+			lit,
+			true,
+			function() end
+		)
+	end
+	if lastWin and not spinning then
+		local won = text(body, `🎉 You won: {lastWin}`, 18, Theme.Colors.GoldBright, true)
+		won.LayoutOrder = 3
+	end
+	if not l.enabled then
+		return "The wheel is closed for now.", nil, nil
+	end
+	if spinning then
+		return "Spinning...", nil, nil
+	end
+	local free = l.free > 0
+	local key = "spin"
+	return if free then `Free spins left today: {l.free}` else `Spin price: {l.price} Gold`,
+		if free
+			then "🎡 Free spin"
+			elseif confirming == key then `Tap to pay {l.price}`
+			else `🎡 Spin · {l.price} Gold`,
+		function()
+			local function go()
+				local result = call("Spin", {})
+				if result == nil then
+					render()
+					return
+				end
+				spinning = true
+				lastWin = nil
+				setStatus("")
+				-- Light the prizes in turn, slowing down, then stop on the win.
+				task.spawn(function()
+					local prizes = RouletteRules.PRIZES
+					local stop = table.find(prizes, result.prize) or 1
+					local steps = #prizes * 3 + stop
+					for i = 1, steps do
+						wheelLit = prizes[(i - 1) % #prizes + 1]
+						render()
+						task.wait(0.04 + (i / steps) ^ 3 * 0.25)
+					end
+					wheelLit = result.prize
+					spinning = false
+					lastWin = result.given
+					render()
+				end)
+			end
+			if free then
+				go()
+			else
+				twice(key, go)
+				render()
+			end
+		end
+end
+
 function render()
 	local frame = content
 	if frame == nil then
@@ -945,6 +1038,8 @@ function render()
 		summary, actionText, action = drawRepair(scroll, l, width)
 	elseif npc == "Warden" then
 		summary, actionText, action = drawChain(scroll, l)
+	elseif npc == "Fortune" then
+		summary, actionText, action = drawFortune(scroll, l, width)
 	elseif page == "Sell" then
 		summary, actionText, action = drawSell(scroll, l, width)
 	else
@@ -1024,6 +1119,7 @@ local function open(id: string)
 	page, listed, picked, confirming = "Buy", nil, {}, nil
 	buyCategory, buyRarity, selectedPick = "Potions", "Standard", nil
 	chainPick = nil
+	wheelLit, spinning, lastWin = nil, false, nil
 	setStatus("")
 	Panels.opened("shop")
 	local layer = Panels.layer()
@@ -1041,7 +1137,7 @@ local function open(id: string)
 	content = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = panel })
 	render()
 	task.spawn(function()
-		call(if npc == "Warden" then "Status" else "Catalog", {})
+		call(if npc == "Warden" or npc == "Fortune" then "Status" else "Catalog", {})
 		render()
 	end)
 end

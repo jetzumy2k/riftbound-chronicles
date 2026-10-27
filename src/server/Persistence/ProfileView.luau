@@ -128,6 +128,14 @@ function ProfileView.attributes(data: { [string]: any }): { [string]: any }
 			AGI = a.AGI or 0,
 		},
 		ResetIn = math.max(0, (data.AttributeResetAt or 0) + 24 * 3600 - os.time()),
+		-- D-120: permanent bonus points (Fortune Wheel).
+		Bonus = {
+			REC = (data.BonusAttributes or {}).REC or 0,
+			INT = (data.BonusAttributes or {}).INT or 0,
+			WIS = (data.BonusAttributes or {}).WIS or 0,
+			STR = (data.BonusAttributes or {}).STR or 0,
+			AGI = (data.BonusAttributes or {}).AGI or 0,
+		},
 	}
 end
 

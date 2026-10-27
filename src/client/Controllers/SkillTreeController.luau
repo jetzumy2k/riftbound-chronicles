@@ -1180,7 +1180,8 @@ function render()
 			s.AttributeResetAt - os.clock(),
 			function(id: string, n: number)
 				NetClient.fire("SpendAttributes", { [id] = n })
-			end
+			end,
+			s.AttributeBonus
 		)
 		return
 	end

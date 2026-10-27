@@ -110,6 +110,18 @@ return function(S: any)
 			RepairLevelStepPct = S.int(0, 500),
 		}),
 
+		Roulette = S.struct({
+			Enabled = S.boolean(),
+			FreeSpinsPerDay = S.int(0, 20),
+			GoldPerSpin = S.int(1, 10000000),
+			-- RouletteRules.validate also checks they add up to 100.
+			Weights = S.map(
+				S.enum({ "ThankYou", "Standard", "Rare", "Consumable", "Attribute", "Level", "Legendary" }),
+				S.int(0, 100),
+				7
+			),
+		}),
+
 		ChainQuest = S.struct({
 			Enabled = S.boolean(),
 			MinLevel = S.int(0, 30),

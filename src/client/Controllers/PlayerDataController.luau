@@ -49,6 +49,7 @@ export type State = {
 	-- (os.clock()).
 	Attributes: { REC: number, INT: number, WIS: number, STR: number, AGI: number },
 	AttributeResetAt: number,
+	AttributeBonus: { [string]: number },
 }
 
 export type QuestProgress = {
@@ -106,6 +107,8 @@ local state: State = {
 	HudLayout = {},
 	Attributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
 	AttributeResetAt = 0,
+	-- D-120: permanent bonus points (Fortune Wheel).
+	AttributeBonus = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
 	BuffsUntil = {},
 }
 
@@ -125,6 +128,9 @@ local function readAttributes(view: any)
 	if type(view) == "table" and type(view.Attributes) == "table" then
 		state.Attributes = view.Attributes
 		state.AttributeResetAt = os.clock() + (view.ResetIn or 0)
+		if type(view.Bonus) == "table" then
+			state.AttributeBonus = view.Bonus
+		end
 	end
 end
 
@@ -156,6 +162,7 @@ function PlayerDataController:Init()
 			HudLayout = snapshot.HudLayout or {},
 			Attributes = state.Attributes,
 			AttributeResetAt = state.AttributeResetAt,
+			AttributeBonus = state.AttributeBonus,
 			BuffsUntil = {},
 		}
 		readAttributes(snapshot.Attributes)
