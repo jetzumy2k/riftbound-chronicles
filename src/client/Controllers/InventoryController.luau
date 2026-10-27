@@ -144,6 +144,8 @@ local InventoryController = {
 	OpenCharacters = nil :: (() -> ())?,
 	-- D-116: opens the Race Conversion Rune screen (CharacterSlotController).
 	OpenRaceRune = nil :: (() -> ())?,
+	-- D-121: opens the trade history (TradeController).
+	OpenTrades = nil :: (() -> ())?,
 }
 
 local gui: ScreenGui
@@ -1129,8 +1131,19 @@ function render()
 			openCharacters()
 		end
 	end)
-	title.Size = UDim2.new(1, -262, 0, 22)
-	sub.Size = UDim2.new(1, -262, 0, 18)
+	-- D-121: the trade history.
+	local trades = button("🤝", 44)
+	trades.AnchorPoint = Vector2.new(1, 0)
+	trades.Position = UDim2.new(1, -262, 0, 0)
+	trades.Parent = header
+	trades.Activated:Connect(function()
+		local openTrades = InventoryController.OpenTrades
+		if openTrades then
+			openTrades()
+		end
+	end)
+	title.Size = UDim2.new(1, -310, 0, 22)
+	sub.Size = UDim2.new(1, -310, 0, 18)
 	close.Activated:Connect(function()
 		InventoryController.setOpen(false)
 	end)

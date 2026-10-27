@@ -68,6 +68,9 @@ local REASONS = {
 	notDone = "Finish every trial first.",
 	amount = "Enter an amount from 1 to 100,000.",
 	RateLimited = "Too many requests; wait a moment.",
+	BadArgs = "That request was not accepted.",
+	BadState = "Wait until your character has loaded.",
+	HandlerError = "Something went wrong on the server; try again.",
 }
 
 local panel: Frame? = nil
@@ -116,7 +119,10 @@ local function call(action: string, args: { [string]: any }): any
 		return nil
 	end
 	if result.ok == false then
-		setStatus(REASONS[result.reason] or `Refused ({tostring(result.reason)}).`, true)
+		setStatus(
+			REASONS[result.reason or result.code] or `Refused ({tostring(result.reason or result.code)}).`,
+			true
+		)
 		return nil
 	end
 	listed = result

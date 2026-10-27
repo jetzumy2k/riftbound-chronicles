@@ -183,6 +183,31 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
+	-- D-121: trade history (newest first, at most 20 entries).
+	do
+		local kept = {}
+		for _, e in data.TradeHistory do
+			if
+				#kept < 20
+				and type(e) == "table"
+				and isShortString(e.Id, 40)
+				and isFinite(e.At)
+				and isFinite(e.With)
+				and isShortString(e.WithName, 40)
+				and isShortString(e.Gave, 600)
+				and isShortString(e.Got, 600)
+			then
+				table.insert(
+					kept,
+					{ Id = e.Id, At = e.At, With = e.With, WithName = e.WithName, Gave = e.Gave, Got = e.Got }
+				)
+			end
+		end
+		if #kept ~= #data.TradeHistory then
+			note("TradeHistory: dropped bad entries")
+		end
+		data.TradeHistory = kept
+	end
 	-- D-120: Fortune Wheel bonus points and free spins.
 	local bonus = data.BonusAttributes
 	dropUnknownKeys(

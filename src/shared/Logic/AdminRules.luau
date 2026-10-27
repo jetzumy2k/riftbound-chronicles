@@ -183,6 +183,7 @@ AdminRules.CONFIG_SECTIONS = table.freeze({
 	Durability = "config.game",
 	ChainQuest = "config.game",
 	Roulette = "config.game",
+	Trade = "config.game",
 })
 -- Section order in the panel.
 AdminRules.SECTION_ORDER = table.freeze({
@@ -203,6 +204,7 @@ AdminRules.SECTION_ORDER = table.freeze({
 	"Durability",
 	"ChainQuest",
 	"Roulette",
+	"Trade",
 })
 -- Values that stay code-only even inside an editable section.
 AdminRules.LOCKED_PATHS = table.freeze({

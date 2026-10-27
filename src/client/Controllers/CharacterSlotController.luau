@@ -36,6 +36,9 @@ local REASONS = {
 	noRune = "You need a Race Conversion Rune (Item Mall).",
 	pending = "A realm change is already waiting for your rejoin.",
 	RateLimited = "Too many requests; wait a few seconds.",
+	BadArgs = "That request was not accepted.",
+	BadState = "Wait until your character has loaded.",
+	HandlerError = "Something went wrong on the server; try again.",
 }
 
 local BAD = Color3.fromRGB(255, 140, 130)
@@ -75,7 +78,10 @@ local function call(action: string, slot: number?, confirm: string?): any
 		return nil
 	end
 	if result.ok == false then
-		setStatus(REASONS[result.reason] or `Refused ({tostring(result.reason)}).`, true)
+		setStatus(
+			REASONS[result.reason or result.code] or `Refused ({tostring(result.reason or result.code)}).`,
+			true
+		)
 		return nil
 	end
 	return result
@@ -387,7 +393,10 @@ function drawRune(frame: Frame, race: string)
 		if type(result) == "table" and result.ok then
 			setStatus("Rune used. The game will reload in your new realm.")
 		elseif type(result) == "table" then
-			setStatus(REASONS[result.reason] or `Refused ({tostring(result.reason)}).`, true)
+			setStatus(
+				REASONS[result.reason or result.code] or `Refused ({tostring(result.reason or result.code)}).`,
+				true
+			)
 		else
 			setStatus("No answer from the server.", true)
 		end

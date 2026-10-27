@@ -283,6 +283,8 @@ return function(t)
 				ChainQuest = true,
 				-- D-120: the Fortune Wheel (odds and prize on the server).
 				Roulette = true,
+				-- D-121: trading (every step and the swap checked on the server).
+				Trade = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

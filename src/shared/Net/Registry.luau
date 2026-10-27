@@ -96,6 +96,12 @@ return function(S: any)
 		Durability = S.optional(S.number(0, Constants.Durability.Max)),
 	})
 	local equipment = S.map(S.enum(Enums.ItemSlot), guid, 12)
+	-- D-121: one side of a trade as both players see it.
+	local tradeOffer = S.struct({
+		Gold = S.int(0),
+		Items = S.array(itemView, 8),
+		Stackables = S.map(S.enum(STACKABLE_IDS), S.int(1), 6),
+	})
 	local stackables = S.map(S.enum(STACKABLE_IDS), S.int(0), 16)
 	local wallet = S.struct({ Gold = S.int(0), PvPMarks = S.int(0), MallPoints = S.optional(S.int(0)) })
 	-- D-93: running buffs, id -> seconds left.
@@ -437,6 +443,66 @@ return function(S: any)
 			args = { S.enum({ "Status", "Spin" }) },
 			rate = { capacity = 4, refillPerSecond = 0.5 },
 			states = { "ProfileLoaded" },
+		},
+
+		-- D-121: player trading. The client asks; the server checks reach,
+		-- safe zone, level, combat, ownership and bag room on every step and
+		-- again at the swap. GoldOffered / Items / Stackables are what the
+		-- player OFFERS from their own profile (checked against it).
+		Trade = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({
+					"Invite",
+					"Accept",
+					"Decline",
+					"Offer",
+					"Ack",
+					"Lock",
+					"Unlock",
+					"Confirm",
+					"Cancel",
+					"History",
+					"Report",
+				}),
+				S.struct({
+					UserId = S.optional(S.int(-9007199254740991, 9007199254740991)),
+					GoldOffered = S.optional(S.int(0, 1000000000000)),
+					Items = S.optional(S.array(guid, 8)),
+					Stackables = S.optional(S.map(S.enum(STACKABLE_IDS), S.int(1, 1000), 6)),
+					TradeId = S.optional(S.string(40, 1, "^[%x%-]+$")),
+				}),
+			},
+			rate = { capacity = 12, refillPerSecond = 3 },
+			states = { "ProfileLoaded" },
+		},
+		TradeInvite = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = { S.struct({ UserId = S.int(-9007199254740991, 9007199254740991), Name = S.string(40) }) },
+		},
+		TradeUpdate = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					Id = S.string(40),
+					Open = S.boolean(),
+					Reason = S.optional(S.string(24)),
+					Partner = S.optional(
+						S.struct({ UserId = S.int(-9007199254740991, 9007199254740991), Name = S.string(40) })
+					),
+					Mine = S.optional(tradeOffer),
+					Theirs = S.optional(tradeOffer),
+					MeAck = S.optional(S.boolean()),
+					MeLocked = S.optional(S.boolean()),
+					ThemLocked = S.optional(S.boolean()),
+					MeConfirmed = S.optional(S.boolean()),
+					ThemConfirmed = S.optional(S.boolean()),
+					CountdownIn = S.optional(S.int(0, 10)),
+				}),
+			},
 		},
 
 		-- D-116: use a Race Conversion Rune: the realm to move to and the

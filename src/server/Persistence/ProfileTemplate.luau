@@ -99,6 +99,9 @@ function ProfileTemplate.new(): { [string]: any }
 		BonusAttributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
 		Roulette = { Day = 0, Used = 0 },
 
+		-- D-121: the last trades (newest first), as evidence for reports.
+		TradeHistory = {},
+
 		-- D-119: the Warden's trial chain (Logic/ChainRules).
 		Chain = { Active = false, Step = 1, Progress = 0, CompletedAt = 0, Cycles = 0 },
 

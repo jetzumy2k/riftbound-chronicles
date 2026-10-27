@@ -110,6 +110,13 @@ return function(S: any)
 			RepairLevelStepPct = S.int(0, 500),
 		}),
 
+		Trade = S.struct({
+			Enabled = S.boolean(),
+			MinLevel = S.int(0, 30),
+			Reach = S.number(5, 200),
+			CrossRealm = S.boolean(),
+		}),
+
 		Roulette = S.struct({
 			Enabled = S.boolean(),
 			FreeSpinsPerDay = S.int(0, 20),

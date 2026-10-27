@@ -240,6 +240,15 @@ return {
 		RepairGoldPerPoint = { Standard = 1, Uncommon = 2, Rare = 4, Epic = 8, Legendary = 15, Mythical = 30 },
 		RepairLevelStepPct = 10,
 	},
+	-- D-121: player trading. Both players: this level or more, inside a
+	-- safe zone, within Reach studs of each other; same realm unless
+	-- CrossRealm.
+	Trade = {
+		Enabled = true,
+		MinLevel = 5,
+		Reach = 30,
+		CrossRealm = false,
+	},
 	-- D-120: the Fortune Wheel. Free spins a day per character, then Gold
 	-- (never Robux / Mall Points). Weights out of 100, must add up to 100.
 	Roulette = {
