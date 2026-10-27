@@ -177,6 +177,7 @@ local function processReceipt(info: any): Enum.ProductPurchaseDecision
 	local points = MallDefinitions.pointsOf(pack)
 	local status = (PlayerDataService :: any):ClaimReward(player, `R:{info.PurchaseId}`, function(data: any)
 		data.Wallet.MallPoints = (data.Wallet.MallPoints or 0) + points
+		data.Wallet.PurchasedMallPoints = (data.Wallet.PurchasedMallPoints or 0) + points
 	end)
 	if status == "granted" then
 		local data = PlayerDataService:GetData(player) :: any

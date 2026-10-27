@@ -183,6 +183,8 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
+	-- D-111: the last system reset this profile took.
+	fixInt(data, "ResetVersion", 0, math.huge, 0, "ResetVersion", note)
 end
 
 local function repairProgression(data: Data, note: (string) -> ())
@@ -332,10 +334,16 @@ local function repairItems(data: Data, note: (string) -> ())
 	end)
 
 	local wallet = data.Wallet
-	dropUnknownKeys(wallet, { Gold = true, PvPMarks = true, MallPoints = true }, "Wallet", note)
+	dropUnknownKeys(
+		wallet,
+		{ Gold = true, PvPMarks = true, MallPoints = true, PurchasedMallPoints = true },
+		"Wallet",
+		note
+	)
 	fixInt(wallet, "Gold", 0, MAX_CURRENCY, 0, "Wallet.Gold", note)
 	fixInt(wallet, "PvPMarks", 0, MAX_CURRENCY, 0, "Wallet.PvPMarks", note)
 	fixInt(wallet, "MallPoints", 0, MAX_CURRENCY, 0, "Wallet.MallPoints", note)
+	fixInt(wallet, "PurchasedMallPoints", 0, math.huge, 0, "Wallet.PurchasedMallPoints", note)
 	-- D-93: known buffs, still running.
 	local buffs, buffsChanged = BuffRules.repair(data.Buffs, os.time())
 	if buffsChanged then

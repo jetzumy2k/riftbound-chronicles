@@ -32,6 +32,8 @@ function ProfileTemplate.new(): { [string]: any }
 		SchemaVersion = ProfileTemplate.SCHEMA_VERSION,
 		CreatedAt = 0,
 		LastLoginAt = 0,
+		-- D-111: the last system reset applied to this profile.
+		ResetVersion = 0,
 
 		-- Identity (Phase 3/4). Race and Job are nil until chosen.
 		FacePreset = 1,
@@ -61,7 +63,9 @@ function ProfileTemplate.new(): { [string]: any }
 		Equipment = {},
 		Stackables = {},
 		-- D-93: MallPoints bought with Robux (MallService) or given by events.
-		Wallet = { Gold = 0, PvPMarks = 0, MallPoints = 0 },
+		-- PurchasedMallPoints: lifetime points bought with Robux (D-111: a
+		-- system reset never takes those).
+		Wallet = { Gold = 0, PvPMarks = 0, MallPoints = 0, PurchasedMallPoints = 0 },
 		-- D-93: running Mall buffs, buff id -> expiry (UTC seconds; BuffRules).
 		Buffs = {},
 

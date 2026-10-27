@@ -16,6 +16,7 @@ return {
 	{ name = "RateLimitService", layer = 0 },
 	{ name = "NetService", layer = 0 },
 	{ name = "PlayerDataService", layer = 1 },
+	{ name = "SystemResetService", layer = 1 },
 	{ name = "EventService", layer = 1 },
 	{ name = "LevelService", layer = 2 },
 	{ name = "StatsService", layer = 2 },

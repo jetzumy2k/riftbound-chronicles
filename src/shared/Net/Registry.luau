@@ -475,6 +475,28 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 			permission = "events.activate",
 		},
+		-- D-111: the Owner's whole-game reset (SystemResetService). Status
+		-- reads the last reset; Reset needs the typed confirmation.
+		AdminSystemReset = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "Status", "Reset" }),
+				S.struct({
+					Keep = S.optional(S.struct({
+						Items = S.optional(S.boolean()),
+						Gear = S.optional(S.boolean()),
+						MallPoints = S.optional(S.boolean()),
+						Levels = S.optional(S.boolean()),
+						Rankings = S.optional(S.boolean()),
+					})),
+					Confirm = S.optional(S.string(10)),
+				}),
+			},
+			rate = { capacity = 3, refillPerSecond = 0.1 },
+			states = { "ProfileLoaded" },
+			permission = "system.reset",
+		},
 		AdminAudit = {
 			direction = "ClientToServer",
 			kind = "Function",

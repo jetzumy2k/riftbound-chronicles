@@ -264,6 +264,7 @@ return function(t)
 				AdminConfigSet = true,
 				AdminBoss = true,
 				AdminAudit = true,
+				AdminSystemReset = true,
 				AdminEvents = true,
 				SpendAttributes = true,
 				ResetAttributes = true,
@@ -286,7 +287,7 @@ return function(t)
 					t.ok(spec.permission == nil, `{name}: a permission on a player remote`)
 				end
 			end
-			t.eq(count, 8)
+			t.eq(count, 9)
 		end)
 
 		t.it("progression services register no remote handlers", function()

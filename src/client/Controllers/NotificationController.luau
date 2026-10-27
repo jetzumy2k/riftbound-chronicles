@@ -150,6 +150,7 @@ local STRINGS: { [string]: string } = {
 	["dungeon.memberJoined"] = "{name} joined the run.",
 	["dungeon.roomCleared"] = "Room cleared! The way forward is open.",
 	["dungeon.respawnAlly"] = "Back on your feet beside your party.",
+	["system.reset"] = "The game world is being reset. You will be asked to rejoin in {seconds} seconds.",
 	["dungeon.respawnEntrance"] = "Back on your feet at this floor's entrance.",
 	["dungeon.wiped"] = "Your whole party fell. Regroup at the gate and try again.",
 	["dungeon.cleared"] = "Dungeon cleared! +{xp} EXP",

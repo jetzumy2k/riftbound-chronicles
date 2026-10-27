@@ -52,6 +52,9 @@ local store: PersistenceAdapter.Store
 -- True once the server is closing; ProfileStore then ends every session itself.
 local shuttingDown = false
 local sessions: { [Player]: PersistenceAdapter.Session } = {}
+-- D-111: runs on every loaded profile before anyone else sees it (the
+-- system reset). May yield.
+local loadHook: ((Player, { [string]: any }) -> ())? = nil
 
 local function profileKey(player: Player): string
 	return `Player_{player.UserId}`
@@ -116,6 +119,17 @@ local function load(player: Player)
 	end
 	data.LastLoginAt = now
 
+	if loadHook then
+		local ok, err = pcall(loadHook :: any, player, data)
+		if not ok then
+			log:Error("load hook failed for %d: %s", player.UserId, tostring(err))
+		end
+		if not stillHere(player) then
+			session:endSession()
+			return
+		end
+	end
+
 	sessions[player] = session
 	session:onSessionEnd(function()
 		if sessions[player] == session then
@@ -177,6 +191,14 @@ end
 	yield between reading and writing it, and must never store client payloads
 	in it.
 ]]
+--[[
+	Sets the hook every profile passes through on load, after repair and
+	before ProfileLoaded (D-111: SystemResetService). It may yield.
+]]
+function PlayerDataService:SetLoadHook(hook: (Player, { [string]: any }) -> ())
+	loadHook = hook
+end
+
 function PlayerDataService:GetData(player: Player): { [string]: any }?
 	local session = sessions[player]
 	return if session then session:getData() else nil

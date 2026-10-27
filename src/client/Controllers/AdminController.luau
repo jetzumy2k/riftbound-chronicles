@@ -45,6 +45,7 @@ local AdminRules = require(Shared.Logic.AdminRules)
 local TopBarLayout = require(Shared.Layout.TopBarLayout)
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local EventRewards = require(Shared.Logic.EventRewards)
+local ResetRules = require(Shared.Logic.ResetRules)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -118,6 +119,18 @@ local eventPage: string? = nil
 local rewardGroup = "MallPoints"
 local rewardItem = "EnhancementStone"
 local rewardSet = "Legendary"
+
+-- World tab: the system reset (D-111). What to keep, and the last reset
+-- (fetched once per panel visit).
+local RESET_LABELS = {
+	Items = "Items & consumables (Gold, PvP Marks too)",
+	Gear = "Gear & weapons",
+	MallPoints = "Mall Points (Robux-bought points are always kept)",
+	Levels = "Levels, attributes & skills",
+	Rankings = "PvP rankings",
+}
+local resetKeep: { [string]: boolean } = {}
+local resetInfo: any = nil
 
 -- Settings tab
 local config: any = nil
@@ -1269,6 +1282,54 @@ local function drawWorld(area: Frame)
 			end
 		end)
 	end
+	if can("system.reset") then
+		if resetInfo == nil then
+			resetInfo = NetClient.invoke("AdminSystemReset", "Status", {}) or false
+		end
+		local reset = card(
+			body,
+			"❗ Reset the whole game (Owner only)",
+			"Resets EVERY player, offline ones too (each on their next join). Quests and story always restart; pick what to keep below. A backup of every profile is saved before it is reset. Everyone online is asked to rejoin."
+		)
+		local info = resetInfo
+		label(
+			reset,
+			if type(info) == "table" and (info.version or 0) > 0
+				then `Last reset: #{info.version}, {os.date("%Y-%m-%d %H:%M", info.at)}`
+				else "No reset has been run yet.",
+			12,
+			Theme.Colors.TextDim
+		)
+		for _, key in ResetRules.KEEP_KEYS do
+			local keep = resetKeep[key] == true
+			local line = row(reset)
+			button(
+				line,
+				if keep then `✅ Keep: {RESET_LABELS[key]}` else `❌ Clear: {RESET_LABELS[key]}`,
+				380,
+				nil,
+				function()
+					resetKeep[key] = not keep
+					refresh()
+				end
+			)
+		end
+		local confirmLine = row(reset)
+		field(confirmLine, "resetConfirm", `Type {ResetRules.CONFIRM_TEXT} to confirm`, 200)
+		button(confirmLine, "Reset every player", 200, "danger", function()
+			if fields.resetConfirm ~= ResetRules.CONFIRM_TEXT then
+				setStatus(`❌ Type {ResetRules.CONFIRM_TEXT} (capitals) in the box first.`, true)
+				return
+			end
+			local result =
+				call("AdminSystemReset", "Reset", { Keep = resetKeep, Confirm = fields.resetConfirm })
+			fields.resetConfirm = ""
+			if result then
+				resetInfo = nil
+				setStatus(`✅ Reset #{result.version} started. Everyone rejoins in {result.kickIn} seconds.`)
+			end
+		end)
+	end
 	local later = card(body, "Coming later")
 	label(
 		later,
@@ -1847,6 +1908,7 @@ function refresh()
 		if id ~= tab then
 			tab = id
 			eventsFetched = nil
+			resetInfo = nil
 			eventPage = nil
 			setStatus("")
 			refresh()

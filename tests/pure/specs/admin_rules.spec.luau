@@ -50,16 +50,23 @@ return function(t)
 			t.ok(not AdminRules.has("Moderator", "events.activate", { "moderation.ban" }))
 		end)
 
-		t.it("Admins can do everything but assign roles; Owners everything; others nothing", function()
-			for _, permission in AdminRules.PERMISSIONS do
-				t.eq(AdminRules.has("Admin", permission), permission ~= "roles.assign", permission)
-				t.ok(AdminRules.has("Owner", permission), permission)
-				t.ok(not AdminRules.has(nil, permission), permission)
-				t.ok(not AdminRules.has("Player" :: any, permission), permission)
+		t.it(
+			"Admins can do everything but assign roles or reset the game; Owners everything; others nothing",
+			function()
+				for _, permission in AdminRules.PERMISSIONS do
+					t.eq(
+						AdminRules.has("Admin", permission),
+						permission ~= "roles.assign" and permission ~= "system.reset",
+						permission
+					)
+					t.ok(AdminRules.has("Owner", permission), permission)
+					t.ok(not AdminRules.has(nil, permission), permission)
+					t.ok(not AdminRules.has("Player" :: any, permission), permission)
+				end
+				t.ok(not AdminRules.has("Owner", "made.up"))
+				t.eq(#AdminRules.permissionsFor(nil), 0)
 			end
-			t.ok(not AdminRules.has("Owner", "made.up"))
-			t.eq(#AdminRules.permissionsFor(nil), 0)
-		end)
+		)
 
 		t.it("every player action maps to a known permission", function()
 			for _, action in AdminRules.ACTIONS do

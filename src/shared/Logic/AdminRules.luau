@@ -47,6 +47,8 @@ AdminRules.PERMISSIONS = table.freeze({
 	"audit.view",
 	"audit.viewAll",
 	"roles.assign",
+	-- D-111: the whole-game reset (Owner only).
+	"system.reset",
 })
 
 -- Moderators: support and moderation only (CLAUDE.md §21: no economy, drop
@@ -67,7 +69,9 @@ function AdminRules.has(role: Role?, permission: string, grants: { string }?): b
 	if role == "Owner" then
 		return table.find(AdminRules.PERMISSIONS, permission) ~= nil
 	elseif role == "Admin" then
-		return permission ~= "roles.assign" and table.find(AdminRules.PERMISSIONS, permission) ~= nil
+		return permission ~= "roles.assign"
+			and permission ~= "system.reset"
+			and table.find(AdminRules.PERMISSIONS, permission) ~= nil
 	elseif role == "Moderator" then
 		if MODERATOR[permission] then
 			return true
