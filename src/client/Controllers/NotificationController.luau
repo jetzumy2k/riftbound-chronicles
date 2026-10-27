@@ -49,6 +49,7 @@ local STRINGS: { [string]: string } = {
 	["attributes.reset"] = "Attribute points returned: spend them again",
 	-- Phase 18 live events (D-89, EventController).
 	["event.started"] = "Event started: {name}. {blurb}",
+	["event.soon"] = "Event starting in {minutes} min: {name}. {blurb}",
 	["event.ended"] = "Event ended: {name}",
 	["event.worldBoss"] = "The Nullborn Herald has descended on both war zones!",
 	["event.invasion"] = "Mythical bosses invade the war zones!",
@@ -150,6 +151,9 @@ local STRINGS: { [string]: string } = {
 	["dungeon.memberJoined"] = "{name} joined the run.",
 	["dungeon.roomCleared"] = "Room cleared! The way forward is open.",
 	["dungeon.respawnAlly"] = "Back on your feet beside your party.",
+	["staff.paid"] = "Staff pay received: {what}. Thank you for helping!",
+	["staff.payBag"] = "Your staff pay includes a gear set: free {slots} bag slots to receive it.",
+	["staff.paused"] = "Your staff pay is paused after a long absence. Ask the Owner or an Admin to turn it back on.",
 	["system.reset"] = "The game world is being reset. You will be asked to rejoin in {seconds} seconds.",
 	["dungeon.respawnEntrance"] = "Back on your feet at this floor's entrance.",
 	["dungeon.wiped"] = "Your whole party fell. Regroup at the gate and try again.",

@@ -267,6 +267,15 @@ return {
 	-- panel's Events tab (EventService), never by the settings editor.
 	Events = {
 		Windows = {},
+		-- D-113: one random event a day at a set time (off until an admin
+		-- turns it on). 12:00 UTC = 20:00 in UTC+8. Excluded: events the
+		-- admin unticked.
+		Daily = {
+			Enabled = false,
+			TimeUtcMinutes = 720,
+			Minutes = 60,
+			Excluded = {},
+		},
 	},
 
 	-- Server mob AI (ARCHITECTURE.md §7: one scheduler, ≤ 10 Hz, sleep when idle).

@@ -187,9 +187,18 @@ return function(S: any)
 						}),
 						4
 					)),
+					-- D-113: started by the daily random event.
+					Daily = S.optional(S.boolean()),
 				}),
 				64
 			),
+			-- D-113: the daily random event (EventRules.Daily).
+			Daily = S.struct({
+				Enabled = S.boolean(),
+				TimeUtcMinutes = S.int(0, 1439),
+				Minutes = S.int(15, 1440),
+				Excluded = S.array(S.string(32, 1, "^%w+$"), 64),
+			}),
 		}),
 
 		Quests = S.struct({

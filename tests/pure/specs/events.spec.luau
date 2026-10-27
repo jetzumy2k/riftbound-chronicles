@@ -251,5 +251,73 @@ return function(t)
 			t.ok(AdminRules.has("Admin", "events.activate"), "admins can")
 			t.ok(not AdminRules.has(nil, "events.activate"), "players can't")
 		end)
+		t.it(
+			"daily random event: drawn 15 min ahead, once a day, only ticked events (D-113/D-114)",
+			function()
+				local ready = {}
+				for _, id in EventDefinitions.IDS do
+					if EventDefinitions.isReady(EventDefinitions.get(id)) then
+						table.insert(ready, id)
+					end
+				end
+				t.ok(#ready >= 2, "at least two events can be drawn")
+				local day = 1793491200 -- 2026-11-01 00:00 UTC
+				local daily = { Enabled = true, TimeUtcMinutes = 720, Minutes = 60, Excluded = {} }
+				local at = day + 720 * 60
+				local lead = EventRules.DAILY_LEAD_SECONDS
+				t.eq(EventRules.dailyTime(daily, at + 5), at)
+				t.eq(EventRules.dailyDue({}, daily, at - lead - 1), nil, "not before its lead time")
+				t.eq(EventRules.dailyDue({}, daily, at - 60), at, "drawn ahead, starting at its time")
+				t.eq(EventRules.dailyDue({}, daily, at + 30), at)
+				t.eq(
+					EventRules.dailyDue({}, daily, at + EventRules.DAILY_GRACE_SECONDS),
+					nil,
+					"a late server skips"
+				)
+				local started = { Id = ready[1], StartsAt = at, EndsAt = at + 3600, By = 0, Daily = true }
+				t.eq(EventRules.dailyDue({ started }, daily, at + 60), nil, "only once a day")
+				t.eq(
+					EventRules.dailyDue({ started }, daily, at + 86400 - 60),
+					at + 86400,
+					"again the next day"
+				)
+				local manual = { Id = ready[1], StartsAt = at, EndsAt = at + 3600, By = 5 }
+				t.eq(
+					EventRules.dailyDue({ manual }, daily, at + 60),
+					at,
+					"an admin's own event doesn't count"
+				)
+				local midnight = { Enabled = true, TimeUtcMinutes = 5, Minutes = 60, Excluded = {} }
+				t.eq(
+					EventRules.dailyDue({}, midnight, day - 300),
+					day + 300,
+					"00:05 is drawn the evening before"
+				)
+				daily.Enabled = false
+				t.eq(EventRules.dailyDue({}, daily, at + 30), nil, "off: nothing")
+				daily.Enabled = true
+				t.eq(#EventRules.dailyCandidates({}, daily, at, at - 60), #ready, "every ready event")
+				daily.Excluded = table.clone(ready)
+				table.remove(daily.Excluded, 1)
+				local one = EventRules.dailyCandidates({}, daily, at, at - 60)
+				t.eq(#one, 1)
+				t.eq(one[1], ready[1])
+				t.eq(
+					#EventRules.dailyCandidates({ manual }, daily, at + 60, at + 60),
+					0,
+					"not drawn while running"
+				)
+				daily.Minutes = 1440
+				t.ok(EventRules.dailyMinutes(daily, ready[1]) <= EventDefinitions.get(ready[1]).maxMinutes)
+				-- D-114: what starts within 15 minutes is announced.
+				local soon = EventRules.soon({
+					manual,
+					{ Id = ready[2], StartsAt = at + 600, EndsAt = at + 4200, By = 1 },
+					{ Id = ready[1], StartsAt = at + 3600, EndsAt = at + 7200, By = 1 },
+				}, at)
+				t.eq(#soon, 1, "running and far-off events are not 'soon'")
+				t.eq(soon[1].Id, ready[2])
+			end
+		)
 	end)
 end

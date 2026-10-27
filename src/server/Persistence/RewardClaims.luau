@@ -33,6 +33,7 @@ RewardClaims.RETENTION_SECONDS = table.freeze({
 	E = 14 * DAY, -- event reward (event expiry + buffer)
 	A = 30 * DAY, -- admin grant (auditId)
 	R = false, -- Robux purchase receipt (PurchaseId, D-93): never paid twice
+	S = 400 * DAY, -- staff pay period (D-112: W<week> / M<year>-<month>)
 } :: { [string]: number | false })
 
 local MAX_ID_LENGTH = 128

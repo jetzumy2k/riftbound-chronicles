@@ -35,6 +35,11 @@
 	                                (EventService checks the template's
 	                                duration, cooldown and stage)
 
+	D-112: Moderators and Game Masters can also be assigned in the panel
+	(StaffService). A code role always wins; a panel role allows only the
+	features switched on for that person (StaffRules), checked on every
+	call, and follows changes from any server.
+
 	Every change is an audit entry with the actor, role, target and the
 	before / after values. Staff stay in game during flag maintenance.
 	Targets must be online on this server (offline edits would need the
@@ -48,6 +53,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 local AdminRules = require(Shared.Logic.AdminRules)
+local StaffRules = require(Shared.Logic.StaffRules)
 local LootRules = require(Shared.Logic.LootRules)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
@@ -66,22 +72,26 @@ local InventoryService = require(script.Parent.InventoryService)
 local PvPService = require(script.Parent.PvPService)
 local QuestService = require(script.Parent.QuestService)
 local EventService = require(script.Parent.EventService)
+local StaffService = require(script.Parent.StaffService)
 
 local log = Log.new("AdminService")
 
 local AdminService = {}
 
-local RANK = { Owner = 3, Admin = 2, Moderator = 1 }
+local RANK = { Owner = 3, Admin = 2, Moderator = 1, GameMaster = 1 }
 local MAX_RESULTS = 30
 local AUDIT_ROWS = 100
 
 local roles: { [Player]: AdminRules.Role } = {}
+-- Players whose role comes from the panel staff list (D-112).
+local panelStaff: { [Player]: boolean } = {}
 
 local function creatorUserId(): number?
 	return if game.CreatorType == Enum.CreatorType.User then game.CreatorId else nil
 end
 
-local function resolveRole(player: Player): AdminRules.Role?
+-- The role from code (Roles / the place creator / the Studio test owner).
+local function codeRole(player: Player): AdminRules.Role?
 	if
 		RunService:IsStudio()
 		and player.UserId == -1
@@ -92,7 +102,23 @@ local function resolveRole(player: Player): AdminRules.Role?
 	return AdminRules.roleFor(player.UserId, creatorUserId(), Roles)
 end
 
+-- The role and whether it comes from the panel staff list (D-112).
+local function resolveRole(player: Player): (AdminRules.Role?, boolean)
+	local role = codeRole(player)
+	if role then
+		return role :: AdminRules.Role, false
+	end
+	local record = StaffService:Get(player.UserId)
+	if record and record.status == "Active" then
+		return record.role :: AdminRules.Role, true
+	end
+	return nil, false
+end
+
 local function can(player: Player, permission: string): boolean
+	if panelStaff[player] then
+		return StaffRules.allows(StaffService:Get(player.UserId), permission)
+	end
 	return AdminRules.has(roles[player], permission, Roles.ModeratorGrants)
 end
 
@@ -114,6 +140,10 @@ end
 local function rankOf(userId: number): number
 	local player = online(userId)
 	local role = if player then roles[player] else AdminRules.roleFor(userId, creatorUserId(), Roles)
+	if role == nil then
+		local record = StaffService:Get(userId)
+		role = if record and record.status == "Active" then record.role :: any else nil
+	end
 	return if role then RANK[role] else 0
 end
 
@@ -431,7 +461,34 @@ end
 
 local function onEvents(actor: Player, action: string, args: { [string]: any }): { [string]: any }
 	if action == "List" then
-		return { ok = true, now = os.time(), windows = EventService:GetWindows() }
+		return {
+			ok = true,
+			now = os.time(),
+			windows = EventService:GetWindows(),
+			daily = EventService:GetDaily(),
+		}
+	end
+	if action == "Daily" then
+		-- D-113: the daily draw changes the game for everyone: Owner / Admin.
+		if not can(actor, "config.game") then
+			AuditLogService:Audit({
+				actorUserId = actor.UserId,
+				action = "AdminDenied",
+				target = "config.game",
+			})
+			return fail("dailyPermission")
+		end
+		local daily = args.Daily
+		if type(daily) ~= "table" then
+			return fail("daily")
+		end
+		local before = EventService:GetDaily()
+		local ok, reason = EventService:SetDaily(daily, actor.UserId)
+		if not ok then
+			return fail(reason or "save")
+		end
+		audit(actor, "EventDaily", nil, { before = before, after = EventService:GetDaily() })
+		return { ok = true, daily = EventService:GetDaily() }
 	end
 	local id = args.Id
 	if type(id) ~= "string" then
@@ -508,9 +565,12 @@ end
 local function hello(player: Player)
 	local role = roles[player]
 	if role then
+		local record = if panelStaff[player] then StaffService:Get(player.UserId) else nil
 		NetService:FireClient("AdminHello", player, {
 			Role = role,
-			Permissions = AdminRules.permissionsFor(role :: AdminRules.Role, Roles.ModeratorGrants),
+			Permissions = if record
+				then StaffRules.clampPerms(record.role, record.perms)
+				else AdminRules.permissionsFor(role :: AdminRules.Role, Roles.ModeratorGrants),
 		})
 	end
 end
@@ -523,8 +583,9 @@ function AdminService:Init()
 		AuditLogService:Audit({ actorUserId = player.UserId, action = "AdminDenied", target = permission })
 		return false
 	end)
+	StaffService:SetCodeRoleResolver(codeRole)
 	Maintenance.setExempt(function(player)
-		local role = resolveRole(player)
+		local role = codeRole(player)
 		return role == "Owner" or role == "Admin"
 	end)
 	NetService:Handle("AdminPlayers", onPlayers)
@@ -539,17 +600,30 @@ end
 
 function AdminService:Start()
 	local function join(player: Player)
-		roles[player] = resolveRole(player) :: any
+		local role, fromPanel = resolveRole(player)
+		roles[player] = role :: any
+		panelStaff[player] = if fromPanel then true else nil :: any
 		if roles[player] then
 			log:Info("%s joined as %s", player.Name, roles[player])
 		end
 	end
+	-- D-112: a staff list change (any server) re-checks everyone online.
+	StaffService.Changed:Connect(function()
+		for _, player in Players:GetPlayers() do
+			local before, wasPanel = roles[player], panelStaff[player]
+			join(player)
+			if NetService:IsReady(player) and (roles[player] ~= before or panelStaff[player] or wasPanel) then
+				hello(player)
+			end
+		end
+	end)
 	for _, player in Players:GetPlayers() do
 		join(player)
 	end
 	Players.PlayerAdded:Connect(join)
 	Players.PlayerRemoving:Connect(function(player)
 		roles[player] = nil
+		panelStaff[player] = nil
 	end)
 	NetService.PlayerReady:Connect(hello)
 	for _, player in Players:GetPlayers() do

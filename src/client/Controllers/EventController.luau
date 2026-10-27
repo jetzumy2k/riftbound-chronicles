@@ -34,6 +34,8 @@ local Tooltip = require(UI.Tooltip)
 local NotificationController = require(script.Parent.NotificationController)
 
 local ATTRIBUTE = "RC_Events"
+-- D-114: events starting within 15 minutes (EventService).
+local SOON_ATTRIBUTE = "RC_EventsSoon"
 local BOARD = "RC_EventBoard"
 
 local EventController = {}
@@ -42,6 +44,8 @@ type Running = { Id: string, EndsAt: number, Rewards: { any }? }
 
 local running: { Running } = {}
 local seen: { [string]: boolean }? = nil
+-- D-114: "<id>:<startsAt>" of every "starting soon" notice already shown.
+local warned: { [string]: boolean } = {}
 local chip: TextButton? = nil
 -- Phase 19 (D-94): the chip's short form on crowded screens.
 local compact = false
@@ -151,6 +155,29 @@ local function render()
 		then `🎉{#running} {left(soonest)}`
 		else `🎉 {table.concat(icons, " ")}  ·  {left(soonest)}`
 	button.Visible = true
+end
+
+-- D-114: tells the player about each event starting within 15 minutes,
+-- once (on joining too, if one is coming up).
+local function updateSoon()
+	local ok, list =
+		pcall(HttpService.JSONDecode, HttpService, ReplicatedStorage:GetAttribute(SOON_ATTRIBUTE) or "[]")
+	if not ok or type(list) ~= "table" then
+		return
+	end
+	for _, entry in list do
+		local e = if type(entry) == "table" then EventDefinitions.get(entry.Id) else nil
+		local key = if e then `{entry.Id}:{entry.StartsAt}` else nil
+		if e and key and not warned[key] and type(entry.StartsAt) == "number" then
+			warned[key] = true
+			local minutes = math.max(1, math.ceil((entry.StartsAt - Workspace:GetServerTimeNow()) / 60))
+			NotificationController:ShowKey(
+				"Info",
+				"event.soon",
+				{ name = `{e.icon} {e.name}`, minutes = tostring(minutes), blurb = e.blurb }
+			)
+		end
+	end
 end
 
 local function update()
@@ -371,6 +398,9 @@ function EventController:Start()
 		end
 	end)
 	ReplicatedStorage:GetAttributeChangedSignal(ATTRIBUTE):Connect(update)
+	-- D-114: "starting in 15 minutes" notices.
+	ReplicatedStorage:GetAttributeChangedSignal(SOON_ATTRIBUTE):Connect(updateSoon)
+	updateSoon()
 	update()
 	-- The countdown ticks once a minute is enough; every 15 s keeps it close.
 	task.spawn(function()

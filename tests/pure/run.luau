@@ -38,6 +38,7 @@ local specs = {
 	{ "passives", require("./specs/passives.spec") },
 	{ "potions", require("./specs/potions.spec") },
 	{ "system_reset", require("./specs/system_reset.spec") },
+	{ "staff", require("./specs/staff.spec") },
 	{ "perf_budget", require("./specs/perf_budget.spec") },
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },

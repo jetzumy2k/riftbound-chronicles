@@ -37,6 +37,7 @@ local BuffRules = require(script.Parent.Parent.Logic.BuffRules)
 local MallDefinitions = require(script.Parent.Parent.Definitions.MallDefinitions)
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
+local StaffRules = require(script.Parent.Parent.Logic.StaffRules)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
 local MAX_LEVEL = Constants.Level.Max
@@ -454,11 +455,18 @@ return function(S: any)
 			direction = "ClientToServer",
 			kind = "Function",
 			args = {
-				S.enum({ "List", "Start", "Schedule", "Stop" }),
+				S.enum({ "List", "Start", "Schedule", "Stop", "Daily" }),
 				S.struct({
 					Id = S.optional(S.enum(table.clone(EventDefinitions.IDS))),
 					Minutes = S.optional(S.int(1, 30 * 24 * 60)),
 					StartsAt = S.optional(S.int(0, 4102444800)),
+					-- D-113: the daily random event settings (needs config.game).
+					Daily = S.optional(S.struct({
+						Enabled = S.boolean(),
+						TimeUtcMinutes = S.int(0, 1439),
+						Minutes = S.int(15, 1440),
+						Excluded = S.array(S.enum(table.clone(EventDefinitions.IDS)), 64),
+					})),
 					-- D-93 stage 2: rewards for playing during the run (needs
 					-- items.grant; EventRewards checks the content).
 					Rewards = S.optional(S.array(
@@ -496,6 +504,36 @@ return function(S: any)
 			rate = { capacity = 3, refillPerSecond = 0.1 },
 			states = { "ProfileLoaded" },
 			permission = "system.reset",
+		},
+		-- D-112: the panel staff list and pay (StaffService; StaffRules
+		-- decides what the Owner / an Admin may do and clamps features).
+		AdminStaff = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "List", "Assign", "SetPerms", "SetSalary", "Remove", "Approve", "Reject" }),
+				S.struct({
+					UserId = S.optional(S.int(1, 9007199254740991)),
+					Role = S.optional(S.enum(StaffRules.ROLES)),
+					Perms = S.optional(S.array(S.enum(AdminRules.PERMISSIONS), 16)),
+					Salary = S.optional(S.struct({
+						Enabled = S.boolean(),
+						Period = S.enum(StaffRules.PERIODS),
+						MallPoints = S.int(0, StaffRules.MAX_SALARY_POINTS),
+						Items = S.array(
+							S.struct({
+								Id = S.enum(STACKABLE_IDS),
+								Count = S.int(1, StaffRules.MAX_ITEM_COUNT),
+							}),
+							StaffRules.MAX_SALARY_ITEMS
+						),
+						SetRarity = S.optional(S.enum(StaffRules.SET_RARITIES)),
+					})),
+				}),
+			},
+			rate = { capacity = 8, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+			permission = "staff.manage",
 		},
 		AdminAudit = {
 			direction = "ClientToServer",

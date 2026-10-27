@@ -46,6 +46,7 @@ local TopBarLayout = require(Shared.Layout.TopBarLayout)
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local EventRewards = require(Shared.Logic.EventRewards)
 local ResetRules = require(Shared.Logic.ResetRules)
+local StaffRules = require(Shared.Logic.StaffRules)
 
 local UI = script.Parent.Parent.UI
 local Theme = require(UI.Theme)
@@ -71,6 +72,7 @@ local TABS: { Page } = {
 	{ id = "Settings", label = "🔧 Settings", permission = "config.view" },
 	{ id = "Events", label = "🎉 Events", permission = "events.activate" },
 	{ id = "World", label = "🌍 World" },
+	{ id = "Staff", label = "🛡️ Staff", permission = "staff.manage" },
 	{ id = "Log", label = "📜 Log", permission = "audit.view" },
 }
 local PLAYER_PAGES: { Page } = {
@@ -114,6 +116,8 @@ local eventDay = 0
 local eventsFetched: any = nil
 -- D-93 stage 2: rewards to attach to the next Start / Schedule.
 local eventRewards: { EventRewards.Entry } = {}
+-- D-113: the daily random event settings being edited (nil: as saved).
+local dailyDraft: any = nil
 -- The event page open (nil: the list) and the reward group being picked.
 local eventPage: string? = nil
 local rewardGroup = "MallPoints"
@@ -130,6 +134,13 @@ local RESET_LABELS = {
 	Rankings = "PvP rankings",
 }
 local resetKeep: { [string]: boolean } = {}
+-- Staff tab (D-112): the list (fetched per visit), whether we are the
+-- Owner, pay being edited per UserId, the item picker and a pending remove.
+local staffList: { any }? = nil
+local staffOwner = false
+local salaryDrafts: { [number]: any } = {}
+local staffItemIndex = 1
+local staffConfirmRemove: number? = nil
 local resetInfo: any = nil
 
 -- Settings tab
@@ -1354,6 +1365,7 @@ local EVENT_REASONS = {
 	notRunning = "it is not running or scheduled",
 	stale = "another admin changed the settings meanwhile; try again",
 	rewardsPermission = "only an Owner or Admin can attach rewards",
+	dailyPermission = "only an Owner or Admin can change the daily event",
 	["rewards:count"] = "a reward amount is too big (Mall Points up to 10,000, items up to 99, one set)",
 	["rewards:many"] = "at most 4 rewards per event",
 	["rewards:item"] = "that item can't be an event reward",
@@ -1472,7 +1484,204 @@ local function stopButton(parent: Instance, e: EventDefinitions.Event, w: any, n
 end
 
 -- The list: what is live, then every event by group; tap one to open it.
+-- D-113: minutes this device's clock is ahead of UTC.
+local function utcOffsetMinutes(): number
+	local t = os.time()
+	local here = os.date("*t", t) :: any
+	local utc = os.date("!*t", t) :: any
+	here.isdst = false
+	return math.floor((os.time(here) - os.time(utc)) / 60 + 0.5)
+end
+
+local DAILY_MINUTES = { 30, 60, 120, 180, 360, 720, 1440 }
+
+-- The daily random event settings (D-113).
+local function drawDaily(body: Instance, listed: any)
+	local saved = listed.daily
+	if type(saved) ~= "table" then
+		return
+	end
+	local editable = can("config.game")
+	if dailyDraft == nil then
+		dailyDraft = {
+			Enabled = saved.Enabled == true,
+			TimeUtcMinutes = saved.TimeUtcMinutes,
+			Minutes = saved.Minutes,
+			Excluded = table.clone(saved.Excluded),
+		}
+	end
+	local draft = dailyDraft :: any
+	local offset = utcOffsetMinutes()
+	local localMinutes = (draft.TimeUtcMinutes + offset) % 1440
+	local box = card(
+		body,
+		"📅 Daily random event",
+		"When on, one ticked event is picked at random every day at this time (your local time) and runs for the length below. Events that are already running or on cooldown are skipped that day."
+	)
+	if not editable then
+		label(
+			box,
+			if saved.Enabled
+				then string.format(
+					"On: every day at %02d:%02d, %s.",
+					localMinutes // 60,
+					localMinutes % 60,
+					lengthText(saved.Minutes)
+				)
+				else "Off.",
+			12,
+			Theme.Colors.TextDim
+		)
+		return
+	end
+	local top = row(box)
+	button(top, if draft.Enabled then "✅ Daily event on" else "❌ Daily event off", 170, nil, function()
+		draft.Enabled = not draft.Enabled
+		refresh()
+	end)
+	if fields.dailyHour == nil then
+		fields.dailyHour = tostring(localMinutes // 60)
+		fields.dailyMinute = string.format("%02d", localMinutes % 60)
+	end
+	label(top, "Time", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(40, 36)
+	field(top, "dailyHour", "HH", 50)
+	label(top, ":", 14).Size = UDim2.fromOffset(8, 36)
+	field(top, "dailyMinute", "MM", 50)
+	button(top, `Runs {lengthText(draft.Minutes)}`, 140, nil, function()
+		local index = table.find(DAILY_MINUTES, draft.Minutes) or 0
+		draft.Minutes = DAILY_MINUTES[index % #DAILY_MINUTES + 1]
+		refresh()
+	end)
+	-- Ready events by panel group, ticked ones counted.
+	local readyIds: { string } = {}
+	for _, e in EventDefinitions.List do
+		if EventDefinitions.isReady(e) then
+			table.insert(readyIds, e.id)
+		end
+	end
+	local function ticked(id: string): boolean
+		return table.find(draft.Excluded, id) == nil
+	end
+	local function setAll(ids: { string }, on: boolean)
+		for _, id in ids do
+			local index = table.find(draft.Excluded, id)
+			if on and index then
+				table.remove(draft.Excluded, index)
+			elseif not on and index == nil then
+				table.insert(draft.Excluded, id)
+			end
+		end
+		refresh()
+	end
+	local count = 0
+	for _, id in readyIds do
+		if ticked(id) then
+			count += 1
+		end
+	end
+	local head = row(box)
+	label(head, `Events that can be picked: {count} of {#readyIds}`, 13, Theme.Colors.Text, true).Size =
+		UDim2.fromOffset(260, 32)
+	button(head, "✅ Check all", 120, nil, function()
+		setAll(readyIds, true)
+	end)
+	button(head, "❌ Uncheck all", 130, nil, function()
+		setAll(readyIds, false)
+	end)
+	-- Fixed-width columns so every tick lines up (2 on phones, 3 wider).
+	local columns = if Panels.layer().AbsoluteSize.X < 720 then 2 else 3
+	for _, group in GROUPS do
+		local ids = {}
+		for _, e in EventDefinitions.List do
+			if e.group == group.id and EventDefinitions.isReady(e) then
+				table.insert(ids, e.id)
+			end
+		end
+		if #ids == 0 then
+			continue
+		end
+		local groupHead = row(box)
+		label(groupHead, group.title, 12, Theme.Colors.GoldBright, true).Size = UDim2.fromOffset(160, 28)
+		local allOn = true
+		for _, id in ids do
+			allOn = allOn and ticked(id)
+		end
+		local toggle = button(
+			groupHead,
+			if allOn then "Uncheck group" else "Check group",
+			130,
+			nil,
+			function()
+				setAll(ids, not allOn)
+			end
+		)
+		toggle.Size = UDim2.fromOffset(130, 28)
+		local grid = Kit.new("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Parent = box,
+		})
+		local layout = Instance.new("UIGridLayout")
+		layout.CellPadding = UDim2.fromOffset(6, 6)
+		layout.CellSize = UDim2.new(1 / columns, -6, 0, 34)
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Parent = grid
+		for order, id in ids do
+			local e = EventDefinitions.get(id) :: EventDefinitions.Event
+			local on = ticked(id)
+			local cell = button(grid, `{if on then "✅" else "❌"}  {e.icon} {e.name}`, 10, nil, function()
+				setAll({ id }, not on)
+			end)
+			cell.LayoutOrder = order
+			cell.TextXAlignment = Enum.TextXAlignment.Left
+			cell.TextWrapped = false
+			cell.TextTruncate = Enum.TextTruncate.AtEnd
+			cell.BackgroundTransparency = if on then 0.2 else 0.6
+			cell.TextColor3 = if on then Theme.Colors.Text else Theme.Colors.TextMuted
+			Kit.padding(cell, 0, 10)
+		end
+	end
+	local save = row(box)
+	button(save, "Save daily event", 170, "gold", function()
+		local hour, minute = tonumber(fields.dailyHour), tonumber(fields.dailyMinute)
+		if
+			hour == nil
+			or minute == nil
+			or hour % 1 ~= 0
+			or minute % 1 ~= 0
+			or hour < 0
+			or hour > 23
+			or minute < 0
+			or minute > 59
+		then
+			setStatus("❌ Time must be HH 0-23 and MM 0-59.", true)
+			return
+		end
+		local result = eventCall("Daily", {
+			Daily = {
+				Enabled = draft.Enabled,
+				TimeUtcMinutes = (hour * 60 + minute - offset) % 1440,
+				Minutes = draft.Minutes,
+				Excluded = draft.Excluded,
+			},
+		})
+		if result then
+			listed.daily = result.daily
+			dailyDraft = nil
+			(fields :: any).dailyHour, (fields :: any).dailyMinute = nil, nil
+			setStatus(
+				if result.daily.Enabled
+					then "✅ Daily event saved and on."
+					else "✅ Daily event saved (off)."
+			)
+			refresh()
+		end
+	end)
+end
+
 local function drawEventList(body: Instance, listed: any)
+	drawDaily(body, listed)
 	local now = listed.now
 	local live = card(body, "Live now and scheduled", "Every server follows this list.")
 	local any = false
@@ -1485,7 +1694,7 @@ local function drawEventList(body: Instance, listed: any)
 		local r = row(live)
 		label(
 			r,
-			`{e.icon} {e.name}  ·  {windowLine(w, now)}`,
+			`{e.icon} {e.name}  ·  {windowLine(w, now)}{if w.Daily then "  ·  📅 daily" else ""}`,
 			13,
 			if w.StartsAt <= now then Theme.Colors.Safe else Theme.Colors.Text,
 			true
@@ -1840,6 +2049,277 @@ local function drawEvents(area: Frame)
 	end
 end
 
+--------------------------------------------------------------------------------
+-- Staff (D-112): panel-assigned Moderators / Game Masters and their pay
+--------------------------------------------------------------------------------
+
+local STAFF_REASONS = {
+	permission = "only the Owner can approve or reject",
+	self = "you can't assign yourself",
+	codeStaff = "Owners and Admins are set in code",
+	full = "the staff list is full",
+	missing = "that person is not on the staff list",
+	user = "enter a valid UserId",
+	save = "the staff list could not be saved; try again",
+}
+
+local function staffCall(action: string, args: { [string]: any }): any
+	local result = NetClient.invoke("AdminStaff", action, args)
+	if type(result) ~= "table" then
+		setStatus("❌ No answer from the server.", true)
+		return nil
+	end
+	if result.ok == false then
+		setStatus(`❌ Refused: {STAFF_REASONS[result.reason] or tostring(result.reason)}`, true)
+		return nil
+	end
+	if result.staff then
+		staffList = result.staff
+		staffOwner = result.owner == true
+	end
+	return result
+end
+
+local function featureLine(perms: { string }): string
+	local names = {}
+	for _, p in perms do
+		table.insert(names, StaffRules.FEATURE_NAMES[p] or p)
+	end
+	return table.concat(names, ", ")
+end
+
+local function salaryDraftOf(s: any): any
+	if salaryDrafts[s.UserId] == nil then
+		local items = {}
+		for _, item in s.Salary.items or {} do
+			table.insert(items, { id = item.id, count = item.count })
+		end
+		salaryDrafts[s.UserId] = {
+			enabled = s.Salary.enabled == true,
+			period = s.Salary.period or "Monthly",
+			mallPoints = s.Salary.mallPoints or 0,
+			items = items,
+			setRarity = s.Salary.setRarity,
+		}
+	end
+	return salaryDrafts[s.UserId]
+end
+
+local function drawStaffMember(body: Instance, s: any)
+	local roleName = StaffRules.ROLE_NAMES[s.Role] or s.Role
+	local member = card(body, `{s.Name} ({s.UserId}) · {roleName}`)
+	if s.Status == "Pending" then
+		label(member, "⏳ Waiting for the Owner's approval (no powers yet).", 12, Theme.Colors.GoldBright)
+	end
+	if s.Pending then
+		local what = {}
+		if s.Pending.role then
+			table.insert(what, `role: {StaffRules.ROLE_NAMES[s.Pending.role] or s.Pending.role}`)
+		end
+		if s.Pending.perms then
+			table.insert(what, `features: {featureLine(s.Pending.perms)}`)
+		end
+		label(
+			member,
+			`⏳ Change waiting for the Owner: {table.concat(what, "; ")}`,
+			12,
+			Theme.Colors.GoldBright
+		)
+	end
+	if staffOwner and (s.Status == "Pending" or s.Pending) then
+		local decide = row(member)
+		button(decide, "✅ Approve", 120, "gold", function()
+			if staffCall("Approve", { UserId = s.UserId }) then
+				setStatus("✅ Approved.")
+				refresh()
+			end
+		end)
+		button(decide, "❌ Reject", 120, "danger", function()
+			if staffCall("Reject", { UserId = s.UserId }) then
+				setStatus("✅ Rejected.")
+				refresh()
+			end
+		end)
+	end
+	label(
+		member,
+		if (s.LastSeen or 0) > 0
+			then `Last seen {os.date("%Y-%m-%d", s.LastSeen)}`
+			else "Not seen since assigned",
+		12,
+		Theme.Colors.TextDim
+	)
+
+	-- Features: one switch each, up to the role's ceiling.
+	label(member, "Features", 13, Theme.Colors.Text, true)
+	local features = row(member)
+	local on: { [string]: boolean } = {}
+	for _, p in s.Perms do
+		on[p] = true
+	end
+	for _, p in StaffRules.CEILING[s.Role] or {} do
+		local name = StaffRules.FEATURE_NAMES[p] or p
+		local b = button(features, if on[p] then `✅ {name}` else `❌ {name}`, 170, nil, function()
+			if p == "panel.open" then
+				return
+			end
+			local perms = {}
+			for _, q in StaffRules.CEILING[s.Role] do
+				local want = if q == p then not on[q] else on[q] == true
+				if want then
+					table.insert(perms, q)
+				end
+			end
+			if staffCall("SetPerms", { UserId = s.UserId, Perms = perms }) then
+				setStatus(if staffOwner then "✅ Features saved." else "✅ Sent to the Owner for approval.")
+				refresh()
+			end
+		end)
+		if p == "panel.open" then
+			b.AutoButtonColor = false
+		end
+	end
+
+	-- Pay.
+	local draft = salaryDraftOf(s)
+	label(member, "Pay", 13, Theme.Colors.Text, true)
+	local payRow = row(member)
+	button(payRow, if draft.enabled then "✅ Pay on" else "❌ Pay off", 110, nil, function()
+		draft.enabled = not draft.enabled
+		refresh()
+	end)
+	button(payRow, `Every {if draft.period == "Weekly" then "week" else "month"}`, 130, nil, function()
+		draft.period = if draft.period == "Weekly" then "Monthly" else "Weekly"
+		refresh()
+	end)
+	local mpKey = `staffMp{s.UserId}`
+	if fields[mpKey] == nil then
+		fields[mpKey] = tostring(draft.mallPoints)
+	end
+	field(payRow, mpKey, "Mall Points", 110)
+	label(payRow, "MP", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(28, 36)
+	button(payRow, `Gear set: {draft.setRarity or "none"}`, 160, nil, function()
+		local list = StaffRules.SET_RARITIES
+		local index = if draft.setRarity then table.find(list, draft.setRarity) else nil
+		draft.setRarity = if index == nil then list[1] elseif index < #list then list[index + 1] else nil
+		refresh()
+	end)
+	for index, item in draft.items do
+		local def = ItemDefinitions.stackable(item.id)
+		local itemRow = row(member)
+		label(itemRow, `{item.count} × {if def then def.name else item.id}`, 12).Size =
+			UDim2.fromOffset(260, 30)
+		button(itemRow, "Remove", 80, nil, function()
+			table.remove(draft.items, index)
+			refresh()
+		end)
+	end
+	if #draft.items < StaffRules.MAX_SALARY_ITEMS then
+		local addRow = row(member)
+		local id = ItemDefinitions.STACKABLE_IDS[staffItemIndex] or ItemDefinitions.STACKABLE_IDS[1]
+		local def = ItemDefinitions.stackable(id)
+		button(addRow, `Item: {if def then def.name else id}`, 220, nil, function()
+			staffItemIndex = staffItemIndex % #ItemDefinitions.STACKABLE_IDS + 1
+			refresh()
+		end)
+		field(addRow, "staffItemCount", "Count", 70)
+		button(addRow, "Add item", 100, nil, function()
+			local count = math.floor(tonumber(fields.staffItemCount) or 0)
+			if count < 1 or count > StaffRules.MAX_ITEM_COUNT then
+				setStatus(`❌ Count must be 1 to {StaffRules.MAX_ITEM_COUNT}.`, true)
+				return
+			end
+			table.insert(draft.items, { id = id, count = count })
+			refresh()
+		end)
+	end
+	local saveRow = row(member)
+	button(saveRow, "Save pay", 120, "gold", function()
+		local points = math.floor(tonumber(fields[mpKey]) or -1)
+		if points < 0 or points > StaffRules.MAX_SALARY_POINTS then
+			setStatus(`❌ Mall Points must be 0 to {StaffRules.MAX_SALARY_POINTS}.`, true)
+			return
+		end
+		local items = {}
+		for _, item in draft.items do
+			table.insert(items, { Id = item.id, Count = item.count })
+		end
+		local result = staffCall("SetSalary", {
+			UserId = s.UserId,
+			Salary = {
+				Enabled = draft.enabled,
+				Period = draft.period,
+				MallPoints = points,
+				Items = items,
+				SetRarity = draft.setRarity,
+			},
+		})
+		if result then
+			salaryDrafts[s.UserId] = nil
+			setStatus("✅ Pay saved.")
+			refresh()
+		end
+	end)
+	local confirming = staffConfirmRemove == s.UserId
+	button(
+		saveRow,
+		if confirming then "Tap again to remove" else "Remove from staff",
+		170,
+		"danger",
+		function()
+			if not confirming then
+				staffConfirmRemove = s.UserId
+				refresh()
+				return
+			end
+			staffConfirmRemove = nil
+			if staffCall("Remove", { UserId = s.UserId }) then
+				salaryDrafts[s.UserId] = nil
+				setStatus("✅ Removed from staff.")
+				refresh()
+			end
+		end
+	)
+end
+
+local function drawStaff(area: Frame)
+	if staffList == nil then
+		if staffCall("List", {}) == nil then
+			staffList = {}
+		end
+	end
+	local body = scroller(area, "staff", UDim2.fromOffset(0, 0), UDim2.fromScale(1, 1))
+	local add = card(
+		body,
+		"🛡️ Add staff",
+		if staffOwner
+			then "Enter the person's UserId (shown in the Players tab). Game Masters get the standard set: moderation, events, bosses, giving items and fixing quests. Pay is set per person below."
+			else "Enter the person's UserId (shown in the Players tab). As an Admin, new staff and feature changes wait for the Owner's approval."
+	)
+	local addRow = row(add)
+	field(addRow, "staffUser", "UserId", 160)
+	for _, staffRole in StaffRules.ROLES do
+		button(addRow, `Add as {StaffRules.ROLE_NAMES[staffRole]}`, 170, "gold", function()
+			local userId = tonumber(fields.staffUser)
+			if userId == nil or userId < 1 or userId % 1 ~= 0 then
+				setStatus("❌ Enter a valid UserId.", true)
+				return
+			end
+			if staffCall("Assign", { UserId = userId, Role = staffRole }) then
+				fields.staffUser = ""
+				setStatus(if staffOwner then "✅ Assigned." else "✅ Sent to the Owner for approval.")
+				refresh()
+			end
+		end)
+	end
+	if #(staffList :: { any }) == 0 then
+		label(body, "No panel staff yet.", 13, Theme.Colors.TextDim)
+	end
+	for _, s in staffList :: { any } do
+		drawStaffMember(body, s)
+	end
+end
+
 local function drawLog(area: Frame)
 	local top = row(area)
 	top.Size = UDim2.new(1, 0, 0, 36)
@@ -1909,6 +2389,9 @@ function refresh()
 			tab = id
 			eventsFetched = nil
 			resetInfo = nil
+			dailyDraft = nil
+			staffList = nil
+			salaryDrafts = {}
 			eventPage = nil
 			setStatus("")
 			refresh()
@@ -1923,6 +2406,8 @@ function refresh()
 		drawEvents(area)
 	elseif tab == "World" then
 		drawWorld(area)
+	elseif tab == "Staff" then
+		drawStaff(area)
 	else
 		drawLog(area)
 	end

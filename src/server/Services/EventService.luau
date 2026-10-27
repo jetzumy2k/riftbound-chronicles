@@ -16,6 +16,13 @@
 	reward is earned (`Factor`, `ScaleXp`, `LootTable`, `StoneTable`), so
 	an event ending never touches anything already earned.
 
+	D-113: the daily random event. When Events.Daily is on, at its time
+	each day one ticked event that the usual rules allow is drawn at random
+	and started like any other window (marked Daily, By = 0). Every server
+	checks; the config's version check lets only one write win, and the
+	others then see the day's window and stop. A server that only comes up
+	after the grace period skips that day.
+
 	Starting, scheduling and stopping are staff actions (AdminService,
 	permission events.activate), audited there; this service checks the
 	template rules (ready stage, duration, cooldown, overlap).
@@ -33,11 +40,14 @@ local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
 
 local ConfigurationService = require(script.Parent.ConfigurationService)
+local AuditLogService = require(script.Parent.AuditLogService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
 local log = Log.new("EventService")
 
 local ATTRIBUTE = "RC_Events"
+-- D-114: events starting within 15 minutes (JSON [{Id, StartsAt}]).
+local SOON_ATTRIBUTE = "RC_EventsSoon"
 
 local EventService = {
 	-- Fired with (running windows) when the running set changes.
@@ -46,6 +56,7 @@ local EventService = {
 
 local running: { EventRules.Window } = {}
 local signature = ""
+local soonSignature = ""
 
 local function windows(): { EventRules.Window }
 	local list = ConfigurationService:Get("Events.Windows")
@@ -53,6 +64,16 @@ local function windows(): { EventRules.Window }
 end
 
 local function refresh()
+	-- D-114: what starts soon, for the "starting in 15 minutes" notice.
+	local soon = {}
+	for _, w in EventRules.soon(windows(), os.time()) do
+		table.insert(soon, { Id = w.Id, StartsAt = w.StartsAt })
+	end
+	local soonEncoded = HttpService:JSONEncode(soon)
+	if soonEncoded ~= soonSignature then
+		soonSignature = soonEncoded
+		ReplicatedStorage:SetAttribute(SOON_ATTRIBUTE, soonEncoded)
+	end
 	running = EventRules.active(windows(), os.time())
 	local view = {}
 	for _, w in running do
@@ -186,7 +207,8 @@ function EventService:Schedule(
 	startsAt: number,
 	minutes: number,
 	actorUserId: number,
-	rewards: { any }?
+	rewards: { any }?,
+	daily: boolean?
 ): (boolean, string?, EventRules.Window?)
 	local now = os.time()
 	local list = EventRules.prune(windows(), now)
@@ -205,6 +227,7 @@ function EventService:Schedule(
 		EndsAt = math.max(startsAt, now) + minutes * 60,
 		By = actorUserId,
 		Rewards = if rewards and #rewards > 0 then rewards else nil,
+		Daily = if daily then true else nil,
 	}
 	table.insert(list, window)
 	local saved, why = save(list, actorUserId)
@@ -227,10 +250,9 @@ function EventService:Stop(id: string, actorUserId: number): (boolean, string?)
 		if w.Id == id and w.EndsAt > now then
 			found = true
 			if w.StartsAt <= now then
-				table.insert(
-					out,
-					{ Id = w.Id, StartsAt = w.StartsAt, EndsAt = now, By = w.By, Rewards = w.Rewards }
-				)
+				local ended = table.clone(w)
+				ended.EndsAt = now
+				table.insert(out, ended)
 			end
 		else
 			table.insert(out, w)
@@ -242,19 +264,90 @@ function EventService:Stop(id: string, actorUserId: number): (boolean, string?)
 	return save(out, actorUserId)
 end
 
+-- The daily random event settings.
+function EventService:GetDaily(): EventRules.Daily
+	return ConfigurationService:Get("Events.Daily")
+end
+
+--[[
+	Saves the daily random event settings (AdminService checks the
+	permission and audits). `excluded` ids must be real events.
+]]
+function EventService:SetDaily(daily: EventRules.Daily, actorUserId: number): (boolean, string?)
+	local excluded = {}
+	for _, id in daily.Excluded do
+		if EventDefinitions.get(id) and not table.find(excluded, id) then
+			table.insert(excluded, id)
+		end
+	end
+	local values = table.clone(ConfigurationService:GetOverrideValues())
+	local events = table.clone(values.Events or {})
+	events.Daily = {
+		Enabled = daily.Enabled == true,
+		TimeUtcMinutes = math.clamp(math.floor(daily.TimeUtcMinutes), 0, 1439),
+		Minutes = math.clamp(math.floor(daily.Minutes), 15, 1440),
+		Excluded = excluded,
+	}
+	values.Events = events
+	local ok, reason = ConfigurationService:Write(values, ConfigurationService:GetVersion(), actorUserId)
+	return ok == true, reason
+end
+
+-- Starts today's daily event if it is due (one server's write wins).
+local function dailyCheck()
+	local daily = EventService:GetDaily()
+	local now = os.time()
+	local list = EventRules.prune(windows(), now)
+	local at = EventRules.dailyDue(list, daily, now)
+	if at == nil then
+		return
+	end
+	-- Drawn up to 15 minutes ahead (D-114) so everyone is told first.
+	local startsAt = math.max(at, now)
+	local candidates = EventRules.dailyCandidates(list, daily, startsAt, now)
+	if #candidates == 0 then
+		log:Info("daily event: nothing ticked can run today")
+		return
+	end
+	local id = candidates[Random.new():NextInteger(1, #candidates)]
+	local ok, reason, window =
+		EventService:Schedule(id, startsAt, EventRules.dailyMinutes(daily, id), 0, nil, true)
+	if ok and window then
+		AuditLogService:Audit({
+			actorUserId = 0,
+			action = "DailyEvent",
+			target = id,
+			details = { startsAt = window.StartsAt, endsAt = window.EndsAt },
+		})
+		log:Info("daily event %s started until %d", id, window.EndsAt)
+	else
+		-- Usually another server won the write; the next check sees it.
+		log:Info("daily event %s not started here (%s)", id, tostring(reason))
+	end
+end
+
 function EventService:Init()
 	ReplicatedStorage:SetAttribute(ATTRIBUTE, "[]")
+	ReplicatedStorage:SetAttribute(SOON_ATTRIBUTE, "[]")
 end
 
 function EventService:Start()
 	refresh()
 	ConfigurationService.Changed:Connect(refresh)
 	task.spawn(function()
+		local tick = 0
 		while true do
 			task.wait(1)
 			xpcall(refresh, function(err)
 				log:Error("refresh failed: %s", tostring(err))
 			end)
+			tick += 1
+			-- D-113: servers check at different seconds, so writes rarely clash.
+			if tick % 20 == 0 then
+				xpcall(dailyCheck, function(err)
+					log:Error("daily event check failed: %s", tostring(err))
+				end)
+			end
 		end
 	end)
 end

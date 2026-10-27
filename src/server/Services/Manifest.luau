@@ -48,5 +48,7 @@ return {
 	-- Phase 23 (D-102): reads NetService traffic and MobService counts.
 	{ name = "PerfService", layer = 6 },
 	-- Phase 17 (D-77): the admin panel uses the services below it.
+	-- D-112: panel-assigned staff and their pay (AdminService reads it).
+	{ name = "StaffService", layer = 7 },
 	{ name = "AdminService", layer = 7 },
 }

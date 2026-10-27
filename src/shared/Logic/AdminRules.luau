@@ -23,9 +23,10 @@
 
 local AdminRules = {}
 
-export type Role = "Owner" | "Admin" | "Moderator"
+-- GameMaster: assigned in the panel only (D-112, StaffRules).
+export type Role = "Owner" | "Admin" | "Moderator" | "GameMaster"
 
-AdminRules.ROLES = table.freeze({ "Owner", "Admin", "Moderator" })
+AdminRules.ROLES = table.freeze({ "Owner", "Admin", "Moderator", "GameMaster" })
 
 -- Every permission, in display order.
 AdminRules.PERMISSIONS = table.freeze({
@@ -49,6 +50,9 @@ AdminRules.PERMISSIONS = table.freeze({
 	"roles.assign",
 	-- D-111: the whole-game reset (Owner only).
 	"system.reset",
+	-- D-112: the panel staff list and pay (Owner and Admins; an Admin's
+	-- assignments wait for the Owner, StaffRules.decide).
+	"staff.manage",
 })
 
 -- Moderators: support and moderation only (CLAUDE.md §21: no economy, drop

@@ -25,7 +25,15 @@ local BuffRules = require(script.Parent.BuffRules)
 local EventRules = {}
 
 -- Rewards (D-93 stage 2): Logic/EventRewards entries for playing during it.
-export type Window = { Id: string, StartsAt: number, EndsAt: number, By: number, Rewards: { any }? }
+-- Daily: started by the daily random event (D-113), not by a person.
+export type Window = {
+	Id: string,
+	StartsAt: number,
+	EndsAt: number,
+	By: number,
+	Rewards: { any }?,
+	Daily: boolean?,
+}
 export type Context = { zone: string?, race: string?, job: string?, level: number? }
 
 -- mode: "boost" or "reduce".
@@ -283,6 +291,92 @@ function EventRules.canSchedule(
 		return false, "full"
 	end
 	return true, nil
+end
+
+--------------------------------------------------------------------------------
+-- Daily random event (creator request 2026-10-27, PLAN.md D-113)
+--------------------------------------------------------------------------------
+
+-- Admin settings (config Events.Daily). TimeUtcMinutes: minutes after
+-- 00:00 UTC (the panel shows and takes local time). Excluded: events
+-- unticked in the panel (new events are in by default).
+export type Daily = { Enabled: boolean, TimeUtcMinutes: number, Minutes: number, Excluded: { string } }
+
+-- A server that comes up within this long after the time still starts the
+-- day's event; later, that day is skipped (no event at 3 a.m. by surprise).
+EventRules.DAILY_GRACE_SECONDS = 15 * 60
+-- D-114: the day's event is drawn this long before its time, so everyone
+-- gets the "starting soon" notice first.
+EventRules.DAILY_LEAD_SECONDS = 15 * 60
+-- D-114: scheduled events are announced to everyone this long ahead.
+EventRules.SOON_SECONDS = 15 * 60
+
+-- Windows starting within SOON_SECONDS (not yet running), soonest first.
+function EventRules.soon(windows: { Window }, now: number): { Window }
+	local out = {}
+	for _, w in windows do
+		if w.StartsAt > now and w.StartsAt - now <= EventRules.SOON_SECONDS then
+			table.insert(out, w)
+		end
+	end
+	table.sort(out, function(a, b)
+		return a.StartsAt < b.StartsAt
+	end)
+	return out
+end
+
+-- Today's start time (UTC seconds) for the daily event at `now`.
+function EventRules.dailyTime(daily: Daily, now: number): number
+	return now - now % 86400 + daily.TimeUtcMinutes * 60
+end
+
+-- The start time of the daily event due to be drawn at `now` (from
+-- DAILY_LEAD_SECONDS before its time to DAILY_GRACE_SECONDS after it), or
+-- nil: off, outside that span, or already drawn.
+function EventRules.dailyDue(windows: { Window }, daily: Daily, now: number): number?
+	if not daily.Enabled then
+		return nil
+	end
+	-- The draw for just after midnight UTC starts the evening before.
+	local at = EventRules.dailyTime(daily, now + EventRules.DAILY_LEAD_SECONDS)
+	if now < at - EventRules.DAILY_LEAD_SECONDS or now >= at + EventRules.DAILY_GRACE_SECONDS then
+		return nil
+	end
+	for _, w in windows do
+		if w.Daily and w.StartsAt >= at - 60 then
+			return nil
+		end
+	end
+	return at
+end
+
+-- How long the daily `id` runs: the admin's length, within the template.
+function EventRules.dailyMinutes(daily: Daily, id: string): number
+	local e = EventDefinitions.get(id)
+	return if e then math.clamp(daily.Minutes, 1, e.maxMinutes) else daily.Minutes
+end
+
+--[[
+	The events the daily draw may pick right now: ticked in the panel,
+	ready, and allowed by the usual rules (not running, off cooldown).
+	In EventDefinitions order.
+]]
+function EventRules.dailyCandidates(
+	windows: { Window },
+	daily: Daily,
+	startsAt: number,
+	now: number
+): { string }
+	local out = {}
+	for _, id in EventDefinitions.IDS do
+		if
+			table.find(daily.Excluded, id) == nil
+			and EventRules.canSchedule(windows, id, startsAt, EventRules.dailyMinutes(daily, id), now)
+		then
+			table.insert(out, id)
+		end
+	end
+	return out
 end
 
 --[[
