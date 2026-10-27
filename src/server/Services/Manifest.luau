@@ -47,6 +47,8 @@ return {
 	{ name = "EventChallengeService", layer = 6 },
 	-- Phase 23 (D-102): reads NetService traffic and MobService counts.
 	{ name = "PerfService", layer = 6 },
+	-- D-118: gear wear (the Blacksmith's repairs are ShopService's).
+	{ name = "DurabilityService", layer = 6 },
 	-- D-117: Merchant / Exchanger NPCs and Gold from creatures.
 	{ name = "ShopService", layer = 6 },
 	-- D-115: character slots (switch / create / delete).

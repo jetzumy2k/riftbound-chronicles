@@ -92,6 +92,8 @@ return function(S: any)
 		Enhancement = S.int(0, Constants.Enhancement.Max),
 		Locked = S.boolean(),
 		CreatedAt = S.number(0),
+		-- D-118
+		Durability = S.optional(S.number(0, Constants.Durability.Max)),
 	})
 	local equipment = S.map(S.enum(Enums.ItemSlot), guid, 12)
 	local stackables = S.map(S.enum(STACKABLE_IDS), S.int(0), 16)
@@ -398,7 +400,7 @@ return function(S: any)
 			direction = "ClientToServer",
 			kind = "Function",
 			args = {
-				S.enum({ "Catalog", "BuyPotion", "BuyGear", "Sell", "Exchange" }),
+				S.enum({ "Catalog", "BuyPotion", "BuyGear", "Sell", "Exchange", "Repair", "RepairAll" }),
 				S.struct({
 					Npc = S.enum(NpcDefinitions.IDS),
 					-- Potions to buy, or Mall Points to exchange.

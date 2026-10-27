@@ -96,6 +96,20 @@ return function(S: any)
 			EnhanceBonusPct = S.int(0, 100),
 		}),
 
+		Durability = S.struct({
+			Enabled = S.boolean(),
+			WeaponWearPerKill = S.number(0, 100),
+			ArmorWearPerKill = S.number(0, 100),
+			DefeatWearPct = S.number(0, 100),
+			PvPDefeatWear = S.boolean(),
+			RepairGoldPerPoint = S.map(
+				S.enum({ "Standard", "Uncommon", "Rare", "Epic", "Legendary", "Mythical" }),
+				S.number(0, 100000),
+				6
+			),
+			RepairLevelStepPct = S.int(0, 500),
+		}),
+
 		Exchange = S.struct({
 			Enabled = S.boolean(),
 			GoldPerMallPoint = S.int(1, 1000000),

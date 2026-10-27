@@ -59,6 +59,7 @@ local REASONS = {
 	locked = "A ticked item is locked.",
 	equipped = "A ticked item is equipped.",
 	stock = "That item isn't sold.",
+	nothing = "Nothing needs repairing.",
 	amount = "Enter an amount from 1 to 100,000.",
 	RateLimited = "Too many requests; wait a moment.",
 }
@@ -563,6 +564,78 @@ local function drawExchange(body: Instance, l: any, width: number)
 	end
 end
 
+-- D-118: the Blacksmith: worn items as cards; tick some or repair all.
+local function drawRepair(body: Instance, l: any, width: number): (string, string?, (() -> ())?)
+	if #l.repairs == 0 then
+		text(body, "✅ All your gear is in perfect shape.", 14, Theme.Colors.Safe, true)
+		return "Nothing needs repairing.", nil, nil
+	end
+	text(
+		body,
+		"Tap items to tick them, or repair everything at once. Broken gear (0) gives no stats until repaired.",
+		12,
+		Theme.Colors.TextDim
+	)
+	local cards = grid(body, width)
+	local total, count, guids, all = 0, 0, {}, 0
+	for order, entry in l.repairs do
+		all += entry.Cost
+		local on = picked[entry.Guid] == true
+		if on then
+			total += entry.Cost
+			count += 1
+			table.insert(guids, entry.Guid)
+		end
+		local broken = entry.Durability <= 0
+		itemCard(
+			cards,
+			order,
+			`{if on then "✅ " else ""}{entry.Name}`,
+			`{if broken then "❗ Broken" else `Durability {math.floor(entry.Durability + 0.5)}/{l.max}`}{if entry.Equipped
+				then " · worn"
+				else ""}`,
+			`Repair: {entry.Cost} Gold`,
+			if broken then BAD else (RARITY_COLOR[entry.Rarity] or Theme.Colors.Text),
+			on,
+			(l.gold or 0) >= entry.Cost,
+			function()
+				picked[entry.Guid] = if on then nil else true
+				confirming = nil
+				render()
+			end
+		)
+	end
+	if count == 0 then
+		return `Repair everything: {all} Gold`,
+			if confirming == "repairAll" then `Tap to pay {all}` else "Repair all",
+			function()
+				twice("repairAll", function()
+					if call("RepairAll", {}) then
+						picked = {}
+						setStatus(`✅ Everything repaired for {all} Gold.`)
+					end
+				end)
+				render()
+			end
+	end
+	return `{count} item(s) ticked · {total} Gold`,
+		if confirming == "repair" then `Tap to pay {total}` else "Repair ticked",
+		function()
+			if count > 20 then
+				setStatus("Repair at most 20 ticked items at a time (or use Repair all).", true)
+				render()
+				return
+			end
+			twice("repair", function()
+				if call("Repair", { Guids = guids }) then
+					picked = {}
+					setStatus(`✅ Repaired {count} item(s) for {total} Gold.`)
+				end
+			end)
+			render()
+		end
+end
+
 function render()
 	local frame = content
 	if frame == nil then
@@ -585,7 +658,7 @@ function render()
 	shut.AnchorPoint = Vector2.new(1, 0)
 	shut.Position = UDim2.new(1, -10, 0, 8)
 	local l = listed
-	if l and l.gold and npc == "Merchant" then
+	if l and l.gold and npc ~= "Exchanger" then
 		local wallet = text(frame, `💰 {l.gold} Gold`, 15, Theme.Colors.GoldBright, true)
 		wallet.AutomaticSize = Enum.AutomaticSize.None
 		wallet.AnchorPoint = Vector2.new(1, 0)
@@ -659,7 +732,7 @@ function render()
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 10, 1, -34),
 		Size = UDim2.new(1, -20, 0, 50),
-		Visible = npc == "Merchant",
+		Visible = npc ~= "Exchanger",
 		Parent = frame,
 	})
 	Kit.corner(bar, 10)
@@ -667,7 +740,7 @@ function render()
 	statusLabel.AnchorPoint = Vector2.new(0, 1)
 	statusLabel.Position = UDim2.new(0, 14, 1, -8)
 	statusLabel.Size = UDim2.new(1, -28, 0, 0)
-	local bottom = if npc == "Merchant" then 92 else 36
+	local bottom = if npc ~= "Exchanger" then 92 else 36
 	local scroll = Kit.new("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(10, top),
@@ -693,7 +766,9 @@ function render()
 		return
 	end
 	local summary, actionText, action
-	if page == "Sell" then
+	if npc == "Blacksmith" then
+		summary, actionText, action = drawRepair(scroll, l, width)
+	elseif page == "Sell" then
 		summary, actionText, action = drawSell(scroll, l, width)
 	else
 		summary, actionText, action = drawBuy(scroll, l, width)
@@ -704,7 +779,7 @@ function render()
 	info.Size = UDim2.new(1, -250, 1, 0)
 	info.TextTruncate = Enum.TextTruncate.AtEnd
 	info.TextWrapped = false
-	if page == "Buy" and buyCategory == "Potions" then
+	if npc == "Merchant" and page == "Buy" and buyCategory == "Potions" then
 		local buttons = Kit.new("Frame", {
 			BackgroundTransparency = 1,
 			AnchorPoint = Vector2.new(1, 0.5),

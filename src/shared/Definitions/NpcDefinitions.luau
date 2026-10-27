@@ -45,6 +45,16 @@ NpcDefinitions.List = table.freeze({
 		at = table.freeze({ 34, 0, -8 }),
 		look = "Mage",
 	}),
+	-- D-118: repairs gear for Gold.
+	table.freeze({
+		id = "Blacksmith",
+		names = table.freeze({ Angel = "Blacksmith Doran", Devil = "Blacksmith Korr" }),
+		title = "Repairs gear",
+		icon = "🔨",
+		prompt = "Repair",
+		at = table.freeze({ -34, 0, -8 }),
+		look = "Warrior",
+	}),
 } :: { Npc })
 
 NpcDefinitions.IDS = {} :: { string }

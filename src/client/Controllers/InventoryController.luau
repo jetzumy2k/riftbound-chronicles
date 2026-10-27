@@ -43,6 +43,7 @@ local Enums = require(Shared.Enums)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local DurabilityRules = require(Shared.Logic.DurabilityRules)
 local PotionRules = require(Shared.Logic.PotionRules)
 local WeaponRules = require(Shared.Definitions.WeaponRules)
 local EnhanceRules = require(Shared.Logic.EnhanceRules)
@@ -325,6 +326,34 @@ local function tile(size: number, item: Item?, emptyGlyph: string?): TextButton
 			badge(b, "🔒", Vector2.new(0, 0), Theme.Colors.Text)
 		elseif equippedSlot(item.Guid) then
 			badge(b, "✅", Vector2.new(0, 0), Theme.Colors.Safe)
+		end
+		-- D-118: a durability bar once it is worn (red and full-width "broken").
+		local durability = DurabilityRules.of(item)
+		if durability < DurabilityRules.MAX then
+			local broken = durability <= 0
+			local share = durability / DurabilityRules.MAX
+			local back = Kit.new("Frame", {
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, -3),
+				Size = UDim2.new(1, -12, 0, 4),
+				BackgroundColor3 = Color3.fromRGB(30, 26, 30),
+				BorderSizePixel = 0,
+				Parent = b,
+			})
+			Kit.corner(back, 2)
+			local fill = Kit.new("Frame", {
+				Size = UDim2.fromScale(if broken then 1 else share, 1),
+				BackgroundColor3 = if broken
+					then Color3.fromRGB(220, 60, 60)
+					elseif share <= DurabilityRules.LOW_PCT / 100 then Color3.fromRGB(240, 160, 60)
+					else Theme.Colors.Safe,
+				BorderSizePixel = 0,
+				Parent = back,
+			})
+			Kit.corner(fill, 2)
+			if broken then
+				badge(b, "❗", Vector2.new(0.5, 0), Color3.fromRGB(255, 120, 120))
+			end
 		end
 	end
 	return b
@@ -861,6 +890,25 @@ local function drawDetail(parent: Instance)
 	).LayoutOrder =
 		2
 	text(parent, `{if job then job.displayName else def.job} gear`, 12, Theme.Colors.TextDim).LayoutOrder = 3
+	-- D-118
+	local durability = DurabilityRules.of(item)
+	text(
+		parent,
+		if durability <= 0
+			then "❗ Broken: its stats don't count. Repair it at the 🔨 Blacksmith."
+			else `Durability {math.floor(durability + 0.5)} / {DurabilityRules.MAX}`,
+		12,
+		if durability <= 0
+			then Color3.fromRGB(255, 120, 120)
+			elseif durability <= DurabilityRules.MAX * DurabilityRules.LOW_PCT / 100 then Color3.fromRGB(
+				240,
+				170,
+				80
+			)
+			else Theme.Colors.TextDim,
+		if durability <= 0 then Theme.Fonts.BodyBold else nil
+	).LayoutOrder =
+		3
 	-- D-68: how it is held and what goes with it.
 	local hold = if def.family
 		then WeaponRules.describe(def.family)

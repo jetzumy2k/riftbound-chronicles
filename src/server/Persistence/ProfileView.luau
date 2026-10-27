@@ -65,6 +65,7 @@ function ProfileView.item(item: { [string]: any }): { [string]: any }
 		Enhancement = item.Enhancement,
 		Locked = item.Locked,
 		CreatedAt = item.CreatedAt,
+		Durability = item.Durability,
 	}
 end
 

@@ -73,6 +73,11 @@ Constants.Net = table.freeze({
 })
 
 -- Attribute names set by the server on well-known instances.
+-- D-118: gear durability (a new item has Max).
+Constants.Durability = table.freeze({
+	Max = 100,
+})
+
 -- D-115: characters per account (all of the account's realm).
 Constants.Characters = table.freeze({
 	MaxSlots = 4,

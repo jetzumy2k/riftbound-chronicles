@@ -227,6 +227,19 @@ return {
 		SellPct = 20,
 		EnhanceBonusPct = 10,
 	},
+	-- D-118: gear durability (Constants.Durability.Max = 100). Wear per
+	-- creature whose EXP the owner earns; % of the maximum on defeat (by a
+	-- player only if PvPDefeatWear). Repair: missing points x the rarity's
+	-- Gold per point x (1 + item level x RepairLevelStepPct %).
+	Durability = {
+		Enabled = true,
+		WeaponWearPerKill = 0.5,
+		ArmorWearPerKill = 0.2,
+		DefeatWearPct = 10,
+		PvPDefeatWear = false,
+		RepairGoldPerPoint = { Standard = 1, Uncommon = 2, Rare = 4, Epic = 8, Legendary = 15, Mythical = 30 },
+		RepairLevelStepPct = 10,
+	},
 	-- D-117: the Exchanger. 1 MP -> GoldPerMallPoint Gold; 1 MP costs
 	-- GoldForMallPoint Gold. Daily limits in Mall Points per account (0 =
 	-- none).

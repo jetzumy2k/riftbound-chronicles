@@ -51,6 +51,8 @@ export type Item = {
 	Locked: boolean,
 	Source: string,
 	CreatedAt: number,
+	-- D-118: 0..Constants.Durability.Max; nil = new.
+	Durability: number?,
 }
 
 export type GearTotals = {
@@ -444,6 +446,15 @@ function ItemRules.repairItem(guid: any, item: any): (boolean, { string })
 		item.Locked = false
 		table.insert(notes, "Locked reset")
 	end
+	-- D-118: items from before durability start new (no note: expected).
+	local durability = item.Durability
+	if durability == nil then
+		item.Durability = Constants.Durability.Max
+	elseif not isFinite(durability) or durability < 0 or durability > Constants.Durability.Max then
+		local fixed = if isFinite(durability) then math.clamp(durability, 0, Constants.Durability.Max) else 0
+		table.insert(notes, `Durability {tostring(durability)} -> {fixed}`)
+		item.Durability = fixed
+	end
 	if type(item.Source) ~= "string" or #item.Source == 0 or #item.Source > ItemRules.MAX_SOURCE_LENGTH then
 		item.Source = "Unknown"
 		table.insert(notes, "Source reset")
@@ -576,6 +587,10 @@ function ItemRules.gearTotals(equipment: { [string]: string }, inventory: { [str
 		local item = inventory[guid]
 		local def = item and ItemDefinitions.get(item.DefId)
 		if item == nil or def == nil or not ItemRules.fitsSlot(def, slot) then
+			continue
+		end
+		-- D-118: a broken piece adds nothing until it is repaired.
+		if type(item.Durability) == "number" and item.Durability <= 0 then
 			continue
 		end
 		local stats = ItemRules.itemStats(item, slot == "OffHand")

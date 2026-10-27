@@ -36,6 +36,7 @@ local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local EnemyDefinitions = require(Shared.Definitions.EnemyDefinitions)
 local WorldLayout = require(Shared.Definitions.WorldLayout)
 local ShopRules = require(Shared.Logic.ShopRules)
+local DurabilityRules = require(Shared.Logic.DurabilityRules)
 local ItemRules = require(Shared.Logic.ItemRules)
 local Log = require(Shared.Util.Log)
 
@@ -47,6 +48,7 @@ local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local InventoryService = require(script.Parent.InventoryService)
 local MobService = require(script.Parent.MobService)
+local CombatService = require(script.Parent.CombatService)
 
 local log = Log.new("ShopService")
 
@@ -128,7 +130,45 @@ local function stockPiece(
 	return def, math.clamp(level(data), def.minItemLevel, def.maxItemLevel)
 end
 
+-- D-118: every worn-down item (bag and equipped) with its repair cost.
+local function repairList(player: Player, data: { [string]: any }): { any }
+	local c = ConfigurationService:Get("Durability")
+	local out = {}
+	for guid, item in data.Inventory do
+		local cost = DurabilityRules.repairCost(c, item)
+		if cost > 0 then
+			local def = ItemDefinitions.get(item.DefId)
+			table.insert(out, {
+				Guid = guid,
+				Name = if def then def.name else item.DefId,
+				Rarity = item.Rarity,
+				Level = item.ItemLevel or 0,
+				Durability = DurabilityRules.of(item),
+				Cost = cost,
+				Equipped = InventoryService:EquippedSlot(player, guid) ~= nil,
+			})
+		end
+	end
+	-- Broken and equipped first.
+	table.sort(out, function(a, b)
+		if a.Equipped ~= b.Equipped then
+			return a.Equipped
+		end
+		return a.Durability < b.Durability
+	end)
+	return out
+end
+
 local function catalog(player: Player, data: { [string]: any }, id: string): { [string]: any }
+	if id == "Blacksmith" then
+		return {
+			ok = true,
+			npc = id,
+			repairs = repairList(player, data),
+			max = DurabilityRules.MAX,
+			gold = data.Wallet.Gold or 0,
+		}
+	end
 	if id == "Exchanger" then
 		local c = exchangeConfig()
 		local today = ShopRules.day(os.time())
@@ -329,6 +369,60 @@ local function onShop(player: Player, action: string, args: { [string]: any }): 
 			return catalog(player, data, id)
 		end
 		return { ok = false, reason = "action" }
+	end
+	if id == "Blacksmith" then
+		if action ~= "Repair" and action ~= "RepairAll" then
+			return { ok = false, reason = "action" }
+		end
+		local c = ConfigurationService:Get("Durability")
+		local guids: { string } = {}
+		if action == "RepairAll" then
+			for _, entry in repairList(player, data) do
+				table.insert(guids, entry.Guid)
+			end
+		else
+			guids = if type(args.Guids) == "table" then args.Guids else {}
+		end
+		if #guids == 0 then
+			return { ok = false, reason = "nothing" }
+		end
+		-- Price everything first; pay once; then repair (no yields).
+		local total, seen, wasBroken = 0, {}, false
+		for _, guid in guids do
+			local item = data.Inventory[guid]
+			if type(item) ~= "table" or seen[guid] then
+				return { ok = false, reason = "item" }
+			end
+			seen[guid] = true
+			total += DurabilityRules.repairCost(c, item)
+		end
+		if total <= 0 then
+			return { ok = false, reason = "nothing" }
+		end
+		if (wallet.Gold or 0) < total then
+			return { ok = false, reason = "gold" }
+		end
+		wallet.Gold -= total
+		for _, guid in guids do
+			local item = data.Inventory[guid]
+			if DurabilityRules.isBroken(item) and InventoryService:EquippedSlot(player, guid) then
+				wasBroken = true
+			end
+			item.Durability = DurabilityRules.MAX
+		end
+		if wasBroken then
+			CombatService:RefreshStats(player)
+		end
+		InventoryService:Push(player, guids)
+		AuditLogService:Audit({
+			actorUserId = player.UserId,
+			action = "Repair",
+			target = tostring(#guids),
+			details = { gold = total, left = wallet.Gold },
+		})
+		notify(player, "Info", "shop.repaired", { count = tostring(#guids), gold = tostring(total) })
+		pushSoon(player)
+		return catalog(player, data, id)
 	end
 	-- Exchanger.
 	if action ~= "Exchange" then

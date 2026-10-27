@@ -31,6 +31,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 local Enums = require(Shared.Enums)
+local Constants = require(Shared.Constants)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
 local PotionRules = require(Shared.Logic.PotionRules)
@@ -218,6 +219,7 @@ function InventoryService:GrantItem(
 		end, valueRolls(player, source)),
 		Enhancement = 0,
 		Locked = false,
+		Durability = Constants.Durability.Max,
 		Source = source,
 		CreatedAt = os.time(),
 	}

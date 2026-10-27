@@ -47,6 +47,10 @@ AdminText.SECTIONS = {
 		title = "🛍️ Merchant",
 		help = "Gold prices of the capital Merchant: potions, gear it sells (Standard / Uncommon / Rare) and what it pays for gear.",
 	},
+	Durability = {
+		title = "🔨 Durability",
+		help = "How fast worn gear wears down and what the Blacksmith charges to repair it. Broken gear (0) gives no stats until repaired; it is never destroyed.",
+	},
 	Exchange = {
 		title = "💱 Exchanger",
 		help = "Gold and Mall Points ratios and daily limits (0 = no limit), per account.",
