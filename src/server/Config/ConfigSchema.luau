@@ -82,11 +82,34 @@ return function(S: any)
 			AnimeStyle = S.boolean(),
 		}),
 
+		Shop = S.struct({
+			Enabled = S.boolean(),
+			PotionPrice = S.int(1, 1000000),
+			GearBase = S.map(S.enum({ "Standard", "Uncommon", "Rare" }), S.int(1, 10000000), 3),
+			SellBase = S.map(
+				S.enum({ "Standard", "Uncommon", "Rare", "Epic", "Legendary", "Mythical" }),
+				S.int(0, 10000000),
+				6
+			),
+			LevelStepPct = S.int(0, 500),
+			SellPct = S.int(0, 100),
+			EnhanceBonusPct = S.int(0, 100),
+		}),
+
+		Exchange = S.struct({
+			Enabled = S.boolean(),
+			GoldPerMallPoint = S.int(1, 1000000),
+			GoldForMallPoint = S.int(1, 1000000),
+			DailyMallPointsToGold = S.int(0, 1000000),
+			DailyGoldToMallPoints = S.int(0, 1000000),
+		}),
+
 		Mall = S.struct({
 			Prices = S.map(S.string(32, 1), S.int(1, 1000000), 64),
 		}),
 
 		Loot = S.struct({
+			GoldPctOfXp = S.number(0, 1000),
 			-- LootRules.validate also checks the weights sum to 100.
 			Tables = S.map(
 				S.enum({

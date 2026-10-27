@@ -43,6 +43,14 @@ AdminText.SECTIONS = {
 	Combat = { title = "💥 Combat", help = "Damage formula, regeneration, protection timers and Focus." },
 	Appearance = { title = "👤 Appearance", help = "How player characters look." },
 	Mall = { title = "🛒 Item Mall prices", help = "What each Item Mall entry costs in Mall Points." },
+	Shop = {
+		title = "🛍️ Merchant",
+		help = "Gold prices of the capital Merchant: potions, gear it sells (Standard / Uncommon / Rare) and what it pays for gear.",
+	},
+	Exchange = {
+		title = "💱 Exchanger",
+		help = "Gold and Mall Points ratios and daily limits (0 = no limit), per account.",
+	},
 } :: { [string]: Section }
 
 -- Card titles for grouped values (the path between the section and the leaf).

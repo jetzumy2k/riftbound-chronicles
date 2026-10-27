@@ -208,6 +208,36 @@ return {
 		AnimeStyle = true,
 	},
 
+	-- D-117: the Merchant (Gold). GearBase: one piece at level 0, x (1 +
+	-- level x LevelStepPct %). SellBase x SellPct % is what it pays back,
+	-- + EnhanceBonusPct % per enhancement level.
+	Shop = {
+		Enabled = true,
+		PotionPrice = 40,
+		GearBase = { Standard = 80, Uncommon = 200, Rare = 800 },
+		SellBase = {
+			Standard = 80,
+			Uncommon = 200,
+			Rare = 800,
+			Epic = 2500,
+			Legendary = 6000,
+			Mythical = 15000,
+		},
+		LevelStepPct = 25,
+		SellPct = 20,
+		EnhanceBonusPct = 10,
+	},
+	-- D-117: the Exchanger. 1 MP -> GoldPerMallPoint Gold; 1 MP costs
+	-- GoldForMallPoint Gold. Daily limits in Mall Points per account (0 =
+	-- none).
+	Exchange = {
+		Enabled = true,
+		GoldPerMallPoint = 100,
+		GoldForMallPoint = 400,
+		DailyMallPointsToGold = 0,
+		DailyGoldToMallPoints = 50,
+	},
+
 	-- D-109: Item Mall prices in Mall Points, by catalog id (admin). Must
 	-- list every MallDefinitions entry (tested); a missing id falls back to
 	-- the catalog price.
@@ -240,6 +270,8 @@ return {
 	-- 70% Standard-or-Uncommon, split 45 / 25 (D-07); bosses 20% Legendary /
 	-- 80% Rare and always drop. Elites (⭐) drop more often (D-06).
 	Loot = {
+		-- D-117: Gold from creatures, as a % of their EXP (split like EXP).
+		GoldPctOfXp = 25,
 		Tables = {
 			DungeonMob = { DropChancePct = 12, Rarity = { Standard = 45, Uncommon = 25, Rare = 30 } },
 			DungeonElite = { DropChancePct = 35, Rarity = { Standard = 45, Uncommon = 25, Rare = 30 } },

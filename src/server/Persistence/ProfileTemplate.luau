@@ -46,6 +46,10 @@ function ProfileTemplate.new(): { [string]: any }
 		Characters = {},
 		ActiveSlot = 1,
 
+		-- D-117: Mall Points moved by the Exchanger today (UTC day number),
+		-- per direction (account-wide, for the daily limits).
+		ExchangeDay = { Day = 0, ToGold = 0, ToMallPoints = 0 },
+
 		-- Identity (Phase 3/4). Race and Job are nil until chosen.
 		FacePreset = 1,
 		-- D-72: the adult head (Enums.HeadStyle), changeable any time.

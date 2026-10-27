@@ -252,7 +252,7 @@ end
 	Removes an item from a player's bag (admin action, Phase 17). Equipped
 	items are refused ("equipped"). Returns (ok, reason).
 ]]
-function InventoryService:RemoveItem(player: Player, guid: string): (boolean, string?)
+function InventoryService:RemoveItem(player: Player, guid: string, why: string?): (boolean, string?)
 	local data = PlayerDataService:GetData(player)
 	if data == nil then
 		return false, "noProfile"
@@ -266,7 +266,7 @@ function InventoryService:RemoveItem(player: Player, guid: string): (boolean, st
 	end
 	data.Inventory[guid] = nil
 	push(player, data, nil, { guid })
-	log:Info("user=%d -item %s %s (admin)", player.UserId, guid, item.DefId)
+	log:Info("user=%d -item %s %s (%s)", player.UserId, guid, item.DefId, why or "admin")
 	return true, nil
 end
 

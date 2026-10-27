@@ -37,6 +37,7 @@ local BuffRules = require(script.Parent.Parent.Logic.BuffRules)
 local MallDefinitions = require(script.Parent.Parent.Definitions.MallDefinitions)
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
+local NpcDefinitions = require(script.Parent.Parent.Definitions.NpcDefinitions)
 local StaffRules = require(script.Parent.Parent.Logic.StaffRules)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
@@ -381,6 +382,35 @@ return function(S: any)
 				S.optional(S.string(10)),
 			},
 			rate = { capacity = 6, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+		},
+
+		-- D-117: town NPCs. The server opens an NPC's screen when the player
+		-- talks to it (reach checked); NpcShop asks for the catalog and buys,
+		-- sells or exchanges (reach, price, Gold / Mall Points and bag room
+		-- all checked on the server; prices never come from the client).
+		NpcOpen = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = { S.struct({ Npc = S.enum(NpcDefinitions.IDS) }) },
+		},
+		NpcShop = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "Catalog", "BuyPotion", "BuyGear", "Sell", "Exchange" }),
+				S.struct({
+					Npc = S.enum(NpcDefinitions.IDS),
+					-- Potions to buy, or Mall Points to exchange.
+					Count = S.optional(S.int(1, 100000)),
+					-- A catalog entry ("Kind:Rarity" or "Weapon:Family:Rarity"),
+					-- matched against the server's own stock.
+					Pick = S.optional(S.string(40, 1, "^[%a:]+$")),
+					Guids = S.optional(S.array(guid, 20)),
+					Direction = S.optional(S.enum({ "ToGold", "ToMallPoints" })),
+				}),
+			},
+			rate = { capacity = 10, refillPerSecond = 2 },
 			states = { "ProfileLoaded" },
 		},
 

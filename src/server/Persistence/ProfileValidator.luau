@@ -183,6 +183,14 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
+	-- D-117: the Exchanger's daily counts.
+	local exchange = data.ExchangeDay
+	if type(exchange) == "table" then
+		dropUnknownKeys(exchange, { Day = true, ToGold = true, ToMallPoints = true }, "ExchangeDay", note)
+		fixInt(exchange, "Day", 0, math.huge, 0, "ExchangeDay.Day", note)
+		fixInt(exchange, "ToGold", 0, math.huge, 0, "ExchangeDay.ToGold", note)
+		fixInt(exchange, "ToMallPoints", 0, math.huge, 0, "ExchangeDay.ToMallPoints", note)
+	end
 	-- D-111: the last system reset this profile took.
 	fixInt(data, "ResetVersion", 0, math.huge, 0, "ResetVersion", note)
 end

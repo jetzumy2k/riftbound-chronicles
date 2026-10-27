@@ -276,6 +276,9 @@ return function(t)
 				-- D-116: Race Conversion Rune (rune, combat, realm and the
 				-- typed confirmation checked on the server).
 				ConvertRace = true,
+				-- D-117: Merchant / Exchanger (reach, prices, funds and bag
+				-- room checked on the server).
+				NpcShop = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then
