@@ -3,6 +3,8 @@
 	ProfileTemplate — player profile schema v2 (docs/DATA_MODEL.md §2).
 	v2 (Phase 5, D-45): OwnedSkills maps skill id -> rank (skill tree).
 	v3 (equipment overhaul, D-68): the "Accessory" equipment slot is "Necklace".
+	v4 (character slots, D-115): Characters / ActiveSlot (Persistence/
+	CharacterSlots). The top level stays the played character.
 	HeadStyle (D-72) and Attributes / AttributeResetAt (D-90) need no
 	migration: a missing field is filled with the default on load
 	(ProfileValidator).
@@ -15,13 +17,15 @@
 
 local ProfileTemplate = {}
 
-ProfileTemplate.SCHEMA_VERSION = 3
+ProfileTemplate.SCHEMA_VERSION = 4
 
 -- Top-level keys that are allowed to be nil, with their expected type.
 ProfileTemplate.OPTIONAL_KEYS = table.freeze({
 	Race = "string",
 	Job = "string",
 	EquippedTitle = "string",
+	-- D-115: the slot to switch to on the next load.
+	PendingSlot = "number",
 })
 
 -- Whitelisted lifetime counter keys (DATA_MODEL.md §2). Later phases add keys.
@@ -34,6 +38,11 @@ function ProfileTemplate.new(): { [string]: any }
 		LastLoginAt = 0,
 		-- D-111: the last system reset applied to this profile.
 		ResetVersion = 0,
+
+		-- D-115: the other characters ("<slot>" -> stored character) and
+		-- the slot the top level belongs to.
+		Characters = {},
+		ActiveSlot = 1,
 
 		-- Identity (Phase 3/4). Race and Job are nil until chosen.
 		FacePreset = 1,

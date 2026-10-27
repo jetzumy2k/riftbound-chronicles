@@ -52,9 +52,9 @@ local store: PersistenceAdapter.Store
 -- True once the server is closing; ProfileStore then ends every session itself.
 local shuttingDown = false
 local sessions: { [Player]: PersistenceAdapter.Session } = {}
--- D-111: runs on every loaded profile before anyone else sees it (the
--- system reset). May yield.
-local loadHook: ((Player, { [string]: any }) -> ())? = nil
+-- Run in order on every loaded profile before anyone else sees it (D-111
+-- the system reset, D-115 the character switch). May yield.
+local loadHooks: { (Player, { [string]: any }) -> () } = {}
 
 local function profileKey(player: Player): string
 	return `Player_{player.UserId}`
@@ -119,8 +119,8 @@ local function load(player: Player)
 	end
 	data.LastLoginAt = now
 
-	if loadHook then
-		local ok, err = pcall(loadHook :: any, player, data)
+	for _, hook in loadHooks do
+		local ok, err = pcall(hook :: any, player, data)
 		if not ok then
 			log:Error("load hook failed for %d: %s", player.UserId, tostring(err))
 		end
@@ -192,11 +192,12 @@ end
 	in it.
 ]]
 --[[
-	Sets the hook every profile passes through on load, after repair and
-	before ProfileLoaded (D-111: SystemResetService). It may yield.
+	Adds a hook every profile passes through on load, after repair and
+	before ProfileLoaded, in the order added (Init order: SystemResetService
+	D-111, then CharacterService D-115). It may yield.
 ]]
-function PlayerDataService:SetLoadHook(hook: (Player, { [string]: any }) -> ())
-	loadHook = hook
+function PlayerDataService:AddLoadHook(hook: (Player, { [string]: any }) -> ())
+	table.insert(loadHooks, hook)
 end
 
 function PlayerDataService:GetData(player: Player): { [string]: any }?

@@ -151,6 +151,7 @@ local STRINGS: { [string]: string } = {
 	["dungeon.memberJoined"] = "{name} joined the run.",
 	["dungeon.roomCleared"] = "Room cleared! The way forward is open.",
 	["dungeon.respawnAlly"] = "Back on your feet beside your party.",
+	["character.switching"] = "Saving and switching character...",
 	["staff.paid"] = "Staff pay received: {what}. Thank you for helping!",
 	["staff.payBag"] = "Your staff pay includes a gear set: free {slots} bag slots to receive it.",
 	["staff.paused"] = "Your staff pay is paused after a long absence. Ask the Owner or an Admin to turn it back on.",

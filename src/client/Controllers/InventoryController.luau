@@ -139,6 +139,8 @@ end
 local InventoryController = {
 	-- D-93: opens the Item Mall (set by MallController).
 	OpenMall = nil :: (() -> ())?,
+	-- D-115: opens the character screen (set by CharacterSlotController).
+	OpenCharacters = nil :: (() -> ())?,
 }
 
 local gui: ScreenGui
@@ -1061,8 +1063,19 @@ function render()
 			openMall()
 		end
 	end)
-	title.Size = UDim2.new(1, -172, 0, 22)
-	sub.Size = UDim2.new(1, -172, 0, 18)
+	-- D-115: the character screen.
+	local characters = button("👥 Chars", 90)
+	characters.AnchorPoint = Vector2.new(1, 0)
+	characters.Position = UDim2.new(1, -168, 0, 0)
+	characters.Parent = header
+	characters.Activated:Connect(function()
+		local openCharacters = InventoryController.OpenCharacters
+		if openCharacters then
+			openCharacters()
+		end
+	end)
+	title.Size = UDim2.new(1, -262, 0, 22)
+	sub.Size = UDim2.new(1, -262, 0, 18)
 	close.Activated:Connect(function()
 		InventoryController.setOpen(false)
 	end)

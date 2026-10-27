@@ -15,6 +15,9 @@
 	v2 -> v3 (equipment overhaul, D-68): the class accessory's equipment slot
 	"Accessory" is now "Necklace" (item ids are unchanged).
 
+	v3 -> v4 (character slots, D-115): the existing character becomes slot
+	1; there are no other characters yet.
+
 	Pure module: no engine APIs beyond requires (tests load it via tests/pure/loader).
 ]]
 
@@ -41,6 +44,15 @@ Migrations.STEPS = table.freeze({
 				equipment.Necklace = equipment.Accessory
 			end
 			equipment.Accessory = nil
+		end
+		return data
+	end,
+	[3] = function(data)
+		if type(data.Characters) ~= "table" then
+			data.Characters = {}
+		end
+		if type(data.ActiveSlot) ~= "number" then
+			data.ActiveSlot = 1
 		end
 		return data
 	end,

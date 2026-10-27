@@ -270,6 +270,9 @@ return function(t)
 				SpendAttributes = true,
 				ResetAttributes = true,
 				BuyMallItem = true,
+				-- D-115: the player's own character slots (server validates the slot,
+				-- combat state and the typed delete confirmation).
+				CharacterSlots = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

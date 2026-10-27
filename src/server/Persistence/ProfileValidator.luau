@@ -401,6 +401,10 @@ local function repairPvP(data: Data, template: Data, note: (string) -> ())
 	fixInt(stats.DailyCredit, "Count", 0, math.huge, 0, "PvPStats.DailyCredit.Count", note)
 end
 
+-- D-115: the stored characters. Each is checked like a whole profile (in
+-- a scratch copy), so a bad stored character is repaired the same way.
+local repairCharacters: (data: Data, note: (string) -> ()) -> ()
+
 local function repairMisc(data: Data, template: Data, note: (string) -> ())
 	filterMap(data.EventProgress, "EventProgress", note, function(id, progress)
 		return isShortString(id, MAX_REWARD_ID_LENGTH) and type(progress) == "table"
@@ -462,8 +466,45 @@ function ProfileValidator.repair(data: Data): { string }
 	repairQuestsAndCosmetics(data, note)
 	repairPvP(data, template, note)
 	repairMisc(data, template, note)
+	repairCharacters(data, note)
 
 	return notes
+end
+
+function repairCharacters(data: Data, note: (string) -> ())
+	local CharacterSlots = require(script.Parent.CharacterSlots) :: any
+	if not CharacterSlots.validSlot(data.ActiveSlot) then
+		note(`ActiveSlot: {tostring(data.ActiveSlot)} -> 1`)
+		data.ActiveSlot = 1
+	end
+	if data.PendingSlot ~= nil and not CharacterSlots.validSlot(data.PendingSlot) then
+		note("PendingSlot: cleared")
+		data.PendingSlot = nil
+	end
+	local kept = {}
+	for key, blob in data.Characters do
+		local slot = tonumber(key)
+		if type(key) ~= "string" or not CharacterSlots.validSlot(slot) or slot == data.ActiveSlot then
+			note(`Characters: removed slot '{tostring(key)}'`)
+		elseif type(blob) ~= "table" or blob.Job == nil then
+			note(`Characters.{key}: not a character, removed`)
+		elseif data.Race == nil then
+			note(`Characters.{key}: no realm, removed`)
+		else
+			local scratch = ProfileTemplate.new()
+			scratch.Race = data.Race
+			CharacterSlots.install(scratch, blob)
+			for _, line in ProfileValidator.repair(scratch) do
+				note(`Characters.{key}: {line}`)
+			end
+			if scratch.Job == nil then
+				note(`Characters.{key}: invalid class, removed`)
+			else
+				kept[key] = CharacterSlots.extract(scratch)
+			end
+		end
+	end
+	data.Characters = kept
 end
 
 return table.freeze(ProfileValidator)

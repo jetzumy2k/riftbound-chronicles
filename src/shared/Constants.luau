@@ -73,6 +73,11 @@ Constants.Net = table.freeze({
 })
 
 -- Attribute names set by the server on well-known instances.
+-- D-115: characters per account (all of the account's realm).
+Constants.Characters = table.freeze({
+	MaxSlots = 4,
+})
+
 Constants.Attributes = table.freeze({
 	Maintenance = "RC_Maintenance",
 	ConfigVersion = "RC_ConfigVersion",

@@ -369,6 +369,21 @@ return function(S: any)
 			states = { "ProfileLoaded", "HasJob" },
 		},
 
+		-- D-115: the character screen. List the slots; switch to one (an
+		-- empty slot starts a new character; the player rejoins); delete one
+		-- (needs the typed confirmation).
+		CharacterSlots = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "List", "Switch", "Delete" }),
+				S.optional(S.int(1, Constants.Characters.MaxSlots)),
+				S.optional(S.string(10)),
+			},
+			rate = { capacity = 6, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+		},
+
 		-- Admin / moderator panel (Phase 17, D-77, SECURITY_MODEL §6, T-19 /
 		-- T-20). Each remote names a permission that NetService checks
 		-- server-side (from Roles) before the handler runs; handlers check

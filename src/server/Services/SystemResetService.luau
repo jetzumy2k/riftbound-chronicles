@@ -31,6 +31,7 @@ local ResetRules = require(Shared.Logic.ResetRules)
 local Log = require(Shared.Util.Log)
 
 local ProfileTemplate = require(script.Parent.Parent.Persistence.ProfileTemplate)
+local CharacterSlots = require(script.Parent.Parent.Persistence.CharacterSlots)
 local AuditLogService = require(script.Parent.AuditLogService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -140,6 +141,17 @@ local function onLoad(player: Player, data: { [string]: any })
 		return
 	end
 	local cleared = ResetRules.apply(data, current.keep, current.version, ProfileTemplate.new())
+	-- D-115: every stored character takes the same reset (Mall Points are
+	-- the account's, already handled above).
+	local keepStored = table.clone(current.keep)
+	keepStored.MallPoints = true
+	for key, blob in data.Characters do
+		local scratch = ProfileTemplate.new()
+		scratch.Race = data.Race
+		CharacterSlots.install(scratch, blob)
+		ResetRules.apply(scratch, keepStored, current.version, ProfileTemplate.new())
+		data.Characters[key] = CharacterSlots.extract(scratch)
+	end
 	AuditLogService:Audit({
 		actorUserId = player.UserId,
 		action = "SystemResetApplied",
@@ -214,7 +226,7 @@ local function onRequest(actor: Player, action: string, args: { [string]: any })
 end
 
 function SystemResetService:Init()
-	PlayerDataService:SetLoadHook(onLoad)
+	PlayerDataService:AddLoadHook(onLoad)
 	NetService:Handle("AdminSystemReset", onRequest)
 end
 
