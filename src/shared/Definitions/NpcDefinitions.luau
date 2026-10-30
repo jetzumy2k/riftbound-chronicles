@@ -26,6 +26,27 @@ local NpcDefinitions = {}
 -- How close a player must stand to use an NPC (studs, server-checked).
 NpcDefinitions.REACH = 14
 
+--[[
+	D-132 (creator request 2026-10-31): the town NPCs stand in two signed
+	rows either side of the spawn, 14 studs apart, all facing it; the
+	quest giver stands straight ahead (QuestDefinitions.Givers).
+	  Market (left, x = -34):     Merchant, Blacksmith, Exchanger, Auctioneer
+	  Challenges (right, x = 34): Tower Keeper, Warden, Puzzle Sage, Fortune Wheel
+	(front to back). Each row has a sign behind it at `signX`.
+]]
+NpcDefinitions.ROWS = table.freeze({
+	table.freeze({
+		title = "🛍️ Market",
+		signX = -46,
+		ids = table.freeze({ "Merchant", "Blacksmith", "Exchanger", "Auctioneer" }),
+	}),
+	table.freeze({
+		title = "🏆 Challenges",
+		signX = 46,
+		ids = table.freeze({ "Tower", "Warden", "Sage", "Fortune" }),
+	}),
+})
+
 NpcDefinitions.List = table.freeze({
 	table.freeze({
 		id = "Merchant",
@@ -33,7 +54,7 @@ NpcDefinitions.List = table.freeze({
 		title = "Potions, gear and weapons",
 		icon = "🛍️",
 		prompt = "Trade",
-		at = table.freeze({ 26, 0, 16 }),
+		at = table.freeze({ -34, 0, 21 }),
 		look = "Healer",
 	}),
 	table.freeze({
@@ -42,7 +63,7 @@ NpcDefinitions.List = table.freeze({
 		title = "Gold and Mall Points",
 		icon = "💱",
 		prompt = "Exchange",
-		at = table.freeze({ 34, 0, -8 }),
+		at = table.freeze({ -34, 0, -7 }),
 		look = "Mage",
 	}),
 	-- D-118: repairs gear for Gold.
@@ -52,7 +73,7 @@ NpcDefinitions.List = table.freeze({
 		title = "Repairs gear",
 		icon = "🔨",
 		prompt = "Repair",
-		at = table.freeze({ -34, 0, -8 }),
+		at = table.freeze({ -34, 0, 7 }),
 		look = "Warrior",
 	}),
 	-- D-120: the Fortune Wheel (RouletteService).
@@ -62,7 +83,7 @@ NpcDefinitions.List = table.freeze({
 		title = "Fortune Wheel",
 		icon = "🎡",
 		prompt = "Spin",
-		at = table.freeze({ 34, 0, 32 }),
+		at = table.freeze({ 34, 0, -21 }),
 		look = "Healer",
 	}),
 	-- D-122: the Auction market (AuctionService).
@@ -72,7 +93,7 @@ NpcDefinitions.List = table.freeze({
 		title = "Auction market",
 		icon = "🏛️",
 		prompt = "Auction",
-		at = table.freeze({ 0, 0, 44 }),
+		at = table.freeze({ -34, 0, -21 }),
 		look = "Mage",
 	}),
 	-- D-128: the daily puzzle (PuzzleService).
@@ -82,8 +103,18 @@ NpcDefinitions.List = table.freeze({
 		title = "Daily puzzle",
 		icon = "🧩",
 		prompt = "Puzzle",
-		at = table.freeze({ 0, 0, -44 }),
+		at = table.freeze({ 34, 0, -7 }),
 		look = "Mage",
+	}),
+	-- D-131: the Tower Challenge's entrance (TowerService).
+	table.freeze({
+		id = "Tower",
+		names = table.freeze({ Angel = "Tower Keeper Aurel", Devil = "Tower Keeper Vex" }),
+		title = "Tower Challenge",
+		icon = "🗼",
+		prompt = "Tower",
+		at = table.freeze({ 34, 0, 21 }),
+		look = "Warrior",
 	}),
 	-- D-119: gives the trial chain (ChainQuestService).
 	table.freeze({
@@ -92,7 +123,7 @@ NpcDefinitions.List = table.freeze({
 		title = "The Warden's Trials",
 		icon = "🗝️",
 		prompt = "Trials",
-		at = table.freeze({ -34, 0, 32 }),
+		at = table.freeze({ 34, 0, 7 }),
 		look = "Archer",
 	}),
 } :: { Npc })

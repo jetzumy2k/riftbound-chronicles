@@ -59,6 +59,13 @@ CreatureSounds.Voices = table.freeze({
 	Knight = sound(9125861903, 0.45, 0.8, 1.4),
 	-- Spirit Pass Bys Fast Overlapping Whooshes 3.
 	Sprite = sound(9119467149, 0.45, 1.5, 1.2),
+	-- D-133: the undead reuse the helm voice, the golem's growl and the
+	-- spirit whoosh at their own pitch (a dry rattle, a groan, hollow cries).
+	Skeleton = sound(9125861903, 0.4, 1.2, 1.2),
+	Zombie = sound(9125879007, 0.6, 1.25, 1.8),
+	DeathKnight = sound(9125861903, 0.5, 0.7, 1.6),
+	Dullahan = sound(9119467149, 0.55, 0.7, 1.6),
+	DeathLord = sound(9125861903, 0.6, 0.55, 2),
 }) :: { [string]: Sound }
 
 -- Voices for creatures without a sculpted shape, by body plan.

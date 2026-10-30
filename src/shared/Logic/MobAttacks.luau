@@ -35,7 +35,7 @@ export type Move = {
 	weight: number,
 }
 
-export type SetName = "Predator" | "Serpent" | "Brute" | "Crawler" | "Beast" | "Sprite"
+export type SetName = "Predator" | "Serpent" | "Brute" | "Crawler" | "Beast" | "Sprite" | "Undead" | "Ghoul"
 
 local function move(
 	id: string,
@@ -99,6 +99,20 @@ MobAttacks.Sets = table.freeze({
 	Sprite = {
 		move("Zap", "Strike", 1, 1, 1, 120, false, 0.3, 1),
 	},
+	-- D-133: armed undead (skeletons, death knights, dullahans, the Death
+	-- Lord): a quick thrust, a wide cleave, an overhead blow that cracks
+	-- the ground.
+	Undead = {
+		move("Thrust", "Strike", 0.95, 1, 1.05, 70, false, 0.4, 5),
+		move("Cleave", "Sweep", 1, 0.9, 1.1, 160, true, 0.5, 3),
+		move("Doomblow", "Slam", 1.4, 1.35, 1.05, 90, true, 0.8, 2),
+	},
+	-- Ghouls: grasping claws, a flailing swipe, a lunge.
+	Ghoul = {
+		move("Claw", "Strike", 0.9, 0.95, 1, 80, false, 0.4, 5),
+		move("Flail", "Sweep", 1, 0.8, 0.95, 150, true, 0.45, 3),
+		move("Lunge", "Slam", 1.3, 1.25, 1.5, 60, false, 0.8, 2),
+	},
 }) :: { [SetName]: { Move } }
 
 local SET_OF_SHAPE: { [string]: SetName } = {
@@ -119,6 +133,11 @@ local SET_OF_SHAPE: { [string]: SetName } = {
 	Dragon = "Beast",
 	Steed = "Beast",
 	Sprite = "Sprite",
+	Skeleton = "Undead",
+	DeathKnight = "Undead",
+	Dullahan = "Undead",
+	DeathLord = "Undead",
+	Zombie = "Ghoul",
 }
 
 local SET_OF_BODY: { [string]: SetName } = {

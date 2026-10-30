@@ -102,6 +102,12 @@ function ProfileTemplate.new(): { [string]: any }
 		-- D-128: the UTC day the rewarded puzzle was last started.
 		PuzzleDay = 0,
 
+		-- D-131: attribute points won in the Tower (spent in the Attributes
+		-- panel like level points) and the best clear time of each floor
+		-- (floor id -> tenths of a second).
+		TowerPoints = 0,
+		TowerBest = {},
+
 		-- D-122: items / Gold on their way into the auction (key -> entry),
 		-- kept until the shared store confirms it (AuctionService).
 		Escrow = {},

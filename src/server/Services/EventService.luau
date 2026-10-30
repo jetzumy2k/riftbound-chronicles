@@ -33,6 +33,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local EventRules = require(Shared.Logic.EventRules)
+local TowerRules = require(Shared.Logic.TowerRules)
 local EventRewards = require(Shared.Logic.EventRewards)
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local BuffRules = require(Shared.Logic.BuffRules)
@@ -287,6 +288,33 @@ function EventService:SetDaily(daily: EventRules.Daily, actorUserId: number): (b
 		TimeUtcMinutes = math.clamp(math.floor(daily.TimeUtcMinutes), 0, 1439),
 		Minutes = math.clamp(math.floor(daily.Minutes), 15, 1440),
 		Excluded = excluded,
+	}
+	values.Events = events
+	local ok, reason = ConfigurationService:Write(values, ConfigurationService:GetVersion(), actorUserId)
+	return ok == true, reason
+end
+
+-- D-131: the Tower Challenge schedule (TowerRules.Schedule).
+function EventService:GetTower(): TowerRules.Schedule
+	return ConfigurationService:Get("Events.Tower")
+end
+
+--[[
+	Saves the Tower schedule (AdminService checks the permission and
+	audits): 1-3 weekdays, a UTC time and 1-12 hours.
+]]
+function EventService:SetTower(tower: TowerRules.Schedule, actorUserId: number): (boolean, string?)
+	local days = TowerRules.cleanDays(tower.Days)
+	if #days == 0 then
+		return false, "towerDays"
+	end
+	local values = table.clone(ConfigurationService:GetOverrideValues())
+	local events = table.clone(values.Events or {})
+	events.Tower = {
+		Enabled = tower.Enabled == true,
+		Days = days,
+		TimeUtcMinutes = math.clamp(math.floor(tower.TimeUtcMinutes), 0, 1439),
+		Hours = math.clamp(math.floor(tower.Hours), 1, 12),
 	}
 	values.Events = events
 	local ok, reason = ConfigurationService:Write(values, ConfigurationService:GetVersion(), actorUserId)

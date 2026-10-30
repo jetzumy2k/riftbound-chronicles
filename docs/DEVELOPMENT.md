@@ -620,6 +620,8 @@ A creature with no imported model keeps its old procedural body, so this can be 
 5. **Lion** (Nemean Lion, Sphinx, Manticore): a maned lion. The Sphinx has feathered wings that fold along its back at rest and spread when it runs or strikes; the Manticore has a segmented sting instead of a tail tuft; the Nemean Lion has neither.
 6. **Chimera**: lion with a goat's head rising from its back (both look at you), bat wings, and a serpent tail whose head looks round and snaps with the strike.
 
+**Undead batch (D-133)**: import `Skeleton`, `Zombie`, `DeathKnight`, `Dullahan` and `DeathLord` the same way (the Abyssal Spire's creatures and its floor-3 boss). Checks: the skeleton's bones, half-helm, round shield and sword; the ghoul hunched with its arms reaching; the death knight's spiked plate, horned skull helm and runeblade; the dullahan's soul flame above an empty collar, its helmed head at its left hip and a scythe; the Death Lord's hood, crown, skull face, staff and soul flame in its left hand. All walk on the biped gait; soul wisps rise from their heads near the camera, and they fade into a column of light when defeated.
+
 **Batch C checks (D-58)** -- every enemy now has a sculpted body.
 1. **Dragon** (Fafnir, Wyvern, Typhon): horned head on a long neck (Wyvern without horns), bat wings folded at rest and spreading at a run or strike, a spined tail ending in a blade that sways.
 2. **Griffin** (Griffin, Anzu, Cockatrice): eagle's head with a hooked beak (opens on the strike), feather ruff and crest, lion's body and tufted tail; Griffin and Anzu have feathered wings, the Cockatrice none.

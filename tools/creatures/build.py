@@ -1328,6 +1328,457 @@ def sprite():
     return c, {"plan": "Sprite", "heads": []}
 
 
+# ---------------------------------------------------------------------------
+# The undead of the Abyssal Spire (PLAN.md D-133): five humanoid shapes on
+# the knight's bones (Body, Head, ArmL/ArmL2, ArmR/ArmR2, LegL.., LegR..),
+# so the biped animator drives them all. Non-graphic: clean bone, rags and
+# armour, glowing eyes; no wounds or gore.
+# ---------------------------------------------------------------------------
+
+
+def humanoid_arms(sk, body, shoulder, elbow):
+    """ArmL/ArmL2 and ArmR/ArmR2 from one side's shoulder and elbow (x > 0)."""
+    arms = {}
+    for side, tag in mirror(None):
+        s = P(side * shoulder[0], shoulder[1], shoulder[2])
+        e = P(side * elbow[0], elbow[1], elbow[2])
+        arm = sk.add(f"Arm{tag}", body, s)
+        arms[side] = (arm, sk.add(f"Arm{tag}2", arm, e))
+    return arms
+
+
+def sword(c, bone, grip, tip, width=0.16, glow=True):
+    """A straight blade from a hand at `grip` towards `tip`: pommel, guard, blade, rune channel."""
+    d = (tip - grip) / float(np.linalg.norm(tip - grip))
+    guard = grip + d * 0.14
+    c.add(RC(grip - d * 0.22, guard, 0.05, 0.05, bone, "Dark", blend=0.0))
+    c.add(EL(grip - d * 0.26, P(0.06, 0.06, 0.06), bone, "Horn", blend=0.0))
+    across = np.cross(d, P(0, 0, 1.0))
+    if np.linalg.norm(across) < 1e-3:
+        across = P(1.0, 0, 0)
+    across = across / np.linalg.norm(across)
+    c.add(RC(guard - across * 0.24, guard + across * 0.24, 0.05, 0.05, bone, "Horn", blend=0.0))
+    length = float(np.linalg.norm(tip - guard))
+    c.add(EL((guard + tip) / 2, P(0.05, width, length / 2), bone, "Blade", blend=0.0,
+             rot=along(guard, tip, up=tuple(across))))
+    if glow:
+        c.add(RC(guard + (tip - guard) * 0.06, guard + (tip - guard) * 0.72, 0.03, 0.018, bone, "Glow", blend=0.0))
+
+
+def skull(c, bone, jaw_bone, centre, size=1.0, helm=False):
+    """A clean, cartoon-proportioned skull facing -Z with glowing eye points."""
+    x0, y0, z0 = centre
+    k = size
+    c.add(EL(P(x0, y0, z0), P(0.27, 0.29, 0.31) * k, bone, "Horn", blend=0.06))
+    c.add(EL(P(x0, y0 - 0.14 * k, z0 - 0.17 * k), P(0.22, 0.19, 0.18) * k, bone, "Horn", blend=0.06))
+    c.add(EL(P(x0, y0 + 0.0, z0 - 0.28 * k), P(0.24, 0.06, 0.07) * k, bone, "Horn", blend=0.04))
+    for side in (-1, 1):
+        c.add(EL(P(x0 + side * 0.1 * k, y0 - 0.08 * k, z0 - 0.3 * k), P(0.078, 0.07, 0.04) * k, bone, "Dark", blend=0.01))
+        c.solid(EL(P(x0 + side * 0.1 * k, y0 - 0.08 * k, z0 - 0.335 * k), P(0.045, 0.03, 0.02) * k, bone, "Glow"))
+        # Cheekbones.
+        c.add(EL(P(x0 + side * 0.17 * k, y0 - 0.17 * k, z0 - 0.2 * k), P(0.07, 0.05, 0.08) * k, bone, "Horn", blend=0.03))
+    c.add(EL(P(x0, y0 - 0.19 * k, z0 - 0.34 * k), P(0.035, 0.05, 0.02) * k, bone, "Dark", blend=0.0))
+    c.add(EL(P(x0, y0 - 0.3 * k, z0 - 0.28 * k), P(0.13, 0.035, 0.05) * k, bone, "Horn", blend=0.01))
+    c.add(EL(P(x0, y0 - 0.39 * k, z0 - 0.2 * k), P(0.16, 0.06, 0.13) * k, jaw_bone, "Horn", blend=0.03))
+    c.add(EL(P(x0, y0 - 0.34 * k, z0 - 0.3 * k), P(0.12, 0.03, 0.04) * k, jaw_bone, "Horn", blend=0.01))
+    if helm:
+        # A dented half-helm with a nose guard (Metal: rusty steel in the creature's tint).
+        c.add(EL(P(x0, y0 + 0.1 * k, z0 + 0.01 * k), P(0.3, 0.2, 0.34) * k, bone, "Metal", blend=0.02))
+        c.add(RC(P(x0, y0 + 0.12 * k, z0 - 0.33 * k), P(x0, y0 - 0.12 * k, z0 - 0.36 * k), 0.03 * k, 0.025 * k,
+                 bone, "Metal", blend=0.0))
+        c.add(EL(P(x0, y0 + 0.02 * k, z0 + 0.02 * k), P(0.32, 0.03, 0.35) * k, bone, "Dark", blend=0.0))
+
+
+def skeleton():
+    """A skeleton soldier: clean bones, a dented half-helm, round shield and notched sword."""
+    sk = S.Skeleton()
+    c = S.Creature("Skeleton", sk, step=0.04)
+    body = sk.add("Body", None, P(0, 2.4, 0))
+    head = sk.add("Head", body, P(0, 4.12, -0.02))
+    jaw = sk.add("Jaw", head, P(0, 4.12, -0.2))
+    arms = humanoid_arms(sk, body, (0.68, 3.95, 0.0), (0.82, 2.98, 0.05))
+    # Pelvis and spine.
+    c.add(EL(P(0, 2.45, 0.0), P(0.36, 0.17, 0.2), "Body", "Horn", blend=0.04))
+    for side in (-1, 1):
+        c.add(EL(P(side * 0.24, 2.58, 0.03), P(0.16, 0.17, 0.09), "Body", "Horn", blend=0.03,
+                 rot=S.rot_z(side * math.radians(25))))
+    c.add(RC(P(0, 2.55, 0.12), P(0, 3.98, 0.08), 0.045, 0.045, "Body", "Horn", blend=0.02))
+    for i in range(10):
+        y = 2.62 + i * 0.145
+        c.add(EL(P(0, y, 0.13), P(0.075, 0.05, 0.07), "Body", "Horn", blend=0.02))
+    # Ribcage: five ribs curving from the spine to the breastbone.
+    for i, (y, rx) in enumerate(((3.72, 0.36), (3.58, 0.42), (3.44, 0.45), (3.3, 0.43), (3.16, 0.38))):
+        for side in (-1, 1):
+            pts = []
+            for j in range(8):
+                t = (j / 7) * math.pi * 0.86
+                pts.append(P(side * rx * math.sin(t), y - 0.1 * math.sin(t / 2), -0.05 + 0.22 * math.cos(t)))
+            for a, b in zip(pts, pts[1:]):
+                c.add(RC(a, b, 0.038, 0.036, "Body", "Horn", blend=0.015))
+    c.add(RC(P(0, 3.8, -0.27), P(0, 3.1, -0.24), 0.05, 0.035, "Body", "Horn", blend=0.02))
+    # Collarbones, shoulder blades, neck.
+    for side in (-1, 1):
+        c.add(RC(P(0, 3.95, -0.16), P(side * 0.64, 4.0, -0.02), 0.045, 0.04, "Body", "Horn", blend=0.02))
+        c.add(EL(P(side * 0.33, 3.72, 0.2), P(0.19, 0.24, 0.04), "Body", "Horn", blend=0.02))
+    c.add(RC(P(0, 3.95, 0.05), P(0, 4.15, -0.01), 0.06, 0.055, "Body", "Horn", blend=0.03))
+    skull(c, head.name, jaw.name, (0, 4.42, -0.02), helm=True)
+    # A leather belt and a ragged loincloth; a pauldron on the shield shoulder.
+    c.add(EL(P(0, 2.62, 0.0), P(0.39, 0.05, 0.25), "Body", "Dark", blend=0.0))
+    c.add(EL(P(0, 2.25, -0.2), P(0.2, 0.32, 0.03), "Body", "Cloth", blend=0.0))
+    c.add(EL(P(0, 2.25, 0.22), P(0.22, 0.34, 0.03), "Body", "Cloth", blend=0.0))
+    left, right = arms[-1], arms[1]
+    c.add(EL(P(-0.72, 4.03, 0), P(0.26, 0.13, 0.26), left[0].name, "Metal", blend=0.02, rot=S.rot_z(math.radians(22))))
+    for side, (arm, fore) in arms.items():
+        x = side
+        c.add(EL(P(x * 0.68, 3.95, 0), P(0.09, 0.09, 0.09), arm.name, "Horn", blend=0.03))
+        c.add(RC(P(x * 0.68, 3.92, 0), P(x * 0.82, 3.0, 0.05), 0.065, 0.055, arm.name, "Horn", blend=0.02))
+        c.add(EL(P(x * 0.82, 2.98, 0.05), P(0.075, 0.075, 0.075), fore.name, "Horn", blend=0.03))
+        for dx in (-0.035, 0.035):
+            c.add(RC(P(x * 0.82 + dx, 2.95, 0.05), P(x * 0.86 + dx, 2.2, -0.1), 0.04, 0.035, fore.name, "Horn", blend=0.015))
+        c.add(EL(P(x * 0.87, 2.08, -0.14), P(0.075, 0.1, 0.075), fore.name, "Horn", blend=0.03))
+    # Round shield on the left forearm; a notched sword in the right hand.
+    c.add(EL(P(-1.06, 2.6, -0.1), P(0.06, 0.5, 0.5), left[1].name, "Metal", blend=0.0))
+    c.add(EL(P(-1.1, 2.6, -0.1), P(0.05, 0.42, 0.42), left[1].name, "Dark", blend=0.0))
+    c.add(EL(P(-1.14, 2.6, -0.1), P(0.06, 0.12, 0.12), left[1].name, "Glow", blend=0.0))
+    sword(c, right[1].name, P(0.87, 2.05, -0.2), P(0.9, 0.85, -1.2), width=0.13)
+
+    def foot(side, px, pts, names, thick):
+        a, b, f = names
+        c.add(EL(pts[0] + P(0, 0.02, 0), P(0.08, 0.08, 0.08), a, "Horn", blend=0.03))
+        c.add(RC(pts[0], pts[1], 0.075, 0.06, a, "Horn", blend=0.02))
+        c.add(EL(pts[1] + P(0, 0.0, -0.07), P(0.085, 0.085, 0.07), b, "Horn", blend=0.03))
+        c.add(RC(pts[1], pts[2], 0.055, 0.045, b, "Horn", blend=0.02))
+        c.add(RC(pts[1] + P(side * 0.05, 0, 0.03), pts[2] + P(side * 0.05, 0, 0.0), 0.035, 0.03, b, "Horn", blend=0.015))
+        c.add(RC(pts[2], P(px, 0.14, -0.06), 0.05, 0.06, f, "Horn", blend=0.03))
+        c.add(EL(P(px, 0.12, -0.12), P(0.1, 0.07, 0.22), f, "Horn", blend=0.03))
+        for dx in (-0.06, 0.0, 0.06):
+            c.add(RC(P(px + dx, 0.08, -0.28), P(px + dx, 0.05, -0.4), 0.035, 0.03, f, "Horn", blend=0.01))
+
+    legs = biped_legs(c, sk, body, 0.24, 2.35, 1.3, 0.42, 1.0, foot)
+    return c, {"plan": "Biped", "legs": legs, "heads": [""]}
+
+
+def zombie():
+    """A shambling ghoul: hunched, arms reaching, ragged shirt and trousers, sunken glowing eyes."""
+    sk = S.Skeleton()
+    c = S.Creature("Zombie", sk, step=0.055)
+    body = sk.add("Body", None, P(0, 2.3, 0))
+    head = sk.add("Head", body, P(0, 3.78, -0.42))
+    jaw = sk.add("Jaw", head, P(0, 3.72, -0.6))
+    arms = {}
+    reach = {-1: (P(-0.62, 3.55, -0.18), P(-0.68, 3.32, -0.92), P(-0.64, 3.18, -1.62)),
+             1: (P(0.62, 3.5, -0.15), P(0.74, 3.0, -0.62), P(0.74, 2.62, -1.25))}
+    for side, tag in mirror(None):
+        s, e, h = reach[side]
+        arm = sk.add(f"Arm{tag}", body, s)
+        arms[side] = (arm, sk.add(f"Arm{tag}2", arm, e), s, e, h)
+    # Torso leaning forward: belly, chest and a hunched back under a torn shirt.
+    c.add(EL(P(0, 2.55, 0.02), P(0.46, 0.36, 0.34), "Body", "Hide", blend=0.12))
+    c.add(EL(P(0, 3.15, -0.12), P(0.58, 0.46, 0.4), "Body", "Cloth", blend=0.1, rot=S.rot_x(math.radians(-18))))
+    c.add(EL(P(0, 3.5, 0.06), P(0.52, 0.26, 0.36), "Body", "Cloth", blend=0.08))
+    # Tears in the shirt showing grey skin; stitched patches.
+    for at, r in ((P(0.26, 3.02, -0.5), P(0.15, 0.12, 0.05)), (P(-0.3, 3.34, -0.44), P(0.11, 0.1, 0.05)),
+                  (P(0.12, 3.42, 0.38), P(0.14, 0.1, 0.05))):
+        c.add(EL(at, r, "Body", "Hide", blend=0.01))
+    c.add(EL(P(-0.2, 2.86, -0.5), P(0.13, 0.12, 0.05), "Body", "Under", blend=0.01))
+    for k in range(3):
+        c.add(RC(P(-0.3 + k * 0.1, 2.95, -0.55), P(-0.28 + k * 0.1, 2.78, -0.55), 0.016, 0.016, "Body", "Horn", blend=0.0))
+    # A ragged hem round the waist.
+    for k in range(10):
+        a = k / 10 * math.pi * 2
+        x, z = math.sin(a) * 0.48, math.cos(a) * 0.36 - 0.02
+        length = 0.22 + 0.12 * ((k * 7) % 3) / 2
+        c.add(RC(P(x, 2.72, z), P(x * 1.05, 2.72 - length, z * 1.05), 0.09, 0.03, "Body", "Cloth", blend=0.02))
+    c.add(EL(P(0, 2.4, 0.0), P(0.47, 0.18, 0.34), "Body", "Dark", blend=0.03))
+    # Neck and a lolling head: slack jaw, sunken eyes, a few clumps of hair, a stitched brow.
+    c.add(RC(P(0, 3.5, -0.18), P(0, 3.78, -0.42), 0.15, 0.13, "Body", "Hide", blend=0.08))
+    c.add(EL(P(0, 3.92, -0.5), P(0.26, 0.3, 0.27), head.name, "Hide", blend=0.08))
+    c.add(EL(P(0, 3.8, -0.66), P(0.2, 0.15, 0.16), head.name, "Hide", blend=0.06))
+    for side in (-1, 1):
+        c.add(EL(P(side * 0.1, 3.96, -0.74), P(0.075, 0.06, 0.04), head.name, "Dark", blend=0.01))
+        c.solid(EL(P(side * 0.1, 3.96, -0.775), P(0.04, 0.028, 0.02), head.name, "Glow"))
+        c.add(EL(P(side * 0.26, 3.9, -0.5), P(0.04, 0.08, 0.06), head.name, "Hide", blend=0.03))
+    c.add(EL(P(0, 4.06, -0.74), P(0.2, 0.045, 0.05), head.name, "Dark", blend=0.02))
+    c.add(EL(P(0, 3.66, -0.68), P(0.17, 0.08, 0.15), jaw.name, "Hide", blend=0.04))
+    c.add(EL(P(0, 3.74, -0.8), P(0.11, 0.035, 0.03), head.name, "Dark", blend=0.0))
+    for at in (P(-0.12, 4.2, -0.42), P(0.08, 4.22, -0.36), P(0.18, 4.12, -0.3), P(-0.02, 4.18, -0.24)):
+        c.add(EL(at, P(0.11, 0.07, 0.11), head.name, "Dark", blend=0.03))
+    c.add(RC(P(-0.14, 4.12, -0.7), P(0.1, 4.16, -0.71), 0.014, 0.014, head.name, "Horn", blend=0.0))
+    for k in range(4):
+        x = -0.1 + k * 0.065
+        c.add(RC(P(x, 4.09, -0.73), P(x, 4.19, -0.69), 0.012, 0.012, head.name, "Horn", blend=0.0))
+    # Reaching arms: torn sleeves, grey forearms, a bandaged wrist, bony fingers.
+    for side, (arm, fore, s, e, h) in arms.items():
+        c.add(EL(s, P(0.2, 0.18, 0.2), arm.name, "Cloth", blend=0.05))
+        c.add(RC(s, s + (e - s) * 0.55, 0.15, 0.13, arm.name, "Cloth", blend=0.04))
+        c.add(RC(s + (e - s) * 0.5, e, 0.12, 0.11, arm.name, "Hide", blend=0.04))
+        c.add(RC(e, h, 0.11, 0.09, fore.name, "Hide", blend=0.04))
+        if side < 0:
+            for t in (0.55, 0.68, 0.81):
+                q = e + (h - e) * t
+                c.add(EL(q, P(0.125, 0.125, 0.06), fore.name, "Under", blend=0.01, rot=along(e, h, up=(0.0, 1.0, 0.0))))
+        d = (h - e) / float(np.linalg.norm(h - e))
+        c.add(EL(h + d * 0.08, P(0.1, 0.07, 0.12), fore.name, "Hide", blend=0.04, rot=along(e, h, up=(0.0, 1.0, 0.0))))
+        for k in (-1, 0, 1):
+            tip = h + d * 0.36 + P(k * 0.07, -0.08, 0)
+            c.add(RC(h + d * 0.14 + P(k * 0.06, 0, 0), tip, 0.035, 0.025, fore.name, "Hide", blend=0.01))
+            c.add(EL(tip + d * 0.02, P(0.025, 0.02, 0.03), fore.name, "Dark", blend=0.0))
+
+    def foot(side, px, pts, names, thick):
+        a, b, f = names
+        c.add(RC(pts[0], pts[1], 0.24, 0.19, a, "Cloth", blend=0.08))
+        c.add(RC(pts[1], pts[2] + P(0, 0.25, 0), 0.19, 0.17, b, "Cloth", blend=0.05))
+        for k in range(5):
+            a2 = k / 5 * math.pi * 2
+            q = pts[2] + P(math.sin(a2) * 0.17, 0.3, math.cos(a2) * 0.17)
+            c.add(RC(q, q + P(0, -0.14 - 0.05 * (k % 2), 0), 0.06, 0.02, b, "Cloth", blend=0.01))
+        c.add(RC(pts[2] + P(0, 0.2, 0), pts[2], 0.1, 0.09, b, "Hide", blend=0.04))
+        c.add(RC(pts[2], P(px, 0.2, -0.06), 0.09, 0.12, f, "Hide", blend=0.04))
+        c.add(EL(P(px, 0.16, -0.12), P(0.15, 0.12, 0.28), f, "Dark", blend=0.04))
+
+    legs = biped_legs(c, sk, body, 0.3, 2.25, 1.25, 0.42, 1.0, foot)
+    return c, {"plan": "Biped", "legs": legs, "heads": [""]}
+
+
+def dark_plate(c, arms, spikes=True, cape=True):
+    """Shared heavy plate for the death knight and the dullahan."""
+    c.add(EL(P(0, 2.55, 0), P(0.62, 0.38, 0.44), "Body", "Dark", blend=0.15))
+    c.add(EL(P(0, 3.0, 0), P(0.64, 0.46, 0.44), "Body", "Dark", blend=0.15))
+    c.add(EL(P(0, 3.58, -0.05), P(0.88, 0.64, 0.57), "Body", "Metal", blend=0.12))
+    c.add(EL(P(0, 3.15, -0.13), P(0.68, 0.32, 0.47), "Body", "Metal", blend=0.06))
+    # A skull emblem on the breastplate over a glowing core.
+    c.add(EL(P(0, 3.62, -0.6), P(0.2, 0.22, 0.06), "Body", "Glow", blend=0.0))
+    c.add(EL(P(0, 3.68, -0.63), P(0.13, 0.13, 0.05), "Body", "Horn", blend=0.01))
+    for side in (-1, 1):
+        c.add(EL(P(side * 0.05, 3.69, -0.675), P(0.035, 0.03, 0.02), "Body", "Dark", blend=0.0))
+    c.add(EL(P(0, 2.5, -0.06), P(0.72, 0.3, 0.5), "Body", "Metal", blend=0.05))
+    for side in (-1, 1):
+        c.add(EL(P(side * 0.45, 2.2, -0.18), P(0.27, 0.34, 0.12), "Body", "Metal", blend=0.03))
+    c.add(EL(P(0, 2.74, 0), P(0.68, 0.07, 0.47), "Body", "Horn", blend=0.02))
+    # A ragged tabard down the front.
+    c.add(EL(P(0, 2.05, -0.5), P(0.26, 0.5, 0.04), "Body", "Cloth", blend=0.0))
+    for k in (-1, 0, 1):
+        c.add(RC(P(k * 0.15, 1.65, -0.5), P(k * 0.16, 1.42 - 0.08 * abs(k), -0.5), 0.07, 0.02, "Body", "Cloth", blend=0.0))
+    if cape:
+        # A long tattered cape from the shoulders, its hem in tongues.
+        c.add(EL(P(0, 2.7, 0.62), P(0.9, 1.45, 0.08), "Body", "Cloth", blend=0.05, rot=S.rot_x(math.radians(-6))))
+        for k in range(7):
+            x = -0.72 + k * 0.24
+            c.add(RC(P(x, 1.45, 0.75), P(x * 1.05, 0.95 - 0.12 * (k % 3), 0.82), 0.12, 0.03, "Body", "Cloth", blend=0.02))
+    for side, (arm, fore) in arms.items():
+        x = side
+        c.add(EL(P(x * 1.02, 4.08, 0), P(0.5, 0.28, 0.5), arm.name, "Metal", blend=0.05,
+                 rot=S.rot_z(x * math.radians(-22))))
+        c.add(EL(P(x * 1.15, 3.86, 0), P(0.42, 0.21, 0.46), arm.name, "Metal", blend=0.03,
+                 rot=S.rot_z(x * math.radians(-32))))
+        if spikes:
+            for dz, h in ((-0.22, 0.5), (0.0, 0.62), (0.22, 0.5)):
+                c.add(RC(P(x * 1.05, 4.3, dz), P(x * 1.22, 4.3 + h, dz * 1.2), 0.085, 0.01, arm.name, "Dark", blend=0.02))
+        c.add(RC(P(x * 0.98, 3.95, 0), P(x * 1.05, 2.98, 0.05), 0.23, 0.2, arm.name, "Dark", blend=0.08))
+        c.add(EL(P(x * 1.05, 2.98, 0.05), P(0.21, 0.21, 0.21), fore.name, "Metal", blend=0.03))
+        c.add(RC(P(x * 1.05, 2.98, 0.05), P(x * 1.08, 2.2, -0.08), 0.22, 0.19, fore.name, "Metal", blend=0.05))
+        c.add(RC(P(x * 1.1, 2.75, 0.2), P(x * 1.12, 2.55, 0.42), 0.06, 0.01, fore.name, "Dark", blend=0.01))
+        c.add(EL(P(x * 1.08, 2.04, -0.12), P(0.21, 0.23, 0.23), fore.name, "Metal", blend=0.05))
+
+
+def plate_legs(c):
+    def foot(side, px, pts, names, thick):
+        a, b, f = names
+        c.add(RC(pts[0], pts[1], 0.31, 0.25, a, "Dark", blend=0.1))
+        c.add(EL(P(px, 1.88, -0.12), P(0.29, 0.43, 0.25), a, "Metal", blend=0.03))
+        c.add(EL(pts[1] + P(0, 0, -0.1), P(0.23, 0.21, 0.19), b, "Metal", blend=0.03))
+        c.add(RC(pts[1] + P(0, 0, -0.22), pts[1] + P(0, 0.08, -0.48), 0.07, 0.01, b, "Dark", blend=0.0))
+        c.add(RC(pts[1], pts[2], 0.26, 0.21, b, "Metal", blend=0.05))
+        c.add(EL(P(px, 0.24, -0.18), P(0.25, 0.17, 0.5), f, "Metal", blend=0.04))
+        c.add(RC(P(px, 0.24, -0.6), P(px, 0.2, -0.78), 0.08, 0.02, f, "Dark", blend=0.01))
+    return foot
+
+
+def death_knight():
+    """A death knight: spiked dark plate, a skull-faced horned helm, a tattered cape and a runed greatsword."""
+    sk = S.Skeleton()
+    c = S.Creature("DeathKnight", sk, step=0.06)
+    body = sk.add("Body", None, P(0, 2.45, 0))
+    head = sk.add("Head", body, P(0, 4.2, -0.05))
+    arms = humanoid_arms(sk, body, (0.95, 3.95, 0.0), (1.05, 2.98, 0.05))
+    dark_plate(c, arms)
+    c.add(EL(P(0, 4.04, 0), P(0.48, 0.24, 0.42), "Body", "Metal", blend=0.08))
+    # Helm: a dome shaped like a skull, brow ridge, glowing eye slits, cheek
+    # guards, a toothed face plate and swept horns (always worn: not the
+    # optional Horns region).
+    c.add(EL(P(0, 4.4, -0.06), P(0.37, 0.43, 0.41), head.name, "Metal", blend=0.08))
+    c.add(EL(P(0, 4.3, -0.32), P(0.3, 0.32, 0.2), head.name, "Metal", blend=0.05))
+    c.add(EL(P(0, 4.46, -0.47), P(0.3, 0.06, 0.08), head.name, "Dark", blend=0.02))
+    for side in (-1, 1):
+        c.solid(EL(P(side * 0.12, 4.38, -0.53), P(0.08, 0.03, 0.04), head.name, "Eye"))
+        c.add(EL(P(side * 0.22, 4.16, -0.4), P(0.1, 0.18, 0.12), head.name, "Metal", blend=0.03))
+        c.add(RC(P(side * 0.3, 4.6, -0.1), P(side * 0.62, 4.95, 0.1), 0.1, 0.06, head.name, "Dark", blend=0.03))
+        c.add(RC(P(side * 0.62, 4.95, 0.1), P(side * 0.7, 5.4, 0.35), 0.06, 0.012, head.name, "Dark", blend=0.02))
+    for k in range(5):
+        x = -0.12 + k * 0.06
+        c.add(RC(P(x, 4.16, -0.5), P(x, 4.04, -0.49), 0.022, 0.016, head.name, "Horn", blend=0.0))
+    c.add(RC(P(0, 4.85, -0.3), P(0, 4.9, 0.3), 0.06, 0.05, head.name, "Dark", blend=0.04))
+    # A two-handed runeblade, held low and forward in the right hand.
+    right = arms[1][1].name
+    sword(c, right, P(1.08, 2.05, -0.2), P(1.14, 0.3, -1.7), width=0.2)
+    # The left gauntlet cradles cold flame.
+    c.add(EL(P(-1.12, 1.82, -0.3), P(0.13, 0.13, 0.13), arms[-1][1].name, "Glow", blend=0.0))
+    legs = biped_legs(c, sk, body, 0.42, 2.35, 1.3, 0.42, 1.0, plate_legs(c))
+    return c, {"plan": "Biped", "legs": legs, "heads": [""]}
+
+
+def dullahan():
+    """The headless knight: plate and a high collar round a flame where its head should be; it carries its helmed head and a scythe."""
+    sk = S.Skeleton()
+    c = S.Creature("Dullahan", sk, step=0.06)
+    body = sk.add("Body", None, P(0, 2.45, 0))
+    head = sk.add("Head", body, P(0, 4.1, -0.05))
+    arms = humanoid_arms(sk, body, (0.95, 3.95, 0.0), (1.05, 2.98, 0.05))
+    dark_plate(c, arms, spikes=False)
+    # A high flared collar round an empty neck; soul flame rising from it
+    # (on the Head bone, so it sways as the animator turns the "head").
+    for k in range(9):
+        a = (k / 8 - 0.5) * math.pi * 1.5 + math.pi
+        d = P(math.sin(a), 0, math.cos(a))
+        c.add(EL(P(0, 4.15, -0.02) + d * 0.36, P(0.13, 0.26, 0.05), "Body", "Metal", blend=0.03,
+                 rot=along(P(0, 0, 0), d, up=(0.0, 1.0, 0.0))))
+    c.add(EL(P(0, 4.0, -0.02), P(0.36, 0.08, 0.33), "Body", "Dark", blend=0.02))
+    c.add(EL(P(0, 4.08, -0.02), P(0.24, 0.07, 0.22), "Body", "Glow", blend=0.0))
+    for k, (dx, dz, h) in enumerate(((0, 0, 0.75), (-0.12, -0.06, 0.5), (0.13, -0.05, 0.55), (0.02, 0.12, 0.45),
+                                     (-0.08, 0.1, 0.38), (0.1, 0.08, 0.36))):
+        base = P(dx, 4.08, -0.02 + dz)
+        c.add(RC(base, base + P(dx * 0.6, h, dz * 0.4 + 0.08), 0.1 - 0.008 * k, 0.012, head.name, "Glow", blend=0.03))
+    # The helmed head, held at the left hip: closed visor, glowing slit, a crest.
+    left = arms[-1][1].name
+    hc = P(-1.12, 1.92, -0.48)
+    c.add(EL(hc, P(0.3, 0.33, 0.31), left, "Metal", blend=0.05))
+    c.add(EL(hc + P(0, -0.06, -0.2), P(0.24, 0.24, 0.16), left, "Metal", blend=0.04))
+    c.solid(EL(hc + P(0, 0.03, -0.33), P(0.18, 0.03, 0.05), left, "Eye"))
+    c.add(RC(hc + P(0, 0.3, -0.2), hc + P(0, 0.34, 0.28), 0.05, 0.04, left, "Dark", blend=0.03))
+    c.add(EL(hc + P(0, -0.32, 0.0), P(0.2, 0.06, 0.2), left, "Glow", blend=0.0))
+    # A long scythe in the right hand.
+    right = arms[1][1].name
+    top, bottom = P(1.1, 4.7, -0.35), P(1.06, 0.35, -0.12)
+    c.add(RC(bottom, top, 0.05, 0.05, right, "Dark", blend=0.0))
+    for y in (2.4, 1.7):
+        c.add(EL(P(1.08, y, -0.22), P(0.07, 0.07, 0.07), right, "Horn", blend=0.0))
+    c.add(EL(top + P(0, 0.05, 0), P(0.09, 0.12, 0.09), right, "Metal", blend=0.0))
+    prev = top
+    for k in range(1, 9):
+        t = k / 8
+        q = top + P(-0.08 * t, -0.15 * math.sin(t * math.pi) * 0.8 - 0.35 * t * t, -1.45 * t)
+        width = 0.2 * (1 - t) + 0.03
+        c.add(EL((prev + q) / 2, P(0.035, width, float(np.linalg.norm(q - prev)) / 2 + 0.03), right, "Blade", blend=0.0,
+                 rot=along(prev, q, up=(0.0, 1.0, 0.0))))
+        prev = q
+    c.add(RC(top + P(0, -0.08, -0.1), top + P(-0.06, -0.3, -1.0), 0.025, 0.012, right, "Glow", blend=0.0))
+    legs = biped_legs(c, sk, body, 0.42, 2.35, 1.3, 0.42, 1.0, plate_legs(c))
+    return c, {"plan": "Biped", "legs": legs, "heads": [""]}
+
+
+def death_lord():
+    """The Death Lord: a towering crowned lich in robes and ornate plate, a skull staff in one hand and soul flame in the other."""
+    sk = S.Skeleton()
+    c = S.Creature("DeathLord", sk, step=0.06)
+    body = sk.add("Body", None, P(0, 2.6, 0))
+    head = sk.add("Head", body, P(0, 4.5, -0.05))
+    jaw = sk.add("Jaw", head, P(0, 4.5, -0.25))
+    arms = {}
+    spec = {-1: (P(-1.0, 4.25, 0.0), P(-1.22, 3.25, -0.12), P(-1.3, 2.45, -0.45)),
+            1: (P(1.0, 4.25, 0.0), P(1.26, 3.3, -0.25), P(1.3, 2.55, -0.62))}
+    for side, tag in mirror(None):
+        s, e, h = spec[side]
+        arm = sk.add(f"Arm{tag}", body, s)
+        arms[side] = (arm, sk.add(f"Arm{tag}2", arm, e), s, e, h)
+    # Robed body under ornate plate.
+    c.add(EL(P(0, 2.75, 0), P(0.62, 0.42, 0.46), "Body", "Cloth", blend=0.15))
+    c.add(EL(P(0, 3.25, 0), P(0.66, 0.5, 0.46), "Body", "Cloth", blend=0.15))
+    c.add(EL(P(0, 3.85, -0.04), P(0.9, 0.62, 0.58), "Body", "Metal", blend=0.12))
+    c.add(EL(P(0, 3.45, -0.14), P(0.66, 0.36, 0.48), "Body", "Metal", blend=0.06))
+    c.add(EL(P(0, 3.85, -0.62), P(0.17, 0.2, 0.06), "Body", "Glow", blend=0.0))
+    for side in (-1, 1):
+        c.add(RC(P(side * 0.12, 3.85, -0.62), P(side * 0.55, 3.4, -0.5), 0.04, 0.025, "Body", "Horn", blend=0.0))
+        c.add(RC(P(side * 0.12, 3.85, -0.62), P(side * 0.6, 4.15, -0.48), 0.04, 0.025, "Body", "Horn", blend=0.0))
+    c.add(EL(P(0, 2.82, 0), P(0.66, 0.08, 0.48), "Body", "Horn", blend=0.02))
+    # Robe panels front and back (gaps at the sides for the stride), hems in tongues.
+    for z, w in ((-0.42, 0.42), (0.4, 0.5)):
+        c.add(EL(P(0, 1.85, z), P(w, 0.95, 0.05), "Body", "Cloth", blend=0.02))
+        for k in range(5):
+            x = -w * 0.8 + k * w * 0.4
+            c.add(RC(P(x, 1.05, z), P(x * 1.05, 0.72 - 0.08 * (k % 2), z * 1.08), 0.09, 0.025, "Body", "Cloth", blend=0.01))
+        c.add(EL(P(0, 2.6, z), P(w * 1.02, 0.07, 0.06), "Body", "Glow", blend=0.0))
+    # A great cape to the ground.
+    c.add(EL(P(0, 2.55, 0.66), P(1.05, 2.0, 0.08), "Body", "Cloth", blend=0.05, rot=S.rot_x(math.radians(-5))))
+    for k in range(8):
+        x = -0.84 + k * 0.24
+        c.add(RC(P(x, 0.75, 0.8), P(x * 1.05, 0.25 - 0.08 * (k % 3), 0.86), 0.12, 0.03, "Body", "Cloth", blend=0.02))
+    # A high collar fanning behind the head.
+    for k in range(7):
+        a = (k / 6 - 0.5) * math.pi * 1.1 + math.pi
+        d = P(math.sin(a), 0, math.cos(a))
+        c.add(EL(P(0, 4.55, 0.02) + d * 0.48 + P(0, 0.15, 0), P(0.16, 0.45, 0.04), "Body", "Metal", blend=0.02,
+                 rot=along(P(0, 0, 0), d, up=(0.0, 1.0, 0.0)) @ S.rot_x(math.radians(-12))))
+    # Hood, skull face, crown of spikes and gems.
+    c.add(EL(P(0, 4.82, 0.08), P(0.44, 0.46, 0.44), head.name, "Cloth", blend=0.06))
+    c.add(EL(P(0, 4.6, -0.12), P(0.36, 0.3, 0.3), head.name, "Dark", blend=0.04))
+    skull(c, head.name, jaw.name, (0, 4.78, -0.12), size=1.05)
+    c.add(EL(P(0, 5.1, -0.02), P(0.42, 0.08, 0.42), head.name, "Metal", blend=0.01))
+    for k in range(7):
+        a = (k / 7) * math.pi * 2
+        d = P(math.sin(a), 0, -math.cos(a))
+        base = P(0, 5.12, -0.02) + d * 0.38
+        height = 0.55 if k == 0 else (0.38 if k in (1, 6) else 0.28)
+        c.add(RC(base, base + P(0, height, 0) + d * 0.08, 0.08, 0.01, head.name, "Metal", blend=0.01))
+        if k % 2 == 0:
+            c.add(EL(base + d * 0.04 + P(0, 0.02, 0), P(0.05, 0.05, 0.03), head.name, "Glow", blend=0.0))
+    # Arms: huge skull-studded pauldrons, sleeves, clawed gauntlets.
+    for side, (arm, fore, s, e, h) in arms.items():
+        x = side
+        c.add(EL(s + P(x * 0.08, 0.12, 0), P(0.56, 0.32, 0.56), arm.name, "Metal", blend=0.05,
+                 rot=S.rot_z(x * math.radians(-20))))
+        c.add(EL(s + P(x * 0.22, -0.12, 0), P(0.46, 0.22, 0.5), arm.name, "Metal", blend=0.03,
+                 rot=S.rot_z(x * math.radians(-30))))
+        c.add(EL(s + P(x * 0.18, 0.18, -0.4), P(0.15, 0.15, 0.13), arm.name, "Horn", blend=0.01))
+        for dz in (-0.05, 0.05):
+            c.add(EL(s + P(x * 0.18 + dz, 0.2, -0.52), P(0.035, 0.035, 0.02), arm.name, "Dark", blend=0.0))
+        for dz, hh in ((-0.25, 0.55), (0.05, 0.7), (0.3, 0.5)):
+            c.add(RC(s + P(x * 0.12, 0.35, dz), s + P(x * 0.32, 0.35 + hh, dz * 1.2), 0.09, 0.012, arm.name, "Dark", blend=0.02))
+        c.add(RC(s, e, 0.24, 0.22, arm.name, "Cloth", blend=0.08))
+        c.add(RC(e, h, 0.22, 0.17, fore.name, "Metal", blend=0.05))
+        c.add(EL(e + (h - e) * 0.15, P(0.3, 0.12, 0.3), fore.name, "Cloth", blend=0.03))
+        c.add(EL(h + P(0, -0.08, -0.04), P(0.17, 0.19, 0.19), fore.name, "Metal", blend=0.04))
+        for k in (-1, 0, 1):
+            c.add(RC(h + P(k * 0.07, -0.2, -0.1), h + P(k * 0.08, -0.38, -0.2), 0.04, 0.01, fore.name, "Dark", blend=0.01))
+    # Soul flame in the left hand; the skull staff in the right.
+    lh = arms[-1][4]
+    c.add(EL(lh + P(0, -0.12, -0.25), P(0.2, 0.2, 0.2), arms[-1][1].name, "Glow", blend=0.0))
+    right = arms[1][1].name
+    rh = arms[1][4]
+    bottom, top = P(rh[0] + 0.02, 0.2, rh[2] - 0.12), P(rh[0] - 0.02, 5.5, rh[2] + 0.05)
+    c.add(RC(bottom, top, 0.06, 0.07, right, "Dark", blend=0.0))
+    for y in (1.2, 3.6, 4.6):
+        c.add(EL(P(rh[0], y, rh[2] - 0.05), P(0.09, 0.07, 0.09), right, "Metal", blend=0.0))
+    head_top = top + P(0, 0.35, 0)
+    c.add(EL(head_top, P(0.2, 0.22, 0.2), right, "Glow", blend=0.0))
+    for k in range(4):
+        a = k / 4 * math.pi * 2 + math.pi / 4
+        d = P(math.sin(a), 0, math.cos(a))
+        c.add(RC(top + d * 0.08, head_top + d * 0.24 + P(0, 0.25, 0), 0.05, 0.015, right, "Metal", blend=0.01))
+    c.add(EL(top + P(0, -0.12, 0), P(0.14, 0.12, 0.14), right, "Horn", blend=0.01))
+
+    def foot(side, px, pts, names, thick):
+        a, b, f = names
+        c.add(RC(pts[0], pts[1], 0.3, 0.24, a, "Dark", blend=0.1))
+        c.add(EL(pts[1] + P(0, 0, -0.1), P(0.22, 0.2, 0.18), b, "Metal", blend=0.03))
+        c.add(RC(pts[1], pts[2], 0.25, 0.2, b, "Metal", blend=0.05))
+        c.add(EL(P(px, 0.24, -0.18), P(0.25, 0.17, 0.5), f, "Metal", blend=0.04))
+        c.add(RC(P(px, 0.24, -0.6), P(px, 0.18, -0.8), 0.08, 0.015, f, "Dark", blend=0.01))
+
+    legs = biped_legs(c, sk, body, 0.4, 2.5, 1.38, 0.45, 1.0, foot)
+    return c, {"plan": "Biped", "legs": legs, "heads": [""]}
+
+
+
 CREATURES_EXTRA = {
     "Serpent": serpent,
     "Hydra": hydra,
@@ -1344,6 +1795,11 @@ CREATURES_EXTRA = {
     "Harpy": harpy,
     "Gorgon": gorgon,
     "Sprite": sprite,
+    "Skeleton": skeleton,
+    "Zombie": zombie,
+    "DeathKnight": death_knight,
+    "Dullahan": dullahan,
+    "DeathLord": death_lord,
 }
 
 

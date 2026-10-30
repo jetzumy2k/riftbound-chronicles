@@ -292,6 +292,8 @@ return function(t)
 				SetQuickPotion = true,
 				-- D-128: the puzzle (made and checked on the server).
 				Puzzle = true,
+				-- D-131: the Tower Challenge (runs and rewards on the server).
+				Tower = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

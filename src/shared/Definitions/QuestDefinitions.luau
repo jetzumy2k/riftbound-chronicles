@@ -125,13 +125,14 @@ QuestDefinitions.Givers = table.freeze({
 		race = "Angel",
 		name = "Seraph Commander Aurelia",
 		title = "Skyreach Vanguard",
-		at = { -26, 0, 16 },
+		-- D-132: straight ahead of the spawn, between the two NPC rows.
+		at = { 0, 0, 24 },
 	}),
 	Devil = table.freeze({
 		race = "Devil",
 		name = "Warlord Malakar",
 		title = "Emberdeep Legion",
-		at = { -26, 0, 16 },
+		at = { 0, 0, 24 },
 	}),
 } :: { [string]: Giver })
 -- How close a player must be to the giver to accept or turn in (studs).

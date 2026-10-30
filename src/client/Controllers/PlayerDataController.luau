@@ -52,6 +52,8 @@ export type State = {
 	Attributes: { REC: number, INT: number, WIS: number, STR: number, AGI: number },
 	AttributeResetAt: number,
 	AttributeBonus: { [string]: number },
+	-- D-131: points won in the Tower (spent like level points).
+	AttributeExtra: number,
 }
 
 export type QuestProgress = {
@@ -112,6 +114,7 @@ local state: State = {
 	AttributeResetAt = 0,
 	-- D-120: permanent bonus points (Fortune Wheel).
 	AttributeBonus = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
+	AttributeExtra = 0,
 	BuffsUntil = {},
 }
 
@@ -134,6 +137,7 @@ local function readAttributes(view: any)
 		if type(view.Bonus) == "table" then
 			state.AttributeBonus = view.Bonus
 		end
+		state.AttributeExtra = if type(view.Extra) == "number" then view.Extra else 0
 	end
 end
 
@@ -167,6 +171,7 @@ function PlayerDataController:Init()
 			Attributes = state.Attributes,
 			AttributeResetAt = state.AttributeResetAt,
 			AttributeBonus = state.AttributeBonus,
+			AttributeExtra = state.AttributeExtra,
 			BuffsUntil = {},
 		}
 		readAttributes(snapshot.Attributes)

@@ -256,7 +256,9 @@ return function(t)
 			function()
 				local ready = {}
 				for _, id in EventDefinitions.IDS do
-					if EventDefinitions.isReady(EventDefinitions.get(id)) then
+					-- D-131: events with their own schedule are never drawn.
+					local e = EventDefinitions.get(id)
+					if EventDefinitions.isReady(e) and not e.ownSchedule then
 						table.insert(ready, id)
 					end
 				end

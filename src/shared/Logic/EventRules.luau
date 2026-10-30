@@ -369,8 +369,10 @@ function EventRules.dailyCandidates(
 ): { string }
 	local out = {}
 	for _, id in EventDefinitions.IDS do
+		local e = EventDefinitions.get(id) :: EventDefinitions.Event
 		if
-			table.find(daily.Excluded, id) == nil
+			not e.ownSchedule
+			and table.find(daily.Excluded, id) == nil
 			and EventRules.canSchedule(windows, id, startsAt, EventRules.dailyMinutes(daily, id), now)
 		then
 			table.insert(out, id)

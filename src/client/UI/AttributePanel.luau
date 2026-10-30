@@ -75,9 +75,11 @@ function AttributePanel.draw(
 	resetIn: number,
 	spend: (string, number) -> (),
 	-- D-120: permanent bonus points (Fortune Wheel), shown beside each.
-	bonus: { [string]: number }?
+	bonus: { [string]: number }?,
+	-- D-131: points won in the Tower, spent like level points.
+	extra: number?
 )
-	local left = AttributeRules.unspent(attributes, level)
+	local left = AttributeRules.unspent(attributes, level, extra)
 	local scroll = Kit.new("ScrollingFrame", {
 		Name = "Attributes",
 		BackgroundTransparency = 1,
@@ -92,10 +94,9 @@ function AttributePanel.draw(
 	Kit.padding(scroll, 4, 8)
 
 	local summary = Kit.label(
-		`Points to spend: {left}   ·   {AttributeRules.POINTS_PER_LEVEL} every level   ·   Free reset: {if resetIn
-				<= 0
-			then "ready"
-			else `in {math.ceil(resetIn / 3600)} h`}`,
+		`Points to spend: {left}   ·   {AttributeRules.POINTS_PER_LEVEL} every level{if (extra or 0) > 0
+			then ` + {extra} from the Tower`
+			else ""}   ·   Free reset: {if resetIn <= 0 then "ready" else `in {math.ceil(resetIn / 3600)} h`}`,
 		14,
 		Theme.Fonts.BodyBold,
 		if left > 0 then GOOD else Theme.Colors.TextDim

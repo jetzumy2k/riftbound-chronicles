@@ -331,6 +331,12 @@ local MESH_TRAITS: { [string]: { [string]: boolean } } = {
 	Harpy = { Wings = true },
 	Gorgon = { SerpentTail = true },
 	Sprite = {},
+	-- D-133: the undead.
+	Skeleton = {},
+	Zombie = {},
+	DeathKnight = {},
+	Dullahan = {},
+	DeathLord = {},
 }
 
 -- Enemies whose shape is not the default for their body.
@@ -356,6 +362,17 @@ local SHAPE_BY_ENEMY: { [string]: string } = {
 	Camazotz = "Bat",
 	HarpyQueen = "Harpy",
 	Gorgon = "Gorgon",
+	-- D-133: the Abyssal Spire's undead.
+	SkeletonSoldier = "Skeleton",
+	AshboneWarrior = "Skeleton",
+	WraithboneSentry = "Skeleton",
+	GraveGhoul = "Zombie",
+	CinderHusk = "Zombie",
+	DeathKnight = "DeathKnight",
+	GraveKnight = "DeathKnight",
+	Dullahan = "Dullahan",
+	DreadDullahan = "Dullahan",
+	DeathLord = "DeathLord",
 }
 
 --[[
@@ -428,6 +445,11 @@ CreatureRigs.MESH_ROOT_SIZE = table.freeze({
 	Harpy = Vector3.new(1.4, 2, 1.2),
 	Gorgon = Vector3.new(1.6, 1.2, 3),
 	Sprite = Vector3.new(1.2, 1.2, 1.2),
+	Skeleton = Vector3.new(1.4, 2.2, 1.2),
+	Zombie = Vector3.new(1.6, 2.1, 1.6),
+	DeathKnight = Vector3.new(1.9, 2.3, 1.4),
+	Dullahan = Vector3.new(1.9, 2.2, 1.4),
+	DeathLord = Vector3.new(2, 2.4, 1.6),
 }) :: { [string]: Vector3 }
 
 -- Ground height in the Body frame at rest (unscaled).

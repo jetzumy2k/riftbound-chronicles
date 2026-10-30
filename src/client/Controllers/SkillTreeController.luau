@@ -1181,7 +1181,8 @@ function render()
 			function(id: string, n: number)
 				NetClient.fire("SpendAttributes", { [id] = n })
 			end,
-			s.AttributeBonus
+			s.AttributeBonus,
+			s.AttributeExtra
 		)
 		return
 	end

@@ -162,6 +162,11 @@ local STRINGS: { [string]: string } = {
 	["chain.step"] = "Trial {done} of {total} done! Next: {next}",
 	["chain.finished"] = "{name} complete! Talk to the Warden to choose your reward.",
 	["chain.reward"] = "Trial reward: {what}",
+	-- D-131 Tower Challenge.
+	["tower.points"] = "🗼 Floor {floor} cleared for the first time: +{points} attribute points (spend them in 🌟 Skills, then 📊 Stats)",
+	["tower.top"] = "🏆 Top {place} on Tower floor {floor} last week: +{points} attribute points",
+	["tower.closed"] = "The Tower has closed: the run is over",
+	["tower.partyIn"] = "Your party leader took you into Tower floor {floor}",
 	["auction.listed"] = "Listed on the Auction market.",
 	["auction.bidPlaced"] = "Bid placed. Your Gold is held until you are outbid or the auction ends.",
 	["auction.bought"] = "Bought! It's on its way to your mailbox.",

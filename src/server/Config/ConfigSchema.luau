@@ -280,6 +280,13 @@ return function(S: any)
 				Minutes = S.int(15, 1440),
 				Excluded = S.array(S.string(32, 1, "^%w+$"), 64),
 			}),
+			-- D-131: the Tower Challenge schedule (TowerRules.Schedule).
+			Tower = S.struct({
+				Enabled = S.boolean(),
+				Days = S.array(S.int(1, 7), 3),
+				TimeUtcMinutes = S.int(0, 1439),
+				Hours = S.int(1, 12),
+			}),
 		}),
 
 		Quests = S.struct({

@@ -60,6 +60,8 @@ local CombatService = require(script.Parent.CombatService)
 local NetService = require(script.Parent.NetService)
 local LevelService = require(script.Parent.LevelService)
 local CreatureBuilder = require(script.Parent.Parent.World.CreatureBuilder)
+local CreatureRigs = require(Shared.Animation.CreatureRigs)
+local ZoneLevels = require(Shared.Logic.ZoneLevels)
 
 local NPC_FOLDER_NAME = "RC_Npcs"
 local MOVE_REFRESH_SECONDS = 0.3
@@ -139,6 +141,9 @@ export type Mob = {
 	-- Free-form owner tag ("training", a dungeon runId).
 	owner: string,
 	dead: boolean,
+	-- D-133: a war-zone creature that follows the level 60 cap (its boss
+	-- summons do too).
+	capScaled: boolean?,
 }
 
 export type SpawnOptions = {
@@ -147,6 +152,8 @@ export type SpawnOptions = {
 	hpScale: number?,
 	parent: Instance?,
 	xpRecipients: ((mob: Mob) -> { Player })?,
+	-- D-133: war zones: levels follow the level 60 cap (Logic/ZoneLevels).
+	capScaled: boolean?,
 }
 
 local MobService = {
@@ -190,17 +197,28 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 	end)
 
 	local level = math.clamp((options and options.level) or enemy.level, 0, StatFormulas.CREATURE_MAX)
+	local gentle, enemyHp, enemyAttack = enemy.gentle, enemy.hpScale, enemy.attackScale
+	local capScaled = options ~= nil and options.capScaled == true
+	if capScaled then
+		-- D-133: the war zones move up with the level 60 cap.
+		local shifted =
+			ZoneLevels.spawnFor(enemy, level, ConfigurationService:Get("Progression").Level60 == true)
+		if shifted then
+			level, gentle, enemyHp, enemyAttack =
+				shifted.level, shifted.gentle, shifted.hpScale, shifted.attackScale
+		end
+	end
 	-- D-130: gentle creatures grow like players past 30.
-	local base = if enemy.gentle
+	local base = if gentle
 		then StatFormulas.forLevel(math.min(level, 60))
 		else StatFormulas.forCreatureLevel(level)
-	local hpScale = enemy.hpScale * ((options and options.hpScale) or 1)
+	local hpScale = enemyHp * ((options and options.hpScale) or 1)
 	CombatService:RegisterNpc(model, {
 		name = enemy.name,
-		gentle = enemy.gentle,
+		gentle = gentle,
 		level = level,
 		maxHp = math.floor(base.MaxHP * hpScale + 0.5),
-		attackScale = enemy.attackScale,
+		attackScale = enemyAttack,
 		defenseScale = enemy.defenseScale,
 		autoRevive = false,
 		regen = false,
@@ -230,7 +248,12 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 			then MobFlight.initial(os.clock(), wanderRng:NextNumber())
 			else nil,
 		divePoint = nil,
-		attackSet = MobAttacks.setFor(enemy.body, model:GetAttribute("RC_Shape") :: string?),
+		-- The sculpted shape's set even before its mesh is imported (D-133).
+		attackSet = MobAttacks.setFor(
+			enemy.body,
+			(model:GetAttribute("RC_Shape") :: string?)
+				or CreatureRigs.meshShapeFor(enemy.body, enemy.traits :: any, enemy.id)
+		),
 		move = nil,
 		lastMoveId = nil,
 		alertEndsAt = 0,
@@ -246,6 +269,7 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 		xpRecipients = options and options.xpRecipients,
 		owner = (options and options.owner) or "world",
 		dead = false,
+		capScaled = capScaled,
 	}
 	mobs[model] = mob
 	return mob
@@ -1024,6 +1048,8 @@ export type CampOptions = {
 	level: number?,
 	-- Called after each (re)spawn, e.g. to attach a boss's ability loop.
 	onSpawn: ((mob: Mob) -> ())?,
+	-- D-133: levels follow the level 60 cap at each (re)spawn.
+	capScaled: boolean?,
 }
 
 -- One spot in a camp: its creature while alive, its respawn time while not.
@@ -1039,11 +1065,12 @@ local campSlots: { [Model]: CampSlot } = {}
 
 local function spawnCampSlot(slot: CampSlot)
 	slot.respawnAt = nil
-	local mob = MobService:Spawn(
-		slot.enemy,
-		slot.at,
-		{ owner = slot.owner, xpRecipients = slot.options.xpRecipients, level = slot.options.level }
-	)
+	local mob = MobService:Spawn(slot.enemy, slot.at, {
+		owner = slot.owner,
+		xpRecipients = slot.options.xpRecipients,
+		level = slot.options.level,
+		capScaled = slot.options.capScaled,
+	})
 	slot.mob = mob
 	if mob then
 		campSlots[mob.model] = slot

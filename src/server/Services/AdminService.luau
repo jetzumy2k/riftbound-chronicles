@@ -495,7 +495,30 @@ local function onEvents(actor: Player, action: string, args: { [string]: any }):
 			now = os.time(),
 			windows = EventService:GetWindows(),
 			daily = EventService:GetDaily(),
+			tower = EventService:GetTower(),
 		}
+	end
+	if action == "Tower" then
+		-- D-131: the Tower's weekly schedule, like the daily draw: Owner / Admin.
+		if not can(actor, "config.game") then
+			AuditLogService:Audit({
+				actorUserId = actor.UserId,
+				action = "AdminDenied",
+				target = "config.game",
+			})
+			return fail("towerPermission")
+		end
+		local tower = args.Tower
+		if type(tower) ~= "table" then
+			return fail("tower")
+		end
+		local before = EventService:GetTower()
+		local ok, reason = EventService:SetTower(tower, actor.UserId)
+		if not ok then
+			return fail(reason or "save")
+		end
+		audit(actor, "EventTower", nil, { before = before, after = EventService:GetTower() })
+		return { ok = true, tower = EventService:GetTower() }
 	end
 	if action == "Daily" then
 		-- D-113: the daily draw changes the game for everyone: Owner / Admin.

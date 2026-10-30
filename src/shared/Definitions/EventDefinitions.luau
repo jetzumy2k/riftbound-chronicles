@@ -48,6 +48,8 @@ export type Event = {
 	-- extra rewards (its boost is the reward).
 	rewards: { string }?,
 	rewardTo: string?,
+	-- D-131: started by its own schedule (never by the daily draw).
+	ownSchedule: boolean?,
 	-- Panel grouping: "Boosts", "World", "Hunts", "Challenges".
 	group: string,
 }
@@ -270,6 +272,22 @@ EventDefinitions.List = {
 		stage = 3,
 		zone = "Capitals",
 	}),
+	-- D-131: opens the Tower (TowerService); its own weekly schedule
+	-- (Events.Tower) starts it too.
+	event(
+		"TowerChallenge",
+		"Tower Challenge",
+		"🗼",
+		"The Tower is open: clear its floors for permanent attribute points and race for the week's best times.",
+		{
+			kind = "Challenge",
+			stage = 3,
+			minutes = 180,
+			maxMinutes = 12 * 60,
+			cooldownMinutes = 0,
+			ownSchedule = true,
+		}
+	),
 	event(
 		"RiftEclipse",
 		"Rift Eclipse",

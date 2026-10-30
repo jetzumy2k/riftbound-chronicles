@@ -25,6 +25,11 @@ local SHAPES = {
 	"Harpy",
 	"Gorgon",
 	"Sprite",
+	"Skeleton",
+	"Zombie",
+	"DeathKnight",
+	"Dullahan",
+	"DeathLord",
 }
 
 return function(t)

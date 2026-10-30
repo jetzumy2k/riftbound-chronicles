@@ -522,6 +522,68 @@ local function buildNpc(race: string, npc: NpcDefinitions.Npc)
 	end)
 end
 
+-- D-132: a sign behind each NPC row naming the row and who stands in it.
+local function buildSign(race: string, row: any)
+	local realm = WorldLayout.Realms[race]
+	if realm == nil then
+		return
+	end
+	local p = WorldLayout.toWorld(realm, { row.signX, 0, 0 })
+	local spawn = realm.spawnPosition
+	local trim = Color3.fromRGB(realm.trimColor[1], realm.trimColor[2], realm.trimColor[3])
+	local base = Vector3.new(p[1], p[2], p[3])
+	local facing = CFrame.lookAt(base, Vector3.new(spawn[1], base.Y, spawn[3]))
+	for _, side in { -1, 1 } do
+		local post = Instance.new("Part")
+		post.Name = "SignPost"
+		post.Anchored = true
+		post.Size = Vector3.new(1.2, 14, 1.2)
+		post.CFrame = facing * CFrame.new(side * 9, 7, 0)
+		post.Material = Enum.Material.WoodPlanks
+		post.Color = Color3.fromRGB(92, 66, 46)
+		post.Parent = folder
+	end
+	local board = Instance.new("Part")
+	board.Name = `Sign_{row.title}`
+	board.Anchored = true
+	board.Size = Vector3.new(20, 8, 0.6)
+	board.CFrame = facing * CFrame.new(0, 10, 0)
+	board.Material = Enum.Material.Wood
+	board.Color = Color3.fromRGB(60, 44, 34)
+	board.Parent = folder
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	gui.Parent = board
+	local lines = {}
+	for _, id in row.ids do
+		local npc = NpcDefinitions.get(id)
+		if npc then
+			table.insert(lines, `{npc.icon} {npc.title}`)
+		end
+	end
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Size = UDim2.fromScale(1, 0.38)
+	title.Text = row.title
+	title.TextScaled = true
+	title.Font = Enum.Font.GothamBold
+	title.TextColor3 = trim
+	title.Parent = gui
+	local list = Instance.new("TextLabel")
+	list.BackgroundTransparency = 1
+	list.Position = UDim2.fromScale(0.03, 0.4)
+	list.Size = UDim2.fromScale(0.94, 0.56)
+	list.Text = table.concat(lines, "   ·   ")
+	list.TextScaled = true
+	list.TextWrapped = true
+	list.Font = Enum.Font.GothamMedium
+	list.TextColor3 = Color3.fromRGB(245, 236, 220)
+	list.Parent = gui
+end
+
 function ShopService:Init()
 	NetService:Handle("NpcShop", onShop)
 	MobService.MobDefeated:Connect(onMobDefeated)
@@ -534,6 +596,9 @@ function ShopService:Start()
 	for race in WorldLayout.Realms :: { [string]: any } do
 		for _, npc in NpcDefinitions.List do
 			task.spawn(buildNpc, race, npc)
+		end
+		for _, row in NpcDefinitions.ROWS do
+			buildSign(race, row)
 		end
 	end
 	Players.PlayerRemoving:Connect(function(player)

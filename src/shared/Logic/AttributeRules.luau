@@ -85,8 +85,9 @@ function AttributeRules.isMagic(job: string?): boolean
 	return job ~= nil and MAGIC_JOBS[job] == true
 end
 
-function AttributeRules.pointsFor(level: number): number
-	return math.max(0, math.floor(level)) * AttributeRules.POINTS_PER_LEVEL
+-- D-131: `extra` = points won in the Tower (TowerPoints), spent the same way.
+function AttributeRules.pointsFor(level: number, extra: number?): number
+	return math.max(0, math.floor(level)) * AttributeRules.POINTS_PER_LEVEL + math.max(0, extra or 0)
 end
 
 function AttributeRules.spent(attributes: Attributes): number
@@ -97,8 +98,8 @@ function AttributeRules.spent(attributes: Attributes): number
 	return total
 end
 
-function AttributeRules.unspent(attributes: Attributes, level: number): number
-	return AttributeRules.pointsFor(level) - AttributeRules.spent(attributes)
+function AttributeRules.unspent(attributes: Attributes, level: number, extra: number?): number
+	return AttributeRules.pointsFor(level, extra) - AttributeRules.spent(attributes)
 end
 
 --[[
@@ -106,7 +107,7 @@ end
 	keys dropped; if more points are spent than `level` gives (a level set
 	down), every point is returned. Returns (attributes, changed).
 ]]
-function AttributeRules.repair(value: any, level: number): (Attributes, boolean)
+function AttributeRules.repair(value: any, level: number, extra: number?): (Attributes, boolean)
 	local out = AttributeRules.empty()
 	local changed = type(value) ~= "table"
 	if type(value) == "table" then
@@ -124,7 +125,7 @@ function AttributeRules.repair(value: any, level: number): (Attributes, boolean)
 			end
 		end
 	end
-	if AttributeRules.spent(out) > AttributeRules.pointsFor(level) then
+	if AttributeRules.spent(out) > AttributeRules.pointsFor(level, extra) then
 		return AttributeRules.empty(), true
 	end
 	return out, changed
@@ -134,7 +135,7 @@ end
 	Checks a request to add `adds` ({ id = points }) at `level`. Returns
 	(true, newAttributes) or (false, reason): "shape", "points".
 ]]
-function AttributeRules.spend(current: Attributes, adds: any, level: number): (boolean, any)
+function AttributeRules.spend(current: Attributes, adds: any, level: number, extra: number?): (boolean, any)
 	if type(adds) ~= "table" then
 		return false, "shape"
 	end
@@ -150,7 +151,7 @@ function AttributeRules.spend(current: Attributes, adds: any, level: number): (b
 	if added <= 0 or added > AttributeRules.MAX_STEP then
 		return false, "shape"
 	end
-	if AttributeRules.spent(out) > AttributeRules.pointsFor(level) then
+	if AttributeRules.spent(out) > AttributeRules.pointsFor(level, extra) then
 		return false, "points"
 	end
 	return true, out

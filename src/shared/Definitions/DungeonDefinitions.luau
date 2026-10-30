@@ -347,10 +347,11 @@ makeBoss("Chimera", { enemy = "EmberHound", level = 19, count = 2 })
 makeBoss("Basilisk", { enemy = "AbyssCrawler", level = 29, count = 2 })
 makeBoss("Typhon", { enemy = "AbyssalKnight", level = 36, count = 2 })
 -- D-130: the Abyssal Spire's floor bosses and the Rift Emperor.
-makeBoss("Behemoth", { enemy = "HollowRevenant", level = 39, count = 2 })
-makeBoss("Ifrit", { enemy = "HellfireStalker", level = 49, count = 2 })
-makeBoss("Jormungandr", { enemy = "VoidHound", level = 57, count = 2 })
-makeBoss("RiftEmperor", { enemy = "AstralWarden", level = 58, count = 2 })
+makeBoss("Behemoth", { enemy = "SkeletonSoldier", level = 39, count = 2 })
+makeBoss("Ifrit", { enemy = "AshboneWarrior", level = 49, count = 2 })
+-- D-133: the Death Lord raises skeletons.
+makeBoss("DeathLord", { enemy = "WraithboneSentry", level = 57, count = 2 })
+makeBoss("RiftEmperor", { enemy = "GraveKnight", level = 58, count = 2 })
 for _, spec in EnemyDefinitions.MINI_BOSSES do
 	makeBoss(spec[1], nil)
 end
@@ -714,8 +715,8 @@ local spireFloors: { Floor } = {
 		name = "The Fallen Bastion",
 		theme = "Void",
 		levels = { 31, 40 },
-		mobs = { "HollowRevenant", "SpireCrawler", "BastionColossus" },
-		miniBoss = "BastionColossus",
+		mobs = { "SkeletonSoldier", "GraveGhoul", "DeathKnight" },
+		miniBoss = "DeathKnight",
 		rooms = rooms({
 			{ "BastionGate", "Broken Bastion Gate", { 150, 50, 160 } },
 			{ "Barracks", "Hollow Barracks", { 160, 52, 170 } },
@@ -732,8 +733,8 @@ local spireFloors: { Floor } = {
 		name = "The Ashen Throne",
 		theme = "Ember",
 		levels = { 41, 50 },
-		mobs = { "HellfireStalker", "Pyreshell", "ObsidianSentinel" },
-		miniBoss = "ObsidianSentinel",
+		mobs = { "AshboneWarrior", "CinderHusk", "Dullahan" },
+		miniBoss = "Dullahan",
 		rooms = rooms({
 			{ "AshStair", "Ash Stair", { 150, 50, 160 } },
 			{ "CinderHall", "Cinder Hall", { 160, 54, 170 } },
@@ -750,8 +751,8 @@ local spireFloors: { Floor } = {
 		name = "The Starless Vault",
 		theme = "Frost",
 		levels = { 51, 60 },
-		mobs = { "VoidHound", "StarDevourer", "AstralWarden" },
-		miniBoss = "AstralWarden",
+		mobs = { "WraithboneSentry", "GraveKnight", "DreadDullahan" },
+		miniBoss = "DreadDullahan",
 		rooms = rooms({
 			{ "VaultDoor", "The Vault Door", { 150, 50, 160 } },
 			{ "Observatory", "Dead Observatory", { 160, 56, 170 } },
@@ -761,8 +762,8 @@ local spireFloors: { Floor } = {
 			{ "NightNave", "Nave of Night", { 160, 58, 170 } },
 			{ "Threshold", "The Threshold", { 170, 60, 170 } },
 		}),
-		lair = { id = "SerpentCoil", name = "The Serpent's Coil", size = { 200, 76, 200 } },
-		floorBoss = "Jormungandr",
+		lair = { id = "DeathLordCrypt", name = "The Death Lord's Crypt", size = { 200, 76, 200 } },
+		floorBoss = "DeathLord",
 	}),
 	sanctumFloor(4, "The Emperor's Sanctum", "Void", { 58, 60 }, "RiftEmperor"),
 }

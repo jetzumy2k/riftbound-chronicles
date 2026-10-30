@@ -200,6 +200,9 @@ type Rig = {
 	marks: BossMarks.Marks?,
 	markGround: number,
 	markRayAt: number,
+	-- D-133: the undead (soul wisps, a ghostly end) and the next wisp.
+	undead: boolean,
+	nextWispAt: number,
 }
 
 local rigs: { [Model]: Rig } = {}
@@ -485,6 +488,20 @@ local function footDown(rig: Rig, leg: LegState)
 	)
 end
 
+-- Shapes that swing one weapon (a single wide streak, not claw rakes) and
+-- that clank in armour (D-133: the undead too).
+local ARMED: { [string]: boolean } = {
+	Golem = true,
+	Knight = true,
+	Harpy = true,
+	Skeleton = true,
+	DeathKnight = true,
+	Dullahan = true,
+	DeathLord = true,
+}
+local ARMOURED: { [string]: boolean } =
+	{ Knight = true, Skeleton = true, DeathKnight = true, Dullahan = true, DeathLord = true }
+
 -- The moment a wound-up move lands: its sound and effect.
 local function strikeFx(rig: Rig)
 	local s = rig.scale
@@ -496,14 +513,10 @@ local function strikeFx(rig: Rig)
 		CreatureSfx.play(CreatureSounds.Cues.Swish, rig.root, s, "swish", 0.2)
 		if move == "Sweep" then
 			-- A weapon or great limb: one wide streak; claws: three.
-			local streaks = if rig.shape == "Golem"
-					or rig.shape == "Knight"
-					or rig.shape == "Harpy"
-				then 1
-				else 3
+			local streaks = if ARMED[rig.shape or ""] then 1 else 3
 			CreatureFx.trail(front, 2.4 * s, color, streaks)
 		end
-		if rig.shape == "Knight" then
+		if ARMOURED[rig.shape or ""] then
 			CreatureSfx.play(CreatureSounds.Cues.Clank, rig.root, s, "clank", 0.3)
 		end
 		return
@@ -514,10 +527,14 @@ local function strikeFx(rig: Rig)
 	local radius = if move == "Roar" then 4 + 2.5 * s else 3 + 2 * s
 	local impact = if rig.shape == "Golem" then CreatureSounds.Cues.RockImpact else CreatureSounds.Cues.Impact
 	CreatureSfx.play(impact, rig.root, s, "impact", 0.3)
-	if rig.shape == "Knight" then
+	if ARMOURED[rig.shape or ""] then
 		CreatureSfx.play(CreatureSounds.Cues.Clank, rig.root, s, "clank", 0.3)
 	end
 	CreatureFx.shockwave(ground, radius, color)
+	if rig.undead then
+		-- The undead's heavy blow looses a breath of cold soul fire.
+		CreatureFx.wisp(CFrame.new(ground), s * 1.2, color, 6 + s * 2)
+	end
 	shakeNear(ground, radius + 4, 0.25 + 0.08 * s)
 end
 
@@ -1448,6 +1465,12 @@ local function animate(rig: Rig, dt: number, now: number, detailed: boolean)
 	end
 
 	effects(rig, now)
+	-- D-133: soul wisps curl up from the undead (near the camera only;
+	-- emitted, never left running). Bosses and elites trail more.
+	if rig.undead and detailed and rig.defeatStart == nil and now >= rig.nextWispAt then
+		rig.nextWispAt = now + rng:NextNumber(0.25, 0.45)
+		CreatureFx.wisp(headFrame(rig), rig.scale, glowOf(rig), if rig.marks then 3 else 1)
+	end
 	local rear, strike = attackWeights(rig, now)
 	local hit =
 		math.max(pulse(rig.hitStart, now, HIT_SECONDS), pulse(rig.staggerStart, now, STAGGER_SECONDS) * 1.8)
@@ -1614,6 +1637,8 @@ local function track(model: Model)
 		marks = nil,
 		markGround = root.Position.Y,
 		markRayAt = 0,
+		undead = model:GetAttribute("RC_Undead") == true,
+		nextWispAt = 0,
 	}
 	local enemy = EnemyDefinitions.get(model:GetAttribute("RC_Enemy"))
 	if enemy then
@@ -1632,6 +1657,17 @@ local function track(model: Model)
 		end
 	end)
 	rigs[model] = rig
+	if rig.undead then
+		-- Risen where it appears: cold mist and wisps (near the camera).
+		local camera = Workspace.CurrentCamera
+		if camera and (camera.CFrame.Position - root.Position).Magnitude <= GROUND_DETAIL_DISTANCE then
+			CreatureFx.graveRise(
+				Vector3.new(root.Position.X, groundY(rig), root.Position.Z),
+				rigScale,
+				glowOf(rig)
+			)
+		end
+	end
 	model.AncestryChanged:Connect(function(_, parent)
 		if parent == nil then
 			rigs[model] = nil
@@ -1684,6 +1720,15 @@ function MobVisualController.defeat(model: Model)
 		end
 		CreatureSfx.play(rig.voice, rig.root, rig.scale * 1.5, "defeat", 5, 0.8)
 		task.delay(0.75, function()
+			if rig.root.Parent and rig.undead then
+				-- D-133: the undead are laid to rest: their soul rises in a
+				-- column of light (no remains, nothing graphic).
+				CreatureFx.soulRelease(
+					Vector3.new(rig.root.Position.X, groundY(rig), rig.root.Position.Z),
+					rig.scale,
+					glowOf(rig)
+				)
+			end
 			if rig.root.Parent then
 				CreatureSfx.play(CreatureSounds.Cues.BodyFall, rig.root, rig.scale, "fall", 5)
 				CreatureFx.dust(

@@ -11,6 +11,10 @@
 	  roar        a ripple of air from the head
 	  breath      a burst of embers from a dragon's / chimera's jaws
 	  embers      a slow drift of sparks round an enraged creature
+	  wisp        soul wisps curling up from an undead creature (D-133)
+	  graveRise   cold mist and wisps where an undead creature appears
+	  soulRelease the undead's end: its soul rises in a column of light
+	              and fades (no remains, nothing graphic)
 	Mobile budget: a few anchored, non-colliding, non-queryable parts and two
 	shared particle emitters (particles are emitted, never left running),
 	cleaned up with Debris; the caller only asks near the camera.
@@ -114,6 +118,27 @@ local function sparkEmitter(): ParticleEmitter
 		e.SpreadAngle = Vector2.new(18, 18)
 		e.Drag = 3
 		e.Acceleration = Vector3.new(0, 3, 0)
+	end)
+end
+
+-- D-133: soft glowing motes that drift up and fade (undead souls).
+local function soulEmitter(): ParticleEmitter
+	return emitter("Soul", function(e)
+		e.LightEmission = 1
+		e.LightInfluence = 0
+		e.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.2, 0.35),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		e.Lifetime = NumberRange.new(1, 1.6)
+		e.Speed = NumberRange.new(1, 2.5)
+		e.SpreadAngle = Vector2.new(25, 25)
+		e.Drag = 1.5
+		e.Acceleration = Vector3.new(0, 2.5, 0)
+		e.Rotation = NumberRange.new(0, 360)
+		e.RotSpeed = NumberRange.new(-60, 60)
+		e.EmissionDirection = Enum.NormalId.Top
 	end)
 end
 
@@ -230,6 +255,77 @@ function CreatureFx.embers(root: BasePart, on: boolean, color: Color3)
 	e.Transparency =
 		NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
 	e.Parent = root
+end
+
+-- Soul colours: the creature's glow, paled towards white.
+local function soulColors(color: Color3): ColorSequence
+	return ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.45), color)
+end
+
+-- A few soul wisps curling up from `at` (an undead creature's head).
+function CreatureFx.wisp(at: CFrame, size: number, color: Color3, count: number)
+	local e = soulEmitter()
+	e.Color = soulColors(color)
+	e.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.15 * size),
+		NumberSequenceKeypoint.new(0.3, 0.32 * size),
+		NumberSequenceKeypoint.new(1, 0.05),
+	})
+	e.Speed = NumberRange.new(0.6 * size, 1.4 * size)
+	emitAt(e, at, count)
+end
+
+-- Cold mist rolling out on the ground and wisps rising where an undead
+-- creature appears.
+function CreatureFx.graveRise(position: Vector3, size: number, color: Color3)
+	local mist = dustEmitter()
+	mist.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.6 * size),
+		NumberSequenceKeypoint.new(1, 2 * size),
+	})
+	emitAt(mist, CFrame.new(position), 6 + size * 2)
+	local ring = part(
+		Vector3.new(0.1, 1, 1),
+		CFrame.new(position + Vector3.new(0, 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		color,
+		0.4,
+		Enum.PartType.Cylinder
+	)
+	TweenService:Create(
+		ring,
+		TweenInfo.new(0.8, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+		{ Size = Vector3.new(0.05, 5 * size, 5 * size), Transparency = 1 }
+	):Play()
+	Debris:AddItem(ring, 0.85)
+	CreatureFx.wisp(CFrame.new(position + Vector3.new(0, 0.5, 0)), size * 1.4, color, 8 + size * 2)
+end
+
+-- The undead's end: a column of pale light and its soul rising out of it.
+function CreatureFx.soulRelease(position: Vector3, size: number, color: Color3)
+	local pale = color:Lerp(Color3.new(1, 1, 1), 0.5)
+	local height = 6 * size
+	local beam = part(
+		Vector3.new(height, 1.6 * size, 1.6 * size),
+		CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		pale,
+		0.45,
+		Enum.PartType.Cylinder
+	)
+	TweenService:Create(
+		beam,
+		TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Size = Vector3.new(height * 1.3, 0.1, 0.1), Transparency = 1 }
+	):Play()
+	Debris:AddItem(beam, 1.15)
+	local e = soulEmitter()
+	e.Color = soulColors(color)
+	e.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.3 * size),
+		NumberSequenceKeypoint.new(0.4, 0.6 * size),
+		NumberSequenceKeypoint.new(1, 0.05),
+	})
+	e.Speed = NumberRange.new(3 * size, 6 * size)
+	emitAt(e, CFrame.new(position + Vector3.new(0, size, 0)), 14 + size * 4)
 end
 
 return CreatureFx

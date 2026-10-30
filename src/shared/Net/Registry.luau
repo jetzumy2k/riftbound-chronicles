@@ -38,6 +38,7 @@ local MallDefinitions = require(script.Parent.Parent.Definitions.MallDefinitions
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
 local NpcDefinitions = require(script.Parent.Parent.Definitions.NpcDefinitions)
+local TowerRules = require(script.Parent.Parent.Logic.TowerRules)
 local PotionRules = require(script.Parent.Parent.Logic.PotionRules)
 local StaffRules = require(script.Parent.Parent.Logic.StaffRules)
 
@@ -118,6 +119,7 @@ return function(S: any)
 	local attributesView = S.struct({
 		Attributes = S.struct({ REC = points, INT = points, WIS = points, STR = points, AGI = points }),
 		ResetIn = S.int(0, 24 * 3600),
+		Extra = S.optional(S.int(0, 1000)),
 		Bonus = S.optional(
 			S.struct({ REC = points, INT = points, WIS = points, STR = points, AGI = points })
 		),
@@ -560,6 +562,20 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 		},
 
+		-- D-131: the Tower Challenge (the Tower Keeper): Status, Enter a
+		-- floor, Leave the run, the week's Board of a floor. The server
+		-- runs the waves, times the clear and gives the points.
+		Tower = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "Status", "Enter", "Leave", "Board" }),
+				S.optional(S.enum(table.clone(TowerRules.IDS))),
+			},
+			rate = { capacity = 6, refillPerSecond = 1 },
+			states = { "ProfileLoaded" },
+		},
+
 		-- D-116: use a Race Conversion Rune: the realm to move to and the
 		-- typed confirmation (the server checks the rune, combat and realm).
 		ConvertRace = {
@@ -658,7 +674,7 @@ return function(S: any)
 			direction = "ClientToServer",
 			kind = "Function",
 			args = {
-				S.enum({ "List", "Start", "Schedule", "Stop", "Daily" }),
+				S.enum({ "List", "Start", "Schedule", "Stop", "Daily", "Tower" }),
 				S.struct({
 					Id = S.optional(S.enum(table.clone(EventDefinitions.IDS))),
 					Minutes = S.optional(S.int(1, 30 * 24 * 60)),
@@ -669,6 +685,13 @@ return function(S: any)
 						TimeUtcMinutes = S.int(0, 1439),
 						Minutes = S.int(15, 1440),
 						Excluded = S.array(S.enum(table.clone(EventDefinitions.IDS)), 64),
+					})),
+					-- D-131: the Tower Challenge schedule (needs config.game).
+					Tower = S.optional(S.struct({
+						Enabled = S.boolean(),
+						Days = S.array(S.int(1, 7), 3),
+						TimeUtcMinutes = S.int(0, 1439),
+						Hours = S.int(1, 12),
 					})),
 					-- D-93 stage 2: rewards for playing during the run (needs
 					-- items.grant; EventRewards checks the content).
@@ -1175,6 +1198,27 @@ return function(S: any)
 			direction = "ServerToClient",
 			kind = "Event",
 			args = { attributesView },
+		},
+
+		-- D-131: Server -> the players of a Tower run: its state (display
+		-- only; the server times the run).
+		TowerState = {
+			direction = "ServerToClient",
+			kind = "Event",
+			args = {
+				S.struct({
+					Floor = S.enum(table.clone(TowerRules.IDS)),
+					Phase = S.enum({ "Countdown", "Fight", "Cleared", "Failed", "Gone" }),
+					Wave = S.int(0, 10),
+					Waves = S.int(1, 10),
+					Elapsed = S.number(0, 100000),
+					Limit = S.int(1, 3600),
+					Why = S.optional(S.string(16, 1, "^%a+$")),
+					Points = S.optional(S.int(0, 100)),
+					Time = S.optional(S.int(0, 1000000)),
+					Best = S.optional(S.boolean()),
+				}),
+			},
 		},
 
 		-- Server -> owning client: level/XP changed (display only).

@@ -128,6 +128,8 @@ function ProfileView.attributes(data: { [string]: any }): { [string]: any }
 			AGI = a.AGI or 0,
 		},
 		ResetIn = math.max(0, (data.AttributeResetAt or 0) + 24 * 3600 - os.time()),
+		-- D-131: points won in the Tower (spent like level points).
+		Extra = data.TowerPoints or 0,
 		-- D-120: permanent bonus points (Fortune Wheel).
 		Bonus = {
 			REC = (data.BonusAttributes or {}).REC or 0,

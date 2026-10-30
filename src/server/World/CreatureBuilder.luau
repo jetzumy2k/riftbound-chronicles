@@ -1387,6 +1387,9 @@ function CreatureBuilder.build(enemyId: string, at: CFrame): Model?
 		meshModel:SetAttribute("RC_Body", enemy.body)
 		meshModel:SetAttribute("RC_Enemy", enemy.id)
 		meshModel:SetAttribute("RC_Scale", enemy.scale)
+		if enemy.undead then
+			meshModel:SetAttribute("RC_Undead", true)
+		end
 		local height = CreatureMeshes.Shapes[shape].height * enemy.scale
 		newHumanoid(enemy, height - meshRoot.Size.Y / 2).Parent = meshModel
 		meshModel.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
@@ -1397,6 +1400,10 @@ function CreatureBuilder.build(enemyId: string, at: CFrame): Model?
 	model:SetAttribute("RC_Body", enemy.body)
 	model:SetAttribute("RC_Enemy", enemy.id)
 	model:SetAttribute("RC_Scale", enemy.scale)
+	-- D-133: soul wisps and a ghostly end on the client.
+	if enemy.undead then
+		model:SetAttribute("RC_Undead", true)
+	end
 
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"

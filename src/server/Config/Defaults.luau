@@ -379,6 +379,16 @@ return {
 			Minutes = 60,
 			Excluded = {},
 		},
+		-- D-131: the Tower Challenge's own schedule (TowerRules): up to 3
+		-- UTC weekdays (1 Monday ... 7 Sunday), a time and a length. Off
+		-- until an admin turns it on; the admin can also open the Tower
+		-- from the Events tab like any event.
+		Tower = {
+			Enabled = false,
+			Days = { 1, 3, 5 },
+			TimeUtcMinutes = 720,
+			Hours = 3,
+		},
 	},
 
 	-- Server mob AI (ARCHITECTURE.md §7: one scheduler, ≤ 10 Hz, sleep when idle).

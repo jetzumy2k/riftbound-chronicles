@@ -28,6 +28,7 @@
 
 local BossBalance = require(script.Parent.Parent.Logic.BossBalance)
 local CreatureLanguage = require(script.Parent.CreatureLanguage)
+local LevelCap = require(script.Parent.Parent.Logic.LevelCap)
 local XPTable = require(script.Parent.Parent.Logic.XPTable)
 
 export type Body = "Wolf" | "Beetle" | "Golem" | "Sprite" | "Guardian" | "Serpent"
@@ -41,6 +42,8 @@ export type Enemy = {
 	name: string,
 	-- D-130: stats grow like players past level 30 (the level 31-60 dungeon).
 	gentle: boolean?,
+	-- D-133: the risen dead (soul wisps, a ghostly end; display only).
+	undead: boolean?,
 	level: number,
 	elite: boolean,
 	hpScale: number,
@@ -423,6 +426,8 @@ end
 EnemyDefinitions.ENRAGE_SECONDS = table.freeze({ Boss = 300, Floor = 240, Mini = 180 })
 -- A boss's basic hit as a share of a reference player's HP, per tier.
 local HIT_SHARE = { Boss = 0.3, Floor = 0.22, Mini = 0.18 }
+-- Read by Logic/ZoneLevels (war-zone bosses under the level 60 cap, D-133).
+EnemyDefinitions.HIT_SHARE = table.freeze(table.clone(HIT_SHARE))
 
 --[[
 	A boss: big, slow to anger, HP and hit strength designed by
@@ -665,28 +670,40 @@ local function gentle(enemy: any, xpShare: number?): Enemy
 	return enemy :: Enemy
 end
 -- Rows of mixed values: { id, name, body, level, elite, scale, colour, glow }.
+-- D-133 (creator request 2026-10-31): the Spire's creatures are the
+-- undead: skeletons, ghouls, death knights and dullahans (sculpted shapes,
+-- CreatureRigs.SHAPE_BY_ENEMY); its third floor answers to the Death Lord.
 local SPIRE_CREATURES: { { any } } = {
 	-- Floor 1: the Fallen Bastion (31-40).
-	{ "HollowRevenant", "Hollow Revenant", "Wolf", 32, false, 1.15, { 70, 78, 96 }, { 170, 190, 255 } },
-	{ "SpireCrawler", "Spire Crawler", "Beetle", 34, false, 1.25, { 54, 50, 78 }, { 190, 130, 255 } },
-	{ "BastionColossus", "Bastion Colossus", "Golem", 36, true, 1.7, { 92, 88, 104 }, { 200, 170, 255 } },
-	-- Floor 2: the Ashen Throne (41-50).
-	{ "HellfireStalker", "Hellfire Stalker", "Wolf", 42, false, 1.2, { 96, 48, 36 }, { 255, 110, 40 } },
-	{ "Pyreshell", "Pyreshell", "Beetle", 44, false, 1.3, { 80, 44, 34 }, { 255, 150, 60 } },
 	{
-		"ObsidianSentinel",
-		"Obsidian Sentinel",
+		"SkeletonSoldier",
+		"Skeleton Soldier",
 		"Guardian",
-		46,
-		true,
-		1.6,
-		{ 40, 34, 40 },
-		{ 255, 90, 60 },
+		32,
+		false,
+		1.1,
+		{ 120, 112, 140 },
+		{ 150, 200, 255 },
 	},
+	{ "GraveGhoul", "Grave Ghoul", "Guardian", 34, false, 1.15, { 96, 112, 92 }, { 170, 255, 140 } },
+	{ "DeathKnight", "Death Knight", "Guardian", 36, true, 1.55, { 58, 56, 74 }, { 150, 120, 255 } },
+	-- Floor 2: the Ashen Throne (41-50).
+	{ "AshboneWarrior", "Ashbone Warrior", "Guardian", 42, false, 1.15, { 90, 60, 50 }, { 255, 120, 50 } },
+	{ "CinderHusk", "Cinder Husk", "Guardian", 44, false, 1.2, { 98, 80, 74 }, { 255, 140, 60 } },
+	{ "Dullahan", "Dullahan", "Guardian", 46, true, 1.6, { 50, 40, 44 }, { 255, 100, 60 } },
 	-- Floor 3: the Starless Vault (51-60).
-	{ "VoidHound", "Void Hound", "Wolf", 52, false, 1.25, { 30, 28, 52 }, { 150, 110, 255 } },
-	{ "StarDevourer", "Star Devourer", "Serpent", 54, false, 1.3, { 40, 46, 80 }, { 120, 200, 255 } },
-	{ "AstralWarden", "Astral Warden", "Guardian", 56, true, 1.7, { 70, 80, 120 }, { 180, 220, 255 } },
+	{
+		"WraithboneSentry",
+		"Wraithbone Sentry",
+		"Guardian",
+		52,
+		false,
+		1.2,
+		{ 70, 90, 120 },
+		{ 130, 210, 255 },
+	},
+	{ "GraveKnight", "Grave Knight", "Guardian", 54, false, 1.3, { 46, 56, 80 }, { 120, 200, 255 } },
+	{ "DreadDullahan", "Dread Dullahan", "Guardian", 56, true, 1.7, { 36, 40, 60 }, { 140, 180, 255 } },
 }
 for _, spec: any in SPIRE_CREATURES do
 	table.insert(
@@ -696,6 +713,8 @@ for _, spec: any in SPIRE_CREATURES do
 			if spec[5] then 1.5 else 0.5
 		)
 	)
+	-- Display and effects (soul wisps, a ghostly end: MobVisualController).
+	roster[#roster].undead = true
 end
 table.insert(
 	roster,
@@ -730,14 +749,14 @@ table.insert(
 table.insert(
 	roster,
 	boss(
-		"Jormungandr",
-		"Jormungandr",
-		"Serpent",
+		"DeathLord",
+		"The Death Lord",
+		"Guardian",
 		58,
 		"Floor",
 		3.6,
-		{ 30, 40, 70 },
-		{ 110, 200, 255 },
+		{ 40, 34, 52 },
+		{ 170, 110, 255 },
 		nil,
 		true
 	)
@@ -800,7 +819,7 @@ local ELEMENT: { [string]: CreatureLanguage.Element } = {
 	-- D-130: the Abyssal Spire.
 	Behemoth = "Void",
 	Ifrit = "Fire",
-	Jormungandr = "Sky",
+	DeathLord = "Void",
 	RiftEmperor = "Void",
 	Cerberus = "Fire",
 	Chimera = "Fire",
@@ -884,7 +903,6 @@ local LOOKS: { [string]: { Trait } } = {
 	-- D-130
 	Behemoth = { "Spikes", "Horns" },
 	Ifrit = { "Horns", "Wings" },
-	Jormungandr = { "Crest", "Spikes" },
 	RiftEmperor = { "Wings", "Horns", "Crest" },
 	Chimera = { "Mane", "Horns", "Wings", "SerpentTail" },
 	Basilisk = { "Crest", "Spikes" },
@@ -933,6 +951,10 @@ for _, enemy in roster do
 	if enemy.tier then
 		(enemy :: any).element = ELEMENT[enemy.id]
 	end
+	-- D-133: the Death Lord leads the Spire's undead.
+	if enemy.id == "DeathLord" then
+		(enemy :: any).undead = true
+	end
 end
 
 for _, enemy in roster do
@@ -976,6 +998,12 @@ end
 -- the definition's): scaled along the EXP curve, never below 1.
 function EnemyDefinitions.xpAt(enemy: Enemy, level: number?): number
 	local at = level or enemy.level
+	if at > LevelCap.BASE and at ~= enemy.level and not enemy.gentle then
+		-- D-133: a war-zone creature moved past 30 by the level 60 cap: its
+		-- level-30 EXP, then the curve past 30 (as the Spire's creatures).
+		local base = EnemyDefinitions.xpAt(enemy, LevelCap.BASE)
+		return math.max(1, math.floor(base * XPTable.toNext(math.min(at, 59)) / XPTable.toNext(29) + 0.5))
+	end
 	local function curve(l: number): number
 		return XPTable.toNext(math.clamp(l, 0, 29))
 	end

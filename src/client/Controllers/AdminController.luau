@@ -45,6 +45,7 @@ local AdminRules = require(Shared.Logic.AdminRules)
 local TopBarLayout = require(Shared.Layout.TopBarLayout)
 local EventDefinitions = require(Shared.Definitions.EventDefinitions)
 local EventRewards = require(Shared.Logic.EventRewards)
+local TowerRules = require(Shared.Logic.TowerRules)
 local ResetRules = require(Shared.Logic.ResetRules)
 local StaffRules = require(Shared.Logic.StaffRules)
 
@@ -118,6 +119,8 @@ local eventsFetched: any = nil
 local eventRewards: { EventRewards.Entry } = {}
 -- D-113: the daily random event settings being edited (nil: as saved).
 local dailyDraft: any = nil
+-- D-131: the Tower Challenge schedule being edited (nil: as saved).
+local towerDraft: any = nil
 -- The event page open (nil: the list) and the reward group being picked.
 local eventPage: string? = nil
 local rewardGroup = "MallPoints"
@@ -1395,6 +1398,8 @@ local EVENT_REASONS = {
 	stale = "another admin changed the settings meanwhile; try again",
 	rewardsPermission = "only an Owner or Admin can attach rewards",
 	dailyPermission = "only an Owner or Admin can change the daily event",
+	towerPermission = "only an Owner or Admin can change the Tower schedule",
+	towerDays = "pick 1 to 3 days for the Tower",
 	["rewards:count"] = "a reward amount is too big (Mall Points up to 10,000, items up to 99, one set)",
 	["rewards:many"] = "at most 4 rewards per event",
 	["rewards:item"] = "that item can't be an event reward",
@@ -1584,7 +1589,8 @@ local function drawDaily(body: Instance, listed: any)
 	-- Ready events by panel group, ticked ones counted.
 	local readyIds: { string } = {}
 	for _, e in EventDefinitions.List do
-		if EventDefinitions.isReady(e) then
+		-- D-131: events with their own schedule are never drawn.
+		if EventDefinitions.isReady(e) and not e.ownSchedule then
 			table.insert(readyIds, e.id)
 		end
 	end
@@ -1622,7 +1628,7 @@ local function drawDaily(body: Instance, listed: any)
 	for _, group in GROUPS do
 		local ids = {}
 		for _, e in EventDefinitions.List do
-			if e.group == group.id and EventDefinitions.isReady(e) then
+			if e.group == group.id and EventDefinitions.isReady(e) and not e.ownSchedule then
 				table.insert(ids, e.id)
 			end
 		end
@@ -1709,8 +1715,157 @@ local function drawDaily(body: Instance, listed: any)
 	end)
 end
 
+local WEEKDAYS = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }
+local TOWER_HOURS = { 1, 2, 3, 4, 6, 8, 12 }
+
+--[[
+	D-131: the Tower Challenge's weekly schedule. Days and time are shown
+	and picked in the admin's local time and saved as UTC (a time near
+	midnight can move a day over).
+]]
+local function drawTower(body: Instance, listed: any)
+	local saved = listed.tower
+	if type(saved) ~= "table" then
+		return
+	end
+	local editable = can("config.game")
+	local offset = utcOffsetMinutes()
+	-- UTC days + time -> local days + local minutes.
+	local function toLocal(days: { number }, utcMinutes: number): ({ number }, number)
+		local raw = utcMinutes + offset
+		local shift = math.floor(raw / 1440)
+		local out = {}
+		for _, d in days do
+			table.insert(out, (d - 1 + shift) % 7 + 1)
+		end
+		table.sort(out)
+		return out, raw % 1440
+	end
+	if towerDraft == nil then
+		local days, minutes = toLocal(saved.Days, saved.TimeUtcMinutes)
+		towerDraft =
+			{ Enabled = saved.Enabled == true, Days = days, LocalMinutes = minutes, Hours = saved.Hours }
+	end
+	local draft = towerDraft :: any
+	local function dayList(days: { number }): string
+		local names = {}
+		for _, d in days do
+			table.insert(names, WEEKDAYS[d])
+		end
+		return table.concat(names, ", ")
+	end
+	local box = card(
+		body,
+		"🗼 Tower Challenge schedule",
+		"When on, the Tower opens by itself on the ticked days (1 to 3 a week) at this time (your local time) for the hours below, with the usual 15-minute notice. You can also open it any time with the Tower Challenge event below. Outside an opening the Tower is sealed."
+	)
+	if not editable then
+		label(
+			box,
+			if saved.Enabled
+				then string.format(
+					"On: %s at %02d:%02d for %d h.",
+					dayList(draft.Days),
+					draft.LocalMinutes // 60,
+					draft.LocalMinutes % 60,
+					saved.Hours
+				)
+				else "Off.",
+			12,
+			Theme.Colors.TextDim
+		)
+		return
+	end
+	local top = row(box)
+	button(top, if draft.Enabled then "✅ Schedule on" else "❌ Schedule off", 150, nil, function()
+		draft.Enabled = not draft.Enabled
+		refresh()
+	end)
+	if fields.towerHour == nil then
+		fields.towerHour = tostring(draft.LocalMinutes // 60)
+		fields.towerMinute = string.format("%02d", draft.LocalMinutes % 60)
+	end
+	label(top, "Time", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(40, 36)
+	field(top, "towerHour", "HH", 50)
+	label(top, ":", 14).Size = UDim2.fromOffset(8, 36)
+	field(top, "towerMinute", "MM", 50)
+	button(top, `Open for {draft.Hours} h`, 120, nil, function()
+		local index = table.find(TOWER_HOURS, draft.Hours) or 0
+		draft.Hours = TOWER_HOURS[index % #TOWER_HOURS + 1]
+		refresh()
+	end)
+	local spread = row(box)
+	label(spread, "Times a week", 12, Theme.Colors.TextDim).Size = UDim2.fromOffset(90, 36)
+	for times, days in TowerRules.SPREADS do
+		button(spread, `{times}× ({dayList(days :: any)})`, 150, nil, function()
+			draft.Days = table.clone(days)
+			refresh()
+		end)
+	end
+	local week = row(box)
+	for d, name in WEEKDAYS do
+		local on = table.find(draft.Days, d) ~= nil
+		local b = button(week, `{if on then "✅" else "❌"} {name}`, 70, nil, function()
+			local index = table.find(draft.Days, d)
+			if index then
+				table.remove(draft.Days, index)
+			elseif #draft.Days < 3 then
+				table.insert(draft.Days, d)
+				table.sort(draft.Days)
+			else
+				setStatus("❌ At most 3 days a week: untick one first.", true)
+			end
+			refresh()
+		end)
+		b.BackgroundTransparency = if on then 0.2 else 0.6
+	end
+	local save = row(box)
+	button(save, "Save Tower schedule", 180, "gold", function()
+		local hour, minute = tonumber(fields.towerHour), tonumber(fields.towerMinute)
+		if
+			hour == nil
+			or minute == nil
+			or hour % 1 ~= 0
+			or minute % 1 ~= 0
+			or hour < 0
+			or hour > 23
+			or minute < 0
+			or minute > 59
+		then
+			setStatus("❌ Time must be HH 0-23 and MM 0-59.", true)
+			return
+		end
+		if #draft.Days == 0 then
+			setStatus("❌ Pick 1 to 3 days.", true)
+			return
+		end
+		-- Local days + time -> UTC.
+		local raw = hour * 60 + minute - offset
+		local shift = math.floor(raw / 1440)
+		local days = {}
+		for _, d in draft.Days do
+			table.insert(days, (d - 1 + shift) % 7 + 1)
+		end
+		local result = eventCall("Tower", {
+			Tower = { Enabled = draft.Enabled, Days = days, TimeUtcMinutes = raw % 1440, Hours = draft.Hours },
+		})
+		if result then
+			listed.tower = result.tower
+			towerDraft = nil
+			(fields :: any).towerHour, (fields :: any).towerMinute = nil, nil
+			setStatus(
+				if result.tower.Enabled
+					then "✅ Tower schedule saved and on."
+					else "✅ Tower schedule saved (off)."
+			)
+			refresh()
+		end
+	end)
+end
+
 local function drawEventList(body: Instance, listed: any)
 	drawDaily(body, listed)
+	drawTower(body, listed)
 	local now = listed.now
 	local live = card(body, "Live now and scheduled", "Every server follows this list.")
 	local any = false
@@ -2419,6 +2574,7 @@ function refresh()
 			eventsFetched = nil
 			resetInfo = nil
 			dailyDraft = nil
+			towerDraft = nil
 			staffList = nil
 			salaryDrafts = {}
 			eventPage = nil

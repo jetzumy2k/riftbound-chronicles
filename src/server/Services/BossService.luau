@@ -123,11 +123,13 @@ local function useAbility(boss: Boss, ability: DungeonDefinitions.Ability, now: 
 					floorY,
 					root.Position.Z + math.sin(angle) * 10
 				)
-				local add = MobService:Spawn(
-					ability.enemy or "RiftWolf",
-					at,
-					{ owner = boss.owner, xpRecipients = mob.xpRecipients, level = ability.level }
-				)
+				local add = MobService:Spawn(ability.enemy or "RiftWolf", at, {
+					owner = boss.owner,
+					xpRecipients = mob.xpRecipients,
+					level = ability.level,
+					-- D-133: a war-zone boss's summons follow the cap too.
+					capScaled = mob.capScaled,
+				})
 				if add then
 					add.state = "Chase"
 					table.insert(boss.adds, add)

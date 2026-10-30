@@ -10,7 +10,8 @@
 	  MallPoints all Mall Points. Points bought with Robux are ALWAYS kept
 	             (Wallet.PurchasedMallPoints caps what a reset can take)
 	  Levels     level, EXP, attribute points and the skill tree (points
-	             come from levels, so they go together)
+	             come from levels, so they go together), Fortune Wheel and
+	             Tower points (and the Tower's first-clear claims)
 	  Rankings   PvP victories / defeats / participations
 
 	Always cleared: quests, story flags and event progress (and the quest /
@@ -92,6 +93,11 @@ function ResetRules.apply(
 		if fresh.BonusAttributes ~= nil then
 			reset("BonusAttributes")
 		end
+		-- D-131: Tower points and times go with them too.
+		if fresh.TowerPoints ~= nil then
+			reset("TowerPoints")
+			reset("TowerBest")
+		end
 		table.insert(cleared, "Levels")
 	end
 	if not keep.Rankings then
@@ -109,7 +115,9 @@ function ResetRules.apply(
 	if type(claims) == "table" then
 		for id in claims do
 			local prefix = claimPrefix(id)
-			if prefix == "Q" or (prefix == "G" and not keep.Gear) then
+			-- D-131: Tower first clears can be earned again once their
+			-- points are gone with the levels.
+			if prefix == "Q" or (prefix == "G" and not keep.Gear) or (prefix == "T" and not keep.Levels) then
 				claims[id] = nil
 			end
 		end

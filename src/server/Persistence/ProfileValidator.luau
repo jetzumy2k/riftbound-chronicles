@@ -272,7 +272,26 @@ end
 
 -- D-90: whole points on the five attributes, never more than the level gives.
 local function repairAttributes(data: Data, note: (string) -> ())
-	local attributes, changed = AttributeRules.repair(data.Attributes, data.Level)
+	-- D-131: Tower points (spent like level points) and best clear times.
+	local TowerRules = require(Shared.Logic.TowerRules) :: any
+	fixInt(data, "TowerPoints", 0, TowerRules.MAX_POINTS, 0, "TowerPoints", note)
+	if type(data.TowerBest) ~= "table" then
+		data.TowerBest = {}
+		note("TowerBest: reset")
+	end
+	for id, tenths in data.TowerBest do
+		if
+			TowerRules.get(id) == nil
+			or type(tenths) ~= "number"
+			or tenths ~= tenths
+			or tenths < 1
+			or tenths % 1 ~= 0
+		then
+			data.TowerBest[id] = nil
+			note(`TowerBest.{tostring(id)}: dropped`)
+		end
+	end
+	local attributes, changed = AttributeRules.repair(data.Attributes, data.Level, data.TowerPoints)
 	if changed then
 		note("Attributes: repaired")
 	end

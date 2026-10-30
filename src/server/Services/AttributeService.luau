@@ -45,7 +45,7 @@ local function onSpend(player: Player, adds: { [string]: number })
 	if data == nil then
 		return
 	end
-	local ok, result = AttributeRules.spend(data.Attributes, adds, data.Level)
+	local ok, result = AttributeRules.spend(data.Attributes, adds, data.Level, data.TowerPoints)
 	if not ok then
 		if result == "points" then
 			notify(player, "Warning", "attributes.noPoints")
@@ -126,7 +126,7 @@ function AttributeService:Start()
 		if data == nil then
 			return
 		end
-		local repaired, changed = AttributeRules.repair(data.Attributes, data.Level)
+		local repaired, changed = AttributeRules.repair(data.Attributes, data.Level, data.TowerPoints)
 		if changed then
 			-- More spent than the new level gives (level set down): all back.
 			data.Attributes = repaired

@@ -16,6 +16,10 @@ return function(t)
 			t.eq(MobAttacks.setFor("Serpent", "Gorgon"), "Serpent")
 			t.eq(MobAttacks.setFor("Golem", nil), "Brute", "no mesh: by body")
 			t.eq(MobAttacks.setFor("Sprite", nil), "Sprite")
+			-- D-133: the undead.
+			t.eq(MobAttacks.setFor("Guardian", "Skeleton"), "Undead")
+			t.eq(MobAttacks.setFor("Guardian", "DeathLord"), "Undead")
+			t.eq(MobAttacks.setFor("Guardian", "Zombie"), "Ghoul")
 			for name, moves in MobAttacks.Sets do
 				t.ok(#moves >= 1, name)
 				for _, move in moves do

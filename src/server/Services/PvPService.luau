@@ -30,6 +30,8 @@
 	Field creatures: camps from WorldLayout.WarZones (levels 25-30, D-49)
 	respawn after PvP.CampRespawnSeconds; kill EXP is shared with the
 	killer's party / union nearby (D-32, D-48).
+	With the level 60 cap on (D-133, Logic/ZoneLevels) camps spawn 30
+	levels higher (55-60) and bosses at 60, grown gently like the Spire's.
 	Bosses (D-49): five per zone, levels 30-50, with BossService abilities
 	and enrage (Logic/BossBalance tiers); each returns PvP.BossRespawnMinutes
 	after it falls (Studio: StudioBossRespawnSeconds). A billboard over each
@@ -500,6 +502,8 @@ local function spawnBoss(
 			return bossRespawnSeconds() * EventService:Factor("BossRespawn", nil, eventZone)
 		end,
 		xpRecipients = groupRecipients,
+		-- D-133: war-zone levels follow the level 60 cap.
+		capScaled = true,
 		onSpawn = function(mob)
 			local boss = BossService:Attach(mob, spec.enemy, zone.id, announce)
 			if boss then
@@ -574,8 +578,11 @@ function PvPService:SpawnEventBoss(zoneId: string, enemyId: string, x: number, z
 	local c = zone.center
 	local px, pz = c[1] + x, c[3] + z
 	local ground = Vector3.new(px, WarZoneTerrain.groundY(zone, px, pz), pz)
-	local mob =
-		MobService:Spawn(enemyId, CFrame.new(ground), { owner = zone.id, xpRecipients = groupRecipients })
+	local mob = MobService:Spawn(
+		enemyId,
+		CFrame.new(ground),
+		{ owner = zone.id, xpRecipients = groupRecipients, capScaled = true }
+	)
 	if mob == nil then
 		return nil
 	end
@@ -618,7 +625,7 @@ function PvPService:SpawnEventCreature(
 	return MobService:Spawn(
 		enemyId,
 		CFrame.new(ground),
-		{ owner = zone.id, level = level, xpRecipients = groupRecipients }
+		{ owner = zone.id, level = level, xpRecipients = groupRecipients, capScaled = true }
 	)
 end
 
@@ -690,6 +697,7 @@ function PvPService:Start()
 					end,
 					xpRecipients = groupRecipients,
 					level = camp.level,
+					capScaled = true,
 				}
 			)
 		end

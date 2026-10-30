@@ -1156,6 +1156,7 @@ function ShopController:Start()
 			and NpcDefinitions.get(payload.Npc)
 			and payload.Npc ~= "Auctioneer"
 			and payload.Npc ~= "Sage"
+			and payload.Npc ~= "Tower"
 		then
 			open(payload.Npc)
 		end
