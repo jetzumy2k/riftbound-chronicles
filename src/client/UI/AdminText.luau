@@ -47,6 +47,14 @@ AdminText.SECTIONS = {
 		title = "🛍️ Merchant",
 		help = "Gold prices of the capital Merchant: potions, gear it sells (Standard / Uncommon / Rare) and what it pays for gear.",
 	},
+	Progression = {
+		title = "🆙 Level cap",
+		help = "Level 60: turn on to raise the level cap from 30 to 60 (levels 31-60 grow gently, new gear tiers, the level 31-60 dungeon and Tower floors). Off: EXP stops at 30. Turning it off later keeps players' levels.",
+	},
+	Puzzle = {
+		title = "🧩 Puzzle Sage",
+		help = "The daily puzzle (one Legendary reward per character a day).",
+	},
 	Auction = {
 		title = "🏛️ Auction market",
 		help = "Listing limits, the listing fee, the sale fee and the smallest raise between bids (all in Gold).",

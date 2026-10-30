@@ -75,6 +75,16 @@ NpcDefinitions.List = table.freeze({
 		at = table.freeze({ 0, 0, 44 }),
 		look = "Mage",
 	}),
+	-- D-128: the daily puzzle (PuzzleService).
+	table.freeze({
+		id = "Sage",
+		names = table.freeze({ Angel = "Puzzle Sage Orin", Devil = "Puzzle Sage Ixa" }),
+		title = "Daily puzzle",
+		icon = "🧩",
+		prompt = "Puzzle",
+		at = table.freeze({ 0, 0, -44 }),
+		look = "Mage",
+	}),
 	-- D-119: gives the trial chain (ChainQuestService).
 	table.freeze({
 		id = "Warden",

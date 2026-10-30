@@ -144,7 +144,7 @@ return function(t)
 			data.Characters["3"] = { Job = "Pirate" }
 			local notes = ProfileValidator.repair(data)
 			t.ok(#notes >= 3)
-			t.ok(data.Characters["2"].Level <= 30, "level clamped")
+			t.ok(data.Characters["2"].Level <= 60, "level clamped")
 			t.eq(data.Characters["1"], nil, "never the played slot twice")
 			t.eq(data.Characters["7"], nil, "no slot 7")
 			t.eq(data.Characters["3"], nil, "unknown class dropped")

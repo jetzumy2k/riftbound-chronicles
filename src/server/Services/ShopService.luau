@@ -107,7 +107,7 @@ function ShopService:Near(player: Player, data: { [string]: any }, id: string): 
 end
 
 local function level(data: { [string]: any }): number
-	return math.clamp(data.Level or 0, 0, 30)
+	return math.clamp(data.Level or 0, 0, 60)
 end
 
 -- The def and item level the Merchant makes for this piece, or nil.

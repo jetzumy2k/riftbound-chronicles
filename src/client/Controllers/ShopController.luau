@@ -1151,7 +1151,12 @@ end
 function ShopController:Start()
 	Panels.register("shop", close)
 	NetClient.on("NpcOpen", function(payload: any)
-		if type(payload) == "table" and NpcDefinitions.get(payload.Npc) and payload.Npc ~= "Auctioneer" then
+		if
+			type(payload) == "table"
+			and NpcDefinitions.get(payload.Npc)
+			and payload.Npc ~= "Auctioneer"
+			and payload.Npc ~= "Sage"
+		then
 			open(payload.Npc)
 		end
 	end)

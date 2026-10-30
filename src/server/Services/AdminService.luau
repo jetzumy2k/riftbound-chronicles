@@ -58,7 +58,7 @@ local LootRules = require(Shared.Logic.LootRules)
 local RouletteRules = require(Shared.Logic.RouletteRules)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local QuestDefinitions = require(Shared.Definitions.QuestDefinitions)
-local Constants = require(Shared.Constants)
+local LevelCap = require(Shared.Logic.LevelCap)
 local Log = require(Shared.Util.Log)
 
 local Roles = require(script.Parent.Parent.Config.Roles)
@@ -300,7 +300,12 @@ local function onPlayerAction(actor: Player, userId: number, action: string, arg
 	local number = args.Number
 	local before, after: any = nil, nil
 	if action == "SetLevel" then
-		if number == nil or number < 0 or number > Constants.Level.Max then
+		-- D-129: up to the live cap (60 only with the level 60 switch).
+		if
+			number == nil
+			or number < 0
+			or number > LevelCap.of(ConfigurationService:Get("Progression").Level60)
+		then
 			return fail("value")
 		end
 		before = data.Level

@@ -14,7 +14,7 @@ return function(t)
 		local data = ProfileTemplate.new()
 		data.Race = "Angel"
 		data.Job = "Healer"
-		data.Level = 30
+		data.Level = 60
 		local view = ProfileView.snapshot(data)
 		t.ok(Schema.validateArgs(Registry.ProfileSnapshot.args, 1, { view }))
 		t.eq(view.XPToNext, 0)

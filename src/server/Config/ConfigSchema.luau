@@ -110,6 +110,14 @@ return function(S: any)
 			RepairLevelStepPct = S.int(0, 500),
 		}),
 
+		Progression = S.struct({
+			Level60 = S.boolean(),
+		}),
+
+		Puzzle = S.struct({
+			Enabled = S.boolean(),
+		}),
+
 		Auction = S.struct({
 			Enabled = S.boolean(),
 			MinLevel = S.int(0, 30),

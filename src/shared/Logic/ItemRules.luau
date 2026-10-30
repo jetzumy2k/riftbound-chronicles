@@ -32,6 +32,7 @@
 local Shared = script.Parent.Parent
 local Enums = require(Shared.Enums)
 local Constants = require(Shared.Constants)
+local LevelCap = require(script.Parent.LevelCap)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local WeaponRules = require(Shared.Definitions.WeaponRules)
@@ -289,7 +290,7 @@ end
 ]]
 function ItemRules.bounds(stat: string, rarity: string, itemLevel: number): (number, number)
 	local spec = ItemRules.STATS[stat]
-	local scale = ItemRules.RANGE_SCALE[rarity] * spec.growth ^ itemLevel
+	local scale = ItemRules.RANGE_SCALE[rarity] * spec.growth ^ LevelCap.gearLevel(itemLevel)
 	local lo = math.max(spec.step, roundStep(spec.min * scale, spec.step))
 	local hi = math.max(lo, roundStep(spec.max * scale, spec.step))
 	return clean(lo, spec.step), clean(hi, spec.step)
@@ -543,14 +544,16 @@ function ItemRules.baseStats(def: ItemDef, rarity: string, itemLevel: number, en
 	if def.category == "Weapon" then
 		local rule = WeaponRules.get(def.family)
 		local hands = if rule and rule.hands == "Two" then TWO_HANDED_SCALE else 1
-		out.Attack = math.floor(WEAPON_ATTACK * hands * growth.AttackMultiplier ^ itemLevel * scale + 0.5)
-			+ plus.WeaponAttackPerLevel * enhancement
+		out.Attack = math.floor(
+			WEAPON_ATTACK * hands * growth.AttackMultiplier ^ LevelCap.gearLevel(itemLevel) * scale + 0.5
+		) + plus.WeaponAttackPerLevel * enhancement
 		out.CritDamage = plus.CritDamagePctPerLevel * enhancement
 	else
 		local base = ARMOR_BASE[def.slot]
-		out.Defense = math.floor(base.Defense * growth.DefenseMultiplier ^ itemLevel * scale + 0.5)
-			+ plus.ArmorDefensePerLevel * enhancement
-		out.MaxHP = math.floor(base.MaxHP * growth.HPMultiplier ^ itemLevel * scale + 0.5)
+		out.Defense = math.floor(
+			base.Defense * growth.DefenseMultiplier ^ LevelCap.gearLevel(itemLevel) * scale + 0.5
+		) + plus.ArmorDefensePerLevel * enhancement
+		out.MaxHP = math.floor(base.MaxHP * growth.HPMultiplier ^ LevelCap.gearLevel(itemLevel) * scale + 0.5)
 	end
 	return out
 end

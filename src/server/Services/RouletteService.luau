@@ -22,7 +22,7 @@ local RouletteRules = require(Shared.Logic.RouletteRules)
 local AttributeRules = require(Shared.Logic.AttributeRules)
 local BuffRules = require(Shared.Logic.BuffRules)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
-local Constants = require(Shared.Constants)
+local LevelCap = require(Shared.Logic.LevelCap)
 local Log = require(Shared.Util.Log)
 
 local ConfigurationService = require(script.Parent.ConfigurationService)
@@ -72,7 +72,10 @@ end
 
 -- Gives `prize`; returns what the player got, in words.
 local function give(player: Player, data: { [string]: any }, prize: string): string
-	if prize == "Level" and (data.Level or 0) >= Constants.Level.Max then
+	if
+		prize == "Level"
+		and (data.Level or 0) >= LevelCap.of(ConfigurationService:Get("Progression").Level60)
+	then
 		prize = "Consumable"
 	end
 	if prize == "Standard" or prize == "Rare" or prize == "Legendary" then

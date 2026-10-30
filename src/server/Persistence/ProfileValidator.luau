@@ -184,6 +184,8 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
+	-- D-128
+	fixInt(data, "PuzzleDay", 0, math.huge, 0, "PuzzleDay", note)
 	-- D-122: auction escrow entries (resolved by AuctionService on load).
 	for key, entry in data.Escrow do
 		if

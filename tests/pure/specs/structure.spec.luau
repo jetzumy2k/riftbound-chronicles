@@ -290,6 +290,8 @@ return function(t)
 				Auction = true,
 				-- D-126: the quick potion setting (an enum of potion ids).
 				SetQuickPotion = true,
+				-- D-128: the puzzle (made and checked on the server).
+				Puzzle = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

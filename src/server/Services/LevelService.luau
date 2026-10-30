@@ -16,6 +16,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Constants = require(Shared.Constants)
+local LevelCap = require(Shared.Logic.LevelCap)
+local ConfigurationService = require(script.Parent.ConfigurationService)
 local XPTable = require(Shared.Logic.XPTable)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
@@ -81,7 +83,9 @@ function LevelService:GrantXP(player: Player, amount: number, source: string): (
 
 	-- Synchronous read-modify-write.
 	local oldLevel = data.Level
-	local result = XPTable.apply(data.Level, data.Experience, amount)
+	-- D-129: the live cap (30, or 60 with the admin switch).
+	local cap = LevelCap.of(ConfigurationService:Get("Progression").Level60)
+	local result = XPTable.apply(data.Level, data.Experience, amount, cap)
 	data.Level = result.level
 	data.Experience = result.experience
 	data.TotalExperience += result.applied

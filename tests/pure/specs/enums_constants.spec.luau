@@ -44,9 +44,10 @@ return function(t)
 	end)
 
 	t.describe("Constants match CLAUDE.md", function()
-		t.it("levels 0..30", function()
+		t.it("levels 0..30, up to 60 with the level 60 switch (D-129)", function()
 			t.eq(Constants.Level.Min, 0)
-			t.eq(Constants.Level.Max, 30)
+			t.eq(Constants.Level.Base, 30)
+			t.eq(Constants.Level.Max, 60)
 		end)
 
 		t.it("base stats (§5)", function()

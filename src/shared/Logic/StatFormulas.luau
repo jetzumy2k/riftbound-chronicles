@@ -23,6 +23,7 @@
 ]]
 
 local Constants = require(script.Parent.Parent.Constants)
+local LevelCap = require(script.Parent.LevelCap)
 
 export type BaseStats = {
 	MaxHP: number,
@@ -50,11 +51,15 @@ function StatFormulas.forLevel(level: number): BaseStats
 	)
 
 	local critDamagePct = BASE.CritDamagePct + GROWTH.CritDamagePctPerLevel * level
+	-- D-129: past level 30 the gentle growth (LevelCap.GENTLE) on top of the
+	-- level 30 value; levels 0..30 are unchanged.
+	local core = math.min(level, Constants.Level.Base)
+	local past = math.max(0, level - Constants.Level.Base)
 
 	return table.freeze({
-		MaxHP = BASE.HP * GROWTH.HPMultiplier ^ level,
-		Attack = BASE.Attack * GROWTH.AttackMultiplier ^ level,
-		Defense = BASE.Defense * GROWTH.DefenseMultiplier ^ level,
+		MaxHP = BASE.HP * GROWTH.HPMultiplier ^ core * LevelCap.GENTLE.HP ^ past,
+		Attack = BASE.Attack * GROWTH.AttackMultiplier ^ core * LevelCap.GENTLE.Attack ^ past,
+		Defense = BASE.Defense * GROWTH.DefenseMultiplier ^ core * LevelCap.GENTLE.Defense ^ past,
 		CritDamagePct = critDamagePct,
 		HPRegenPct = BASE.HPRegenPct + GROWTH.HPRegenPctPerLevel * level,
 		CritChancePct = CRIT.BaseChancePct,
@@ -71,7 +76,9 @@ function StatFormulas.forCreatureLevel(level: number): BaseStats
 		type(level) == "number" and level % 1 == 0 and level >= 0 and level <= StatFormulas.CREATURE_MAX,
 		`invalid creature level {tostring(level)}`
 	)
-	if level <= Constants.Level.Max then
+	-- Creatures above 30 keep their original (steep) formula (D-129: the
+	-- existing floor-4 and war-zone bosses stay as balanced).
+	if level <= Constants.Level.Base then
 		return StatFormulas.forLevel(level)
 	end
 	local critDamagePct = BASE.CritDamagePct + GROWTH.CritDamagePctPerLevel * level

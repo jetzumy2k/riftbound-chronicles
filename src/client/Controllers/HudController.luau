@@ -22,6 +22,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
+local LevelCap = require(Shared.Logic.LevelCap)
+-- D-129: forward declaration (defined beside render).
+local liveCap: () -> number
 local TopBarLayout = require(Shared.Layout.TopBarLayout)
 
 local UI = script.Parent.Parent.UI
@@ -137,7 +140,7 @@ local function build()
 	})
 	Tooltip.attach(levelPanel, function()
 		local s = PlayerDataController:Get()
-		if s.Level >= Constants.Level.Max then
+		if s.Level >= liveCap() then
 			return `Level {s.Level} (max)`, "You've reached the top level."
 		end
 		return `Level {s.Level}`,
@@ -313,10 +316,16 @@ local function bindCharacter(character: Model?)
 	end
 end
 
+-- D-129: the live level cap the server mirrors (30, or 60 with the switch).
+function liveCap(): number
+	local cap = ReplicatedStorage:GetAttribute(LevelCap.ATTRIBUTE)
+	return if type(cap) == "number" then cap else Constants.Level.Base
+end
+
 function render(state: PlayerDataController.State)
 	levelText.Text = tostring(state.Level)
 	local ratio
-	if state.Level >= Constants.Level.Max then
+	if state.Level >= liveCap() then
 		xpText.Text = "MAX LEVEL"
 		ratio = 1
 	elseif state.XPToNext > 0 then

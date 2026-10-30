@@ -34,11 +34,11 @@ return function(t)
 	end)
 
 	t.describe("progression", function()
-		t.it("clamps level above 30", function()
+		t.it("clamps level above the top level (60)", function()
 			local data = fresh()
 			data.Level = 99
 			ProfileValidator.repair(data)
-			t.eq(data.Level, 30)
+			t.eq(data.Level, 60)
 			t.eq(data.Experience, 0)
 		end)
 
@@ -74,9 +74,9 @@ return function(t)
 			t.eq(data.Experience, 99)
 		end)
 
-		t.it("experience at level 30 is always 0", function()
+		t.it("experience at the top level (60) is always 0", function()
 			local data = fresh()
-			data.Level = 30
+			data.Level = 60
 			data.Experience = 10
 			ProfileValidator.repair(data)
 			t.eq(data.Experience, 0)

@@ -43,6 +43,7 @@ local Log = require(Shared.Util.Log)
 
 local AuditLogService = require(script.Parent.AuditLogService)
 local ConfigurationService = require(script.Parent.ConfigurationService)
+local LevelCap = require(Shared.Logic.LevelCap)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local InventoryService = require(script.Parent.InventoryService)
@@ -104,9 +105,14 @@ local function stoneTableFor(id: string): LootRules.StoneTable
 	return STONE_FALLBACK[id]
 end
 
+-- D-129: the live level cap (drops never above it).
+local function levelCap(): number
+	return LevelCap.of(ConfigurationService:Get("Progression").Level60)
+end
+
 -- No loot where the level gap gives no EXP (D-63); `capGap` for bosses above 30.
 local function earns(level: number, playerLevel: number, capGap: boolean?): boolean
-	local gapLevel = if capGap then math.min(level, LootRules.itemLevelFor(level)) else level
+	local gapLevel = if capGap then math.min(level, LootRules.itemLevelFor(level, levelCap())) else level
 	return LevelGap.tierFor(gapLevel, playerLevel).percent > 0
 end
 
@@ -125,7 +131,7 @@ local function rollFor(player: Player, tableId: string, level: number, source: s
 	if rarity == nil then
 		return nil
 	end
-	local itemLevel = LootRules.itemLevelFor(level)
+	local itemLevel = LootRules.itemLevelFor(level, levelCap())
 	local def = LootRules.pickPiece(data.Job, data.Race, itemLevel, random:NextNumber(), random:NextNumber())
 	if def == nil then
 		return nil

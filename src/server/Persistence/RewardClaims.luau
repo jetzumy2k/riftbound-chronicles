@@ -34,6 +34,7 @@ RewardClaims.RETENTION_SECONDS = table.freeze({
 	A = 30 * DAY, -- admin grant (auditId)
 	R = false, -- Robux purchase receipt (PurchaseId, D-93): never paid twice
 	C = 60 * DAY, -- D-119: a finished Warden chain (C:<n>)
+	P = 3 * DAY, -- D-128: the day's rewarded puzzle (P:<day>)
 	M = 180 * DAY, -- D-122: an auction mailbox delivery (M:<delivery id>)
 	S = 400 * DAY, -- staff pay period (D-112: W<week> / M<year>-<month>)
 } :: { [string]: number | false })

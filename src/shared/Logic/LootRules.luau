@@ -215,9 +215,10 @@ function LootRules.rollStone(t: StoneTable, dropRoll: number, stoneRoll: number)
 	return last
 end
 
--- The item level a creature's drop gets (players cap at 30).
-function LootRules.itemLevelFor(creatureLevel: number): number
-	return math.clamp(math.floor(creatureLevel), 0, 30)
+-- The item level a creature's drop gets: at most the live level cap (30,
+-- or 60 with the admin switch, D-129), so drops can always be worn.
+function LootRules.itemLevelFor(creatureLevel: number, cap: number?): number
+	return math.clamp(math.floor(creatureLevel), 0, cap or 30)
 end
 
 return table.freeze(LootRules)

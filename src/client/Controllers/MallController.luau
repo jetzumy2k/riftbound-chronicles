@@ -37,6 +37,7 @@ local Constants = require(Shared.Constants)
 local BuffRules = require(Shared.Logic.BuffRules)
 local ItemRules = require(Shared.Logic.ItemRules)
 local MallGear = require(Shared.Logic.MallGear)
+local LevelCap = require(Shared.Logic.LevelCap)
 local OverlayLayout = require(Shared.Layout.OverlayLayout)
 local MallLayout = require(Shared.Layout.MallLayout)
 local NetClient = require(Shared.Net.Client)
@@ -444,7 +445,8 @@ local function detail(parent: Instance, choice: Choice)
 			end
 		end
 		local levels = {}
-		for _, l in MallGear.LEVELS do
+		local capNow = ReplicatedStorage:GetAttribute(LevelCap.ATTRIBUTE)
+		for _, l in MallGear.levels(if type(capNow) == "number" then capNow else 30) do
 			table.insert(levels, { id = l, text = if l > st.Level then `Lv {l} 🔒` else `Lv {l}` })
 		end
 		choiceRow("Level (it can be worn from this level)", levels, gearChoice.Bracket, function(v)

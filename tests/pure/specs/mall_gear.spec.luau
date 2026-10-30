@@ -59,5 +59,28 @@ return function(t)
 			t.eq(select(2, ItemRules.canEquip(item, "Mage", "Angel", 29)), "level")
 			t.ok(ItemRules.canEquip(item, "Mage", "Angel", 30))
 		end)
+		t.it(
+			"level 60 cap: gear tiers 4-6, Mall tiers 40-60 and drops follow the live cap (D-129)",
+			function()
+				local ItemDefinitions = load("src/shared/Definitions/ItemDefinitions")
+				local LootRules = load("src/shared/Logic/LootRules")
+				local LevelCap = load("src/shared/Logic/LevelCap")
+				t.eq(ItemDefinitions.tierFor(45), 5)
+				t.ok(ItemDefinitions.defFor("Mage", "Chest", nil, 55) ~= nil, "Lv 55 armor exists")
+				t.eq(#MallGear.levels(30), 4)
+				t.eq(#MallGear.levels(60), 7)
+				t.eq(
+					select(2, MallGear.bracketOf({ Bracket = 40 }, 30, 30)),
+					"bracket",
+					"no Lv 40 gear while the cap is 30"
+				)
+				t.eq(LootRules.itemLevelFor(45), 30, "cap 30: drops stay wearable")
+				t.eq(LootRules.itemLevelFor(45, 60), 45)
+				t.eq(LevelCap.gearLevel(30), 30)
+				t.near(LevelCap.gearLevel(40), 33, 1e-9)
+				t.eq(LevelCap.of(true), 60)
+				t.eq(LevelCap.of(false), 30)
+			end
+		)
 	end)
 end

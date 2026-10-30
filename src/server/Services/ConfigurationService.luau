@@ -25,6 +25,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage.Shared
 local Constants = require(Shared.Constants)
 local MallDefinitions = require(Shared.Definitions.MallDefinitions)
+local LevelCap = require(Shared.Logic.LevelCap)
 local Schema = require(Shared.Logic.Schema)
 local Log = require(Shared.Util.Log)
 local Signal = require(Shared.Util.Signal)
@@ -70,6 +71,8 @@ local function publishVersion()
 		Constants.Attributes.FreeAttributeReset,
 		effective.Skills.FreeAttributeReset == true
 	)
+	-- D-129: the live level cap (30 / 60), for the HUD and the Mall.
+	ReplicatedStorage:SetAttribute(LevelCap.ATTRIBUTE, LevelCap.of(effective.Progression.Level60))
 	-- D-109: the price each Mall card shows (the server charges its own).
 	for _, entry in MallDefinitions.CATALOG do
 		ReplicatedStorage:SetAttribute(

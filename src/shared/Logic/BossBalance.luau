@@ -73,13 +73,13 @@ end
 
 -- Players expected to fight a boss of `bossLevel`.
 function BossBalance.referenceLevel(bossLevel: number): number
-	return math.clamp(bossLevel, 0, Constants.Level.Max)
+	return math.clamp(bossLevel, 0, Constants.Level.Base)
 end
 
 -- Modelled damage per second of one reference player against `defense`.
 function BossBalance.playerDps(level: number, defense: number): number
 	local attack = StatFormulas.forLevel(level).Attack
-	local coefficient = BossBalance.CHAIN_COEF * (1 + BossBalance.SKILL_BONUS * level / Constants.Level.Max)
+	local coefficient = BossBalance.CHAIN_COEF * (1 + BossBalance.SKILL_BONUS * level / Constants.Level.Base)
 	-- D-95: a player in a normal drop kit (GEAR_FACTOR), not bare.
 	return coefficient
 		* BossBalance.GEAR_FACTOR

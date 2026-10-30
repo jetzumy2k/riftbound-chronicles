@@ -297,7 +297,7 @@ function InventoryService:GrantRandomPiece(player: Player, rarity: string, sourc
 		end
 		family = families[pieceRandom:NextInteger(1, #families)]
 	end
-	local level = math.clamp(data.Level or 0, 0, 30)
+	local level = math.clamp(data.Level or 0, 0, Constants.Level.Max)
 	local def = ItemDefinitions.defFor(job, kind, family, level)
 	if def == nil then
 		return nil

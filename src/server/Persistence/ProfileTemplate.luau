@@ -99,6 +99,9 @@ function ProfileTemplate.new(): { [string]: any }
 		BonusAttributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
 		Roulette = { Day = 0, Used = 0 },
 
+		-- D-128: the UTC day the rewarded puzzle was last started.
+		PuzzleDay = 0,
+
 		-- D-122: items / Gold on their way into the auction (key -> entry),
 		-- kept until the shared store confirms it (AuctionService).
 		Escrow = {},

@@ -11,6 +11,7 @@
 ]]
 
 local Constants = require(script.Parent.Parent.Constants)
+local LevelCap = require(script.Parent.LevelCap)
 
 local MAX_LEVEL: number = Constants.Level.Max
 local BASE: number = Constants.Experience.Base
@@ -30,8 +31,12 @@ local XPTable = {}
 
 local toNextByLevel: { [number]: number } = {}
 local totalToReach: { [number]: number } = { [0] = 0 }
+local BASE_LEVEL: number = Constants.Level.Base
 for level = 0, MAX_LEVEL - 1 do
-	toNextByLevel[level] = math.round(BASE * GROWTH ^ level)
+	-- D-129: past 30, +6 % a level from the last original step.
+	toNextByLevel[level] = if level < BASE_LEVEL
+		then math.round(BASE * GROWTH ^ level)
+		else math.round(BASE * GROWTH ^ (BASE_LEVEL - 1) * LevelCap.XP_GROWTH ^ (level - BASE_LEVEL + 1))
 	totalToReach[level + 1] = totalToReach[level] + toNextByLevel[level]
 end
 
@@ -59,7 +64,7 @@ XPTable.CREATURE_SCALE_BASE = 0.2
 XPTable.CREATURE_SCALE_DECAY = 0.905
 
 function XPTable.creatureScale(level: number): number
-	return XPTable.CREATURE_SCALE_BASE * XPTable.CREATURE_SCALE_DECAY ^ math.clamp(level, 0, MAX_LEVEL)
+	return XPTable.CREATURE_SCALE_BASE * XPTable.CREATURE_SCALE_DECAY ^ math.clamp(level, 0, BASE_LEVEL)
 end
 
 --[[
@@ -76,17 +81,19 @@ end
 	(integer level 0..Max, experience within the level, amount >= 0).
 	Handles multi-level gains and the cap.
 ]]
-function XPTable.apply(level: number, experience: number, amount: number): ApplyResult
+function XPTable.apply(level: number, experience: number, amount: number, cap: number?): ApplyResult
+	-- D-129: the live cap (30, or 60 with the admin switch); never above Max.
+	local top = math.clamp(cap or BASE_LEVEL, 0, MAX_LEVEL)
 	local startLevel = level
 	local xp = experience + amount
 
-	while level < MAX_LEVEL and xp >= toNextByLevel[level] do
+	while level < top and xp >= toNextByLevel[level] do
 		xp -= toNextByLevel[level]
 		level += 1
 	end
 
 	local discarded = 0
-	if level >= MAX_LEVEL then
+	if level >= top then
 		discarded = xp
 		xp = 0
 	end

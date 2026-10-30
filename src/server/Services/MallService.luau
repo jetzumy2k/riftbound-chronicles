@@ -32,6 +32,7 @@ local Log = require(Shared.Util.Log)
 
 local AuditLogService = require(script.Parent.AuditLogService)
 local ConfigurationService = require(script.Parent.ConfigurationService)
+local LevelCap = require(Shared.Logic.LevelCap)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local InventoryService = require(script.Parent.InventoryService)
@@ -89,7 +90,7 @@ function MallService:GrantSet(player: Player, rarity: string, source: string): b
 	if data == nil or data.Job == nil then
 		return false
 	end
-	local pieces = MallGear.pieces(data.Job, data.Race, "Set", math.clamp(data.Level, 0, 30))
+	local pieces = MallGear.pieces(data.Job, data.Race, "Set", math.clamp(data.Level, 0, 60))
 	return pieces ~= nil and grantPieces(player, pieces, rarity, source)
 end
 
@@ -99,7 +100,7 @@ function MallService:SetSize(player: Player): number
 	if data == nil or data.Job == nil then
 		return 0
 	end
-	return #setPieces(data.Job, data.Race, math.clamp(data.Level, 0, 30))
+	return #setPieces(data.Job, data.Race, math.clamp(data.Level, 0, 60))
 end
 
 -- D-109: the admin's price for an entry, else the catalog's.
@@ -141,7 +142,11 @@ local function onBuy(player: Player, entryId: string, choice: MallGear.Choice?):
 	elseif MallGear.KINDS[grant.kind] then
 		-- D-124: armor package, weapon, off-hand or accessory, at the level
 		-- tier the buyer picked (equippable from that level).
-		local bracket, why = MallGear.bracketOf(choice, data.Level)
+		local bracket, why = MallGear.bracketOf(
+			choice,
+			data.Level,
+			LevelCap.of(ConfigurationService:Get("Progression").Level60)
+		)
 		if bracket == nil then
 			return { ok = false, reason = why }
 		end

@@ -23,7 +23,19 @@ local JobDefinitions = require(script.Parent.Parent.Definitions.JobDefinitions)
 
 local MallGear = {}
 
-MallGear.LEVELS = table.freeze({ 0, 10, 20, 30 })
+-- D-129: 40 / 50 / 60 only while the level 60 cap is on (MallGear.levels).
+MallGear.LEVELS = table.freeze({ 0, 10, 20, 30, 40, 50, 60 })
+
+-- The tiers on sale under the live level `cap`.
+function MallGear.levels(cap: number): { number }
+	local out = {}
+	for _, l in MallGear.LEVELS do
+		if l <= cap then
+			table.insert(out, l)
+		end
+	end
+	return out
+end
 MallGear.ARMOR = table.freeze({ "Helm", "Shoulders", "Chest", "Hands", "Legs", "Boots" })
 MallGear.ACCESSORIES = table.freeze({ "Necklace", "Earrings", "Ring" })
 MallGear.KINDS = table.freeze({ Set = true, Weapon = true, OffHand = true, Accessory = true })
@@ -132,12 +144,12 @@ end
 
 -- The level a Mall purchase makes its gear at (a valid tier, else the
 -- buyer's own default tier).
-function MallGear.bracketOf(choice: Choice?, playerLevel: number): (number?, string?)
+function MallGear.bracketOf(choice: Choice?, playerLevel: number, cap: number?): (number?, string?)
 	local bracket = choice and choice.Bracket
 	if bracket == nil then
 		return MallGear.defaultBracket(playerLevel), nil
 	end
-	if table.find(MallGear.LEVELS, bracket) == nil then
+	if table.find(MallGear.LEVELS, bracket) == nil or bracket > (cap or 30) then
 		return nil, "bracket"
 	end
 	return bracket, nil

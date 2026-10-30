@@ -10,9 +10,13 @@
 local Constants = {}
 
 -- CLAUDE.md §4
+-- D-129: Max is the highest level there can be (with the admin's level 60
+-- switch); Base is the original cap, still the cap while the switch is off
+-- (Logic/LevelCap).
 Constants.Level = table.freeze({
 	Min = 0,
-	Max = 30,
+	Max = 60,
+	Base = 30,
 })
 
 -- CLAUDE.md §5 (Level 0 values). Percent values are expressed in percent units:
@@ -75,7 +79,7 @@ Constants.Net = table.freeze({
 -- Attribute names set by the server on well-known instances.
 -- The build tag shown in Studio when the game starts (raise with each
 -- change the creator should see; D-127).
-Constants.BUILD = "D-127"
+Constants.BUILD = "D-129"
 
 -- D-118: gear durability (a new item has Max).
 Constants.Durability = table.freeze({

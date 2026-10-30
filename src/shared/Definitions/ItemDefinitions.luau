@@ -59,19 +59,23 @@ export type StackableDef = {
 
 local ItemDefinitions = {}
 
-ItemDefinitions.TIERS = 3
+-- D-129: tiers 4-6 for levels 31-60 (only reachable with the level 60 cap).
+ItemDefinitions.TIERS = 6
 ItemDefinitions.TIER_LEVELS = table.freeze({
 	table.freeze({ 0, 9 }),
 	table.freeze({ 10, 19 }),
 	table.freeze({ 20, 30 }),
+	table.freeze({ 31, 40 }),
+	table.freeze({ 41, 50 }),
+	table.freeze({ 51, 60 }),
 })
 
 -- Name prefix per job and tier.
 local PREFIX = {
-	Warrior = { "Recruit's", "Vanguard", "Warlord's" },
-	Healer = { "Acolyte's", "Mender's", "Saint's" },
-	Archer = { "Scout's", "Ranger's", "Hawkeye" },
-	Mage = { "Novice's", "Arcanist's", "Archmage's" },
+	Warrior = { "Recruit's", "Vanguard", "Warlord's", "Titan's", "Dreadlord's", "Riftbreaker" },
+	Healer = { "Acolyte's", "Mender's", "Saint's", "Oracle's", "Hierophant's", "Lightbringer" },
+	Archer = { "Scout's", "Ranger's", "Hawkeye", "Stormwind", "Phantom", "Starfall" },
+	Mage = { "Novice's", "Arcanist's", "Archmage's", "Spellweaver's", "Voidcaller's", "Riftsage" },
 }
 
 -- Armor and accessory nouns per job and kind. "Accessory" ids (the D-64

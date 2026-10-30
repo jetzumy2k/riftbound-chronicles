@@ -48,6 +48,7 @@ local CONTROLLER_ORDER = {
 	"ShopController",
 	"TradeController",
 	"AuctionController",
+	"PuzzleController",
 }
 
 Log.setLevel(if RunService:IsStudio() then "Debug" else "Info")

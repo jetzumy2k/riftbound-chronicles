@@ -547,6 +547,19 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 		},
 
+		-- D-128: the Puzzle Sage. The server makes the puzzle and replays the
+		-- moves (cell numbers) to check them; the reward is its decision.
+		Puzzle = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "Status", "Start", "Submit", "GiveUp" }),
+				S.optional(S.array(S.int(1, 25), 1500)),
+			},
+			rate = { capacity = 6, refillPerSecond = 1 },
+			states = { "ProfileLoaded" },
+		},
+
 		-- D-116: use a Race Conversion Rune: the realm to move to and the
 		-- typed confirmation (the server checks the rune, combat and realm).
 		ConvertRace = {

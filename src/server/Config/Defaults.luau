@@ -240,6 +240,14 @@ return {
 		RepairGoldPerPoint = { Standard = 1, Uncommon = 2, Rare = 4, Epic = 8, Legendary = 15, Mythical = 30 },
 		RepairLevelStepPct = 10,
 	},
+	-- D-129: the level 60 cap (off: EXP stops at 30 as always).
+	Progression = {
+		Level60 = false,
+	},
+	-- D-128: the Puzzle Sage (one rewarded solve a day per character).
+	Puzzle = {
+		Enabled = true,
+	},
 	-- D-122: the Auction market. Fees in Gold: ListFeePct % of the Buy Now
 	-- (or starting) price, at least MinListFee, paid when listing;
 	-- SaleFeePct % taken from the sale. Each bid at least MinRaisePct %

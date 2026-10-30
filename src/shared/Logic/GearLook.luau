@@ -113,7 +113,8 @@ function GearLook.fromEquipment(equipment: { [string]: any }?, inventory: { [str
 		local def = if type(item) == "table" then ItemDefinitions.get(item.DefId) else nil
 		if def and ItemRules.fitsSlot(def, slot) then
 			look[slot] = {
-				tier = def.tier,
+				-- D-129: tiers 4-6 wear the tier 3 look (there are 3 models).
+				tier = math.min(def.tier, 3),
 				rarity = item.Rarity,
 				family = def.family,
 				kind = def.slot,
