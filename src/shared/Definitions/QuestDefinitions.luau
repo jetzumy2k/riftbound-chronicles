@@ -595,6 +595,10 @@ QuestDefinitions.Titles = table.freeze({
 	RiftVanguard = "Rift Vanguard",
 	RiftChampion = "Rift Champion",
 	TwinRealmLegend = "Twin Realm Legend",
+	-- D-134: past 500 victories.
+	RiftWarlord = "Rift Warlord",
+	RealmConqueror = "Realm Conqueror",
+	EternalWarbringer = "Eternal Warbringer",
 	-- Live event titles (Phase 18 stage 3, D-92).
 	TreasureSeeker = "Treasure Seeker",
 	KeenEye = "Keen Eye",

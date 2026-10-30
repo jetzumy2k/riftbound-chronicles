@@ -200,6 +200,7 @@ local STRINGS: { [string]: string } = {
 	["pvp.portal.level"] = "War zones open at level {level}.",
 	["pvp.victory"] = "Victory over {name}!",
 	["pvp.marks"] = "+{amount} PvP Marks.",
+	["pvp.title"] = "New war title: « {title} ». Titles and the war bonus: quest log (J).",
 	["pvp.enemyCamp"] = "That is the other realm's camp. You can't enter it.",
 	["party.invite.sent"] = "Invite sent to {name}.",
 	["party.invite.self"] = "You can't invite yourself.",
@@ -265,6 +266,7 @@ local KEY_ICONS: { [string]: string } = {
 	["loot.stone"] = "💎",
 	["loot.perfectStone"] = "💎",
 	["pvp.marks"] = "🏅",
+	["pvp.title"] = "🏅",
 	["pvp.entered"] = "🗡",
 	["pvp.guardWarning"] = "🛡️",
 }

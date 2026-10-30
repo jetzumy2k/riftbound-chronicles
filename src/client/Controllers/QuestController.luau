@@ -350,6 +350,8 @@ local function drawLog(body: ScrollingFrame)
 	text(
 		body,
 		`🗡 PvP: {victories} victories · {data.Wallet.PvPMarks} PvP Marks`
+			-- D-134: the war bonus from victories.
+			.. `  ·  war bonus +{PvPRules.attackPctFor(victories)}% Attack`
 			.. (
 				if nextTitle
 					then `  ·  next title « {QuestDefinitions.Titles[nextTitle]} » at {needed}`

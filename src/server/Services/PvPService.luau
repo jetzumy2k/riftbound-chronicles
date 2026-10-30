@@ -218,15 +218,27 @@ local function addMarks(player: Player, amount: number, source: string)
 	notify(player, "Info", "pvp.marks", { amount = tostring(amount) })
 end
 
--- Grants the victory titles `data` has earned but doesn't own yet.
+-- Grants the victory titles `data` has earned but doesn't own yet. D-134:
+-- the newest one is worn straight away (unless another kind of title is
+-- worn), and the war bonus is applied to combat.
 local function grantVictoryTitles(player: Player, data: any)
+	local newest: string? = nil
 	for _, title in PvPRules.titlesFor(data.PvPStats.Victories) do
 		if data.Titles[title] ~= true then
 			data.Titles[title] = true
+			newest = title
 			AuditLogService:Audit({ actorUserId = player.UserId, action = "TitleGranted", target = title })
-			notify(player, "Info", "quest.title", { title = QuestDefinitions.Titles[title] })
+			notify(player, "Info", "pvp.title", { title = QuestDefinitions.Titles[title] })
 		end
 	end
+	if newest and (data.EquippedTitle == nil or PvPRules.isVictoryTitle(data.EquippedTitle)) then
+		data.EquippedTitle = newest
+		player:SetAttribute("Title", QuestDefinitions.Titles[newest])
+	end
+	if newest then
+		PlayerDataService:PushSnapshot(player)
+	end
+	CombatService:RefreshStats(player)
 end
 
 local function recordDefeat(victim: Player, attacker: Player?, protectionEndedAgo: number?)

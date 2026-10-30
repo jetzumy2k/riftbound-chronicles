@@ -14,6 +14,7 @@ local ItemRules = require(ReplicatedStorage.Shared.Logic.ItemRules)
 local AttributeRules = require(ReplicatedStorage.Shared.Logic.AttributeRules)
 local BuffRules = require(ReplicatedStorage.Shared.Logic.BuffRules)
 local PassiveRules = require(ReplicatedStorage.Shared.Logic.PassiveRules)
+local PvPRules = require(ReplicatedStorage.Shared.Logic.PvPRules)
 
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
@@ -74,6 +75,12 @@ function StatsService:GetStats(player: Player): ItemRules.Stats?
 	local withPassives = PassiveRules.applyTo(withAttributes, data.OwnedSkills, data.Job)
 	-- D-93: running Mall stat buffs (Might, Iron, Vigor, Clarity).
 	local final = BuffRules.applyTo(withPassives, data.Buffs, os.time())
+	-- D-134: the war bonus from PvP victories (+1..5 % Attack).
+	local warPct = PvPRules.attackPctFor(data.PvPStats.Victories)
+	if warPct > 0 then
+		final = table.clone(final);
+		(final :: any).Attack *= 1 + warPct / 100
+	end
 	-- D-126: an admin's test override replaces the stat outright.
 	local mine = overrides[player]
 	if mine then
