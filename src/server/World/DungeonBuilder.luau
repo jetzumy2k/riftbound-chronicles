@@ -97,10 +97,11 @@ local THEMES: { [string]: Theme } = {
 		Color3.fromRGB(255, 190, 110),
 		Enum.Material.Cobblestone
 	),
+	-- Creator review 2026-10-28: lighter stone so creatures stand out.
 	Ember = theme(
-		Color3.fromRGB(78, 64, 60),
-		Color3.fromRGB(46, 38, 38),
-		Color3.fromRGB(64, 52, 50),
+		Color3.fromRGB(128, 104, 94),
+		Color3.fromRGB(98, 80, 74),
+		Color3.fromRGB(112, 92, 84),
 		Enum.Material.Basalt,
 		Color3.fromRGB(255, 120, 40),
 		Color3.fromRGB(255, 150, 70)
@@ -114,9 +115,9 @@ local THEMES: { [string]: Theme } = {
 		Color3.fromRGB(200, 236, 255)
 	),
 	Void = theme(
-		Color3.fromRGB(64, 56, 80),
-		Color3.fromRGB(38, 32, 50),
-		Color3.fromRGB(52, 46, 64),
+		Color3.fromRGB(108, 98, 128),
+		Color3.fromRGB(82, 74, 100),
+		Color3.fromRGB(96, 88, 114),
 		Enum.Material.Slate,
 		Color3.fromRGB(180, 110, 255),
 		Color3.fromRGB(220, 170, 255),
@@ -172,7 +173,7 @@ local function candelabra(parent: Instance, cf: CFrame, t: Theme, lit: boolean)
 			{ decor = true, shape = Enum.PartType.Ball }
 		)
 		if lit and x == 0 then
-			light(flame, t.flame, 28, 1.6)
+			light(flame, t.flame, 40, 2.2)
 		end
 	end
 end
@@ -415,7 +416,7 @@ local function buildRoom(parent: Instance, floor: Floor, room: Room, index: numb
 			accent(model, at(floor, cx + s * (w / 2 - 6), 0, cz + s * (d / 2 - 6)), t, floor.theme, seed + s)
 		end
 		local lamp = marker(model, "Lamp", Vector3.new(1, 1, 1), at(floor, cx, h - 6, cz))
-		light(lamp, t.glow, 40, 1.4)
+		light(lamp, t.glow, 56, 2.2)
 	else
 		-- Pillars down both long sides, candelabras between them.
 		local pillars = math.max(2, math.floor(d / 26))
@@ -456,7 +457,7 @@ local function buildRoom(parent: Instance, floor: Floor, room: Room, index: numb
 				Enum.Material.Neon,
 				{ decor = true, transparency = 0.15 }
 			)
-			light(crystal, t.glow, 60, 2)
+			light(crystal, t.glow, 60, 2.6)
 		end
 	end
 	roomVolume(model, floor, room, index)

@@ -19,6 +19,29 @@ local PlayerDataService = require(script.Parent.PlayerDataService)
 
 local StatsService = {}
 
+-- D-126: admin test overrides (Max HP / Attack / Defense) per player, for
+-- trying out events. Session only: never saved, gone when they leave.
+StatsService.OVERRIDABLE = table.freeze({ "MaxHP", "Attack", "Defense" })
+local overrides: { [Player]: any } = {}
+
+-- Sets (value > 0) or clears (nil / 0) an override for `stat`.
+function StatsService:SetOverride(player: Player, stat: string, value: number?)
+	if table.find(StatsService.OVERRIDABLE, stat) == nil then
+		return
+	end
+	local mine: any = overrides[player] or {}
+	mine[stat] = if value and value > 0 then value else nil
+	overrides[player] = if next(mine) then mine else nil
+end
+
+function StatsService:GetOverrides(player: Player): { [string]: number }
+	return table.clone(overrides[player] or {})
+end
+
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+	overrides[player] = nil
+end)
+
 --[[
 	Returns the player's base stats, or nil if their profile is not loaded.
 ]]
@@ -50,7 +73,16 @@ function StatsService:GetStats(player: Player): ItemRules.Stats?
 	-- D-104: learned class passives (always on, no bar slot).
 	local withPassives = PassiveRules.applyTo(withAttributes, data.OwnedSkills, data.Job)
 	-- D-93: running Mall stat buffs (Might, Iron, Vigor, Clarity).
-	return BuffRules.applyTo(withPassives, data.Buffs, os.time())
+	local final = BuffRules.applyTo(withPassives, data.Buffs, os.time())
+	-- D-126: an admin's test override replaces the stat outright.
+	local mine = overrides[player]
+	if mine then
+		final = table.clone(final)
+		for stat, value in mine do
+			(final :: any)[stat] = value
+		end
+	end
+	return final
 end
 
 return StatsService

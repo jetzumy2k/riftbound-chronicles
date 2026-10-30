@@ -224,6 +224,11 @@ function ProfileView.snapshot(data: { [string]: any }): { [string]: any }
 		-- D-93.
 		Buffs = ProfileView.buffs(data),
 		-- D-74: where the player moved their HUD pieces.
+		-- D-126
+		QuickPotion = if type(data.Settings) == "table"
+				and type(data.Settings.QuickPotion) == "string"
+			then data.Settings.QuickPotion
+			else "Auto",
 		HudLayout = if type(data.Settings) == "table" and type(data.Settings.HudLayout) == "table"
 			then table.clone(data.Settings.HudLayout)
 			else {},

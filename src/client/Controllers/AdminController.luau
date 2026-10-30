@@ -486,6 +486,35 @@ local function drawProgress(body: Instance, p: any)
 	numberAction(victories, "victories", "Victories", "Set victories", function(n)
 		act("SetVictories", { Number = n })
 	end)
+	-- D-126: test stats for trying out events (session only).
+	local stats = p.Stats or {}
+	local over = p.StatOverrides or {}
+	local function shown(stat: string): string
+		local v = stats[stat]
+		return `{if v then math.floor(v + 0.5) else "?"}{if over[stat] then " (override)" else ""}`
+	end
+	local test = card(
+		body,
+		"Test stats (this session only)",
+		`Now: Max HP {shown("MaxHP")} · Attack {shown("Attack")} · Defense {shown("Defense")}. Type a value and set it; 0 puts it back to normal. Overrides are never saved and end when the player leaves.`
+	)
+	local tr = row(test)
+	field(tr, "statValue", "Value", 120)
+	for _, stat in { { "MaxHP", "Set Max HP" }, { "Attack", "Set Attack" }, { "Defense", "Set Defense" } } do
+		button(tr, stat[2], 120, "gold", function()
+			local n = numberIn("statValue")
+			if n == nil or n < 0 then
+				setStatus("❗ Type a whole number (0 = normal).", true)
+				return
+			end
+			act("SetStat", { Stat = stat[1], Number = n })
+		end)
+	end
+	button(tr, "All normal", 110, nil, function()
+		for _, stat in { "MaxHP", "Attack", "Defense" } do
+			act("SetStat", { Stat = stat, Number = 0 })
+		end
+	end)
 	local wallet = card(
 		body,
 		"Gold, PvP Marks and Mall Points",

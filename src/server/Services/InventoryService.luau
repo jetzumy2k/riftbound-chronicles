@@ -45,6 +45,7 @@ local AuditLogService = require(script.Parent.AuditLogService)
 local NetService = require(script.Parent.NetService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local EventService = require(script.Parent.EventService)
+local LevelService = require(script.Parent.LevelService)
 local RaceService = require(script.Parent.RaceService)
 local JobService = require(script.Parent.JobService)
 local CombatService = require(script.Parent.CombatService)
@@ -674,11 +675,13 @@ end
 
 -- On load: anything equipped the character can no longer wear (an admin
 -- job change, D-21) goes back to the bag.
-local function checkEquipped(player: Player, data: { [string]: any })
+local function checkEquipped(player: Player, data: { [string]: any }): number
+	local removed = 0
 	for slot, guid in data.Equipment do
 		local item = data.Inventory[guid]
 		if item == nil or not ItemRules.canEquip(item, data.Job, data.Race, data.Level) then
 			data.Equipment[slot] = nil
+			removed += 1
 			log:Warn(
 				"user=%d unequipped %s from %s (no longer wearable)",
 				player.UserId,
@@ -687,6 +690,7 @@ local function checkEquipped(player: Player, data: { [string]: any })
 			)
 		end
 	end
+	return removed
 end
 
 --------------------------------------------------------------------------------
@@ -700,12 +704,32 @@ function InventoryService:Init()
 	NetService:Handle("LockItem", onLock)
 	NetService:Handle("CombineFragments", onCombine)
 	NetService:Handle("UseConsumable", onUseConsumable)
+	-- D-126: the quick potion button's choice (a setting).
+	NetService:Handle("SetQuickPotion", function(player: Player, choice: string)
+		local data = PlayerDataService:GetData(player)
+		if data and PotionRules.isChoice(choice) then
+			data.Settings.QuickPotion = choice
+		end
+	end)
 	NetService:Handle("StudioTestGear", onStudioTestGear)
 	PlayerDataService.ProfileLoaded:Connect(function(player, data)
 		checkEquipped(player, data)
 		grantStarterGear(player)
 	end)
 	JobService.JobChosen:Connect(grantStarterGear)
+	-- D-124: a lower level (admin, system reset) takes off gear above it.
+	LevelService.LevelChanged:Connect(function(player: Player, level: number, oldLevel: number)
+		local data = PlayerDataService:GetData(player)
+		if data == nil or level >= oldLevel then
+			return
+		end
+		if checkEquipped(player, data) > 0 then
+			notify(player, "Warning", "gear.tooHigh")
+			CombatService:RefreshStats(player)
+			RaceService:Redress(player)
+			push(player, data, nil, nil)
+		end
+	end)
 end
 
 function InventoryService:Start()

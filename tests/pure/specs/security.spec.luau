@@ -110,9 +110,17 @@ return function(t)
 
 		t.it("buying names a catalog entry only (price and goods are server-side)", function()
 			local spec = Registry.BuyMallItem
-			t.eq(#spec.args, 1)
 			t.eq(spec.args[1].kind, "enum")
 			t.eq(#spec.args[1].values, #MallDefinitions.IDS)
+			-- D-124: plus the buyer's gear choice (level tier, weapon type,
+			-- accessory piece), never a price or what the goods are worth.
+			t.ok(#spec.args <= 2)
+			if spec.args[2] then
+				local fields = {}
+				fieldNames(spec.args[2], fields)
+				table.sort(fields)
+				t.eq(table.concat(fields, ","), "Bracket,Family,Piece")
+			end
 		end)
 
 		t.it("attribute spending is bounded per request", function()

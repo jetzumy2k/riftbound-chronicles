@@ -54,7 +54,7 @@ MallDefinitions.TAB_NAMES = table.freeze({
 	Buffs = "🧪 Buffs",
 	Utility = "📜 Scrolls & potions",
 	Stones = "💎 Stones",
-	Sets = "🔶 Gear sets",
+	Sets = "🔶 Gear",
 	Points = "💠 Get Mall Points",
 })
 -- Section order inside each tab.
@@ -64,7 +64,7 @@ MallDefinitions.SECTIONS = table.freeze({
 	-- D-99: only Perfect Stones (always succeed) are sold, so nothing bought
 	-- with Robux feeds a chance-based upgrade.
 	Stones = table.freeze({ "Perfect Stones" }),
-	Sets = table.freeze({ "Complete sets" }),
+	Sets = table.freeze({ "Armor sets", "Weapons", "Accessories" }),
 })
 
 local function stack(id: string, count: number): any
@@ -251,17 +251,52 @@ local CATALOG: { Entry } = {
 		grant = stack("PerfectStone", 5),
 		description = "Five Perfect Enhancement Stones (about 7% off).",
 	},
-	-- Complete sets for the buyer's class at their level, fixed attributes.
+	-- D-124 (creator 2026-10-28): gear sold separately, Legendary only,
+	-- fixed attributes, at a level tier the buyer picks (MallGear): the
+	-- armor package, a weapon, the off-hand, one accessory.
 	{
 		id = "LegendarySet",
-		short = "Every piece for your class",
-		section = "Complete sets",
-		name = "Legendary Set",
+		short = "6 armor pieces, helm to boots",
+		section = "Armor sets",
+		name = "Legendary Armor Set",
 		icon = "🔶",
 		tab = "Sets",
-		price = 2500,
+		price = 2000,
 		grant = { kind = "Set", rarity = "Legendary" },
-		description = "Every piece for your class (weapon, armour, jewellery) at your level, Legendary, with fixed attributes.",
+		description = "The six armor pieces for your class (helm, shoulders, armor, gloves, pants, boots), Legendary, with fixed attributes. Pick the level: it can be worn from that level.",
+	},
+	{
+		id = "LegendaryWeapon",
+		short = "One weapon of your choice",
+		section = "Weapons",
+		name = "Legendary Weapon",
+		icon = "🗡️",
+		tab = "Sets",
+		price = 1200,
+		grant = { kind = "Weapon", rarity = "Legendary" },
+		description = "One Legendary weapon of a type your class can use, with fixed attributes. Pick the type and the level: it can be wielded from that level.",
+	},
+	{
+		id = "LegendaryOffHand",
+		short = "Your class's shield",
+		section = "Weapons",
+		name = "Legendary Off-hand",
+		icon = "🛡️",
+		tab = "Sets",
+		price = 600,
+		grant = { kind = "OffHand", rarity = "Legendary" },
+		description = "The off-hand piece of your class (a shield), Legendary, with fixed attributes. Only classes that carry one can buy it.",
+	},
+	{
+		id = "LegendaryAccessory",
+		short = "Necklace, earrings or ring",
+		section = "Accessories",
+		name = "Legendary Accessory",
+		icon = "💍",
+		tab = "Sets",
+		price = 500,
+		grant = { kind = "Accessory", rarity = "Legendary" },
+		description = "One Legendary accessory of your choice (necklace, earrings or ring), with fixed attributes. Pick the piece and the level.",
 	},
 }
 MallDefinitions.CATALOG = table.freeze(CATALOG)

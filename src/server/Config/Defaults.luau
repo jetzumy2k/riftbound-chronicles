@@ -240,6 +240,19 @@ return {
 		RepairGoldPerPoint = { Standard = 1, Uncommon = 2, Rare = 4, Epic = 8, Legendary = 15, Mythical = 30 },
 		RepairLevelStepPct = 10,
 	},
+	-- D-122: the Auction market. Fees in Gold: ListFeePct % of the Buy Now
+	-- (or starting) price, at least MinListFee, paid when listing;
+	-- SaleFeePct % taken from the sale. Each bid at least MinRaisePct %
+	-- over the last.
+	Auction = {
+		Enabled = true,
+		MinLevel = 5,
+		MaxListingsPerPlayer = 5,
+		ListFeePct = 2,
+		MinListFee = 10,
+		SaleFeePct = 5,
+		MinRaisePct = 5,
+	},
 	-- D-121: player trading. Both players: this level or more, inside a
 	-- safe zone, within Reach studs of each other; same realm unless
 	-- CrossRealm.
@@ -305,7 +318,10 @@ return {
 			SupremePotions10 = 160,
 			Perfect1 = 150,
 			Perfect5 = 700,
-			LegendarySet = 2500,
+			LegendarySet = 2000,
+			LegendaryWeapon = 1200,
+			LegendaryOffHand = 600,
+			LegendaryAccessory = 500,
 		},
 	},
 

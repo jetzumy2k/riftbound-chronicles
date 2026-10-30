@@ -134,6 +134,8 @@ AdminRules.ACTIONS = table.freeze({
 	"GrantStackable",
 	"RemoveItem",
 	"ResetQuest",
+	-- D-126: test overrides for Max HP / Attack / Defense (session only).
+	"SetStat",
 })
 AdminRules.ACTION_PERMISSION = table.freeze({
 	Kick = "moderation.kick",
@@ -145,6 +147,7 @@ AdminRules.ACTION_PERMISSION = table.freeze({
 	GrantStackable = "items.grant",
 	RemoveItem = "items.remove",
 	ResetQuest = "quests.manage",
+	SetStat = "player.edit",
 })
 -- Preset reasons shown to a kicked / banned player (no free text).
 AdminRules.REASONS = table.freeze({ "Exploiting", "Harassment", "Inappropriate", "Spamming", "Other" })
@@ -184,6 +187,7 @@ AdminRules.CONFIG_SECTIONS = table.freeze({
 	ChainQuest = "config.game",
 	Roulette = "config.game",
 	Trade = "config.game",
+	Auction = "config.game",
 })
 -- Section order in the panel.
 AdminRules.SECTION_ORDER = table.freeze({
@@ -205,6 +209,7 @@ AdminRules.SECTION_ORDER = table.freeze({
 	"ChainQuest",
 	"Roulette",
 	"Trade",
+	"Auction",
 })
 -- Values that stay code-only even inside an editable section.
 AdminRules.LOCKED_PATHS = table.freeze({

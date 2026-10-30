@@ -45,6 +45,8 @@ export type State = {
 	Quests: QuestsView,
 	-- D-74: HUD pieces the player moved (id -> centre fraction).
 	HudLayout: { [string]: { X: number, Y: number } },
+	-- D-126: which potion the quick button drinks ("Auto" or a potion id).
+	QuickPotion: string,
 	-- D-90: attribute points spent, and when the free reset is ready
 	-- (os.clock()).
 	Attributes: { REC: number, INT: number, WIS: number, STR: number, AGI: number },
@@ -105,6 +107,7 @@ local state: State = {
 	ReadyAt = {},
 	Quests = emptyQuests(),
 	HudLayout = {},
+	QuickPotion = "Auto",
 	Attributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
 	AttributeResetAt = 0,
 	-- D-120: permanent bonus points (Fortune Wheel).
@@ -160,6 +163,7 @@ function PlayerDataController:Init()
 			ReadyAt = state.ReadyAt,
 			Quests = snapshot.Quests or emptyQuests(),
 			HudLayout = snapshot.HudLayout or {},
+			QuickPotion = snapshot.QuickPotion or "Auto",
 			Attributes = state.Attributes,
 			AttributeResetAt = state.AttributeResetAt,
 			AttributeBonus = state.AttributeBonus,

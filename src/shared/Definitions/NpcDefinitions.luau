@@ -65,6 +65,16 @@ NpcDefinitions.List = table.freeze({
 		at = table.freeze({ 34, 0, 32 }),
 		look = "Healer",
 	}),
+	-- D-122: the Auction market (AuctionService).
+	table.freeze({
+		id = "Auctioneer",
+		names = table.freeze({ Angel = "Auctioneer Cassia", Devil = "Auctioneer Varek" }),
+		title = "Auction market",
+		icon = "🏛️",
+		prompt = "Auction",
+		at = table.freeze({ 0, 0, 44 }),
+		look = "Mage",
+	}),
 	-- D-119: gives the trial chain (ChainQuestService).
 	table.freeze({
 		id = "Warden",

@@ -29,6 +29,7 @@ local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
 local QuestRules = require(Shared.Logic.QuestRules)
 local HudSlots = require(Shared.Layout.HudSlots)
+local PotionRules = require(Shared.Logic.PotionRules)
 local ProfileTemplate = require(script.Parent.ProfileTemplate)
 
 local MAX_NOTES = 25
@@ -183,6 +184,18 @@ local function repairIdentity(data: Data, note: (string) -> ())
 	end
 	fixInt(data, "CreatedAt", 0, math.huge, 0, "CreatedAt", note)
 	fixInt(data, "LastLoginAt", 0, math.huge, 0, "LastLoginAt", note)
+	-- D-122: auction escrow entries (resolved by AuctionService on load).
+	for key, entry in data.Escrow do
+		if
+			type(key) ~= "string"
+			or type(entry) ~= "table"
+			or (entry.Kind ~= "List" and entry.Kind ~= "Bid")
+			or type(entry.ListingId) ~= "string"
+		then
+			note(`Escrow: dropped '{tostring(key)}'`)
+			data.Escrow[key] = nil
+		end
+	end
 	-- D-121: trade history (newest first, at most 20 entries).
 	do
 		local kept = {}
@@ -476,6 +489,12 @@ local function repairMisc(data: Data, template: Data, note: (string) -> ())
 	if not Enums.has({ "Auto", "Low", "Medium", "High" }, settings.GraphicsTier) then
 		note("Settings.GraphicsTier: reset")
 		settings.GraphicsTier = template.Settings.GraphicsTier
+	end
+	if not PotionRules.isChoice(settings.QuickPotion) then
+		if settings.QuickPotion ~= nil then
+			note("Settings.QuickPotion: reset")
+		end
+		settings.QuickPotion = "Auto"
 	end
 	if type(settings.ShowDamageNumbers) ~= "boolean" then
 		note("Settings.ShowDamageNumbers: reset")

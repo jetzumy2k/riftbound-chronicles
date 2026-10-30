@@ -47,6 +47,10 @@ AdminText.SECTIONS = {
 		title = "🛍️ Merchant",
 		help = "Gold prices of the capital Merchant: potions, gear it sells (Standard / Uncommon / Rare) and what it pays for gear.",
 	},
+	Auction = {
+		title = "🏛️ Auction market",
+		help = "Listing limits, the listing fee, the sale fee and the smallest raise between bids (all in Gold).",
+	},
 	Trade = {
 		title = "🤝 Trading",
 		help = "Player-to-player trades: level needed, how close both must stand (inside a safe zone), and whether the two realms may trade.",

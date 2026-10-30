@@ -73,6 +73,8 @@ local InventoryService = require(script.Parent.InventoryService)
 local PvPService = require(script.Parent.PvPService)
 local QuestService = require(script.Parent.QuestService)
 local EventService = require(script.Parent.EventService)
+local StatsService = require(script.Parent.StatsService)
+local CombatService = require(script.Parent.CombatService)
 local StaffService = require(script.Parent.StaffService)
 
 local log = Log.new("AdminService")
@@ -190,6 +192,12 @@ local function onInspect(actor: Player, userId: number): { [string]: any }
 		Race = data.Race,
 		Job = data.Job,
 		Victories = data.PvPStats.Victories,
+		-- D-126: the stats combat uses now, and any test overrides.
+		Stats = (function()
+			local s = StatsService:GetStats(target)
+			return if s then { MaxHP = s.MaxHP, Attack = s.Attack, Defense = s.Defense } else nil
+		end)(),
+		StatOverrides = StatsService:GetOverrides(target),
 		Defeats = data.PvPStats.Defeats,
 		Full = false,
 	}
@@ -308,6 +316,16 @@ local function onPlayerAction(actor: Player, userId: number, action: string, arg
 		before = data.Wallet[currency] or 0
 		data.Wallet[currency] = math.max(before + number, 0)
 		after = data.Wallet[currency]
+	elseif action == "SetStat" then
+		-- D-126: a test override (session only, never saved).
+		local stat = args.Stat
+		if stat == nil or number == nil or number < 0 or number > 100000000 then
+			return fail("value")
+		end
+		before = StatsService:GetOverrides(target)[stat] or "normal"
+		StatsService:SetOverride(target, stat, if number > 0 then number else nil)
+		CombatService:RefreshStats(target)
+		after = if number > 0 then number else "normal"
 	elseif action == "SetVictories" then
 		if number == nil or number < 0 or number > AdminRules.MAX_VICTORIES then
 			return fail("value")

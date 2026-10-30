@@ -285,6 +285,11 @@ return function(t)
 				Roulette = true,
 				-- D-121: trading (every step and the swap checked on the server).
 				Trade = true,
+				-- D-122: the Auction market (escrow, listing and bids checked
+				-- on the server; deliveries through the mailbox).
+				Auction = true,
+				-- D-126: the quick potion setting (an enum of potion ids).
+				SetQuickPotion = true,
 			}
 			for name, spec in Registry do
 				if spec.direction == "ClientToServer" then

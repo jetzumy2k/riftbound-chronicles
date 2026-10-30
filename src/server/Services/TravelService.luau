@@ -37,6 +37,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Log = require(ReplicatedStorage.Shared.Util.Log)
@@ -81,7 +82,11 @@ local function homeSpawn(player: Player): SpawnLocation?
 end
 
 -- How long after a spawn the server keeps checking the character's position.
-local VERIFY_SECONDS = 3
+-- Long enough for a slow device to load the destination (D-126).
+local VERIFY_SECONDS = 6
+-- The character is held in place this long after a server move while the
+-- floor there loads on the client (it would otherwise fall through).
+local HOLD_SECONDS = 1.5
 local VERIFY_INTERVAL = 0.25
 
 --[[
@@ -116,8 +121,15 @@ local function verifySpawn(player: Player, character: Model)
 					return
 				end
 			end
-			AntiExploitService:GrantGrace(player, 2)
+			AntiExploitService:MarkTeleported(player, target :: CFrame, 4)
+			-- Hold still while the floor loads, then let go.
+			root.Anchored = true
 			character:PivotTo(target :: CFrame)
+			task.delay(HOLD_SECONDS, function()
+				if root.Parent and player.Character == character then
+					root.Anchored = false
+				end
+			end)
 			-- A respawn point may sit in a portal (a war-zone camp's return
 			-- portal, a dungeon floor's entrance): arriving never fires it
 			-- (D-107); walk out and back in to use it.
@@ -149,21 +161,58 @@ function TravelService:SpawnAtHome(player: Player)
 	-- A dungeon checkpoint (or a run being rejoined) or a war-zone camp
 	-- overrides home.
 	local override: CFrame? = nil
-	for _, resolve in respawnResolvers do
-		override = resolve(player)
-		if override then
+	for index, resolve in respawnResolvers do
+		local ok, result = pcall(resolve, player)
+		if not ok then
+			log:Error("respawn resolver %d failed for %d: %s", index, player.UserId, tostring(result))
+		elseif result then
+			override = result
 			break
 		end
 	end
 	local target = override or (spawn.CFrame + Vector3.new(0, 4, 0))
+	-- D-127: say where this respawn goes (Output), to settle any report.
+	log:Info(
+		"user=%d respawns %s at (%.0f, %.0f, %.0f)",
+		player.UserId,
+		if override then "at the nearest safe point" else "at home",
+		target.Position.X,
+		target.Position.Y,
+		target.Position.Z
+	)
 
 	spawning[player] = true
-	player.RespawnLocation = spawn
 	expected[player] = target
-	AntiExploitService:GrantGrace(player, 3)
+	AntiExploitService:MarkTeleported(player, target, 6)
 	pcall(function()
 		player:RequestStreamAroundAsync(target.Position, STREAM_TIMEOUT)
 	end)
+	-- D-127 (creator: respawns still landed in the capital): the engine
+	-- creates the character right AT the safe point, on a temporary
+	-- invisible spawn there, instead of in the capital and moved after.
+	local point: SpawnLocation? = nil
+	if override then
+		local temp = Instance.new("SpawnLocation")
+		temp.Name = `RC_Respawn_{player.UserId}`
+		temp.Anchored = true
+		temp.CanCollide = false
+		temp.CanQuery = false
+		temp.CanTouch = false
+		temp.Transparency = 1
+		temp.Neutral = true
+		temp.Duration = 0
+		temp.Size = Vector3.new(4, 1, 4)
+		temp.CFrame = CFrame.new(target.Position - Vector3.new(0, 3.5, 0)) * target.Rotation
+		local decal = temp:FindFirstChildOfClass("Decal")
+		if decal then
+			decal:Destroy()
+		end
+		temp.Parent = Workspace
+		point = temp
+		player.RespawnLocation = temp
+	else
+		player.RespawnLocation = spawn
+	end
 	if player.Parent == Players then
 		local ok, err = pcall(function()
 			player:LoadCharacterAsync()
@@ -171,6 +220,28 @@ function TravelService:SpawnAtHome(player: Player)
 		if not ok then
 			log:Error("LoadCharacterAsync failed for %d: %s", player.UserId, tostring(err))
 		end
+	end
+	-- Home again for any later engine spawn; the temporary point goes.
+	if player.Parent == Players then
+		player.RespawnLocation = spawn
+	end
+	if point then
+		task.delay(10, function()
+			point:Destroy()
+		end)
+		-- Where the character really is a moment later (Output).
+		task.delay(VERIFY_SECONDS + 0.5, function()
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if root and root:IsA("BasePart") then
+				local off = (root.Position - target.Position).Magnitude
+				if off > SPAWN_TOLERANCE then
+					log:Warn("user=%d respawn ended %.0f studs from its safe point", player.UserId, off)
+				else
+					log:Info("user=%d respawn ok (%.0f studs from the safe point)", player.UserId, off)
+				end
+			end
+		end)
 	end
 	spawning[player] = nil
 end
@@ -263,6 +334,16 @@ function TravelService:Teleport(player: Player, target: CFrame): boolean
 	end)
 	if player.Character ~= character or character.Parent == nil then
 		return false
+	end
+	AntiExploitService:MarkTeleported(player, target, 4)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		root.Anchored = true
+		task.delay(HOLD_SECONDS, function()
+			if root.Parent and player.Character == character then
+				root.Anchored = false
+			end
+		end)
 	end
 	character:PivotTo(target)
 	-- Arriving never fires a portal: step out of every portal first.

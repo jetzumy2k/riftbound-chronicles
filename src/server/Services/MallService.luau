@@ -26,8 +26,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local MallDefinitions = require(Shared.Definitions.MallDefinitions)
 local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
-local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local ItemRules = require(Shared.Logic.ItemRules)
+local MallGear = require(Shared.Logic.MallGear)
 local Log = require(Shared.Util.Log)
 
 local AuditLogService = require(script.Parent.AuditLogService)
@@ -44,56 +44,53 @@ local function notify(player: Player, kind: string, key: string, params: { [stri
 	NetService:FireClient("Notify", player, { kind = kind, textKey = key, params = params })
 end
 
---[[
-	The pieces of a complete set for `job` / `race` at `level`: every kind
-	the class has, the weapon in the first family the realm may use.
-]]
+-- D-124: the armor package (MallGear.ARMOR) for `job` at `level`.
 local function setPieces(job: string, race: string?, level: number): { ItemDefinitions.ItemDef }
 	local out = {}
-	local family: string? = nil
-	for _, candidate in ItemDefinitions.familiesOf(job) do
-		if JobDefinitions.allowsWeapon(job, race, candidate) then
-			family = candidate
-			break
-		end
-	end
-	for _, kind in ItemDefinitions.kindsOf(job) do
-		local def = ItemDefinitions.defFor(job, kind, if kind == "Weapon" then family else nil, level)
-		if def then
-			table.insert(out, def)
-		end
+	local pieces = MallGear.pieces(job, race, "Set", level)
+	for _, p in pieces or {} :: { MallGear.Piece } do
+		table.insert(out, p.def)
 	end
 	return out
 end
 MallService.setPieces = setPieces
 
+-- Gives `pieces` (fixed attributes). False, giving nothing, without room.
+local function grantPieces(
+	player: Player,
+	pieces: { MallGear.Piece },
+	rarity: string,
+	source: string
+): boolean
+	if InventoryService:FreeSlots(player) < #pieces then
+		return false
+	end
+	for _, p in pieces do
+		InventoryService:GrantItem(
+			player,
+			p.def.id,
+			rarity,
+			p.itemLevel,
+			source,
+			ItemRules.fixedRoll(p.def, rarity, p.itemLevel)
+		)
+	end
+	return true
+end
+
 --[[
-	Gives `player` a complete `rarity` set for their class at their level
-	with fixed attributes. Returns false (giving nothing) without room in
-	the bag. Used by the Mall and by event rewards (D-93 stage 2).
+	Gives `player` the `rarity` armor package (D-124: helm, shoulders,
+	armor, gloves, pants, boots) for their class at their level with fixed
+	attributes. Returns false (giving nothing) without room in the bag.
+	Used by event rewards (D-93 stage 2) and staff pay (D-112).
 ]]
 function MallService:GrantSet(player: Player, rarity: string, source: string): boolean
 	local data = PlayerDataService:GetData(player)
 	if data == nil or data.Job == nil then
 		return false
 	end
-	local level = math.clamp(data.Level, 0, 30)
-	local pieces = setPieces(data.Job, data.Race, level)
-	if InventoryService:FreeSlots(player) < #pieces then
-		return false
-	end
-	for _, def in pieces do
-		local itemLevel = math.clamp(level, def.minItemLevel, def.maxItemLevel)
-		InventoryService:GrantItem(
-			player,
-			def.id,
-			rarity,
-			itemLevel,
-			source,
-			ItemRules.fixedRoll(def, rarity, itemLevel)
-		)
-	end
-	return true
+	local pieces = MallGear.pieces(data.Job, data.Race, "Set", math.clamp(data.Level, 0, 30))
+	return pieces ~= nil and grantPieces(player, pieces, rarity, source)
 end
 
 -- How many pieces a set for this player has (bag room needed).
@@ -111,7 +108,7 @@ function MallService:PriceOf(entry: MallDefinitions.Entry): number
 	return if type(price) == "number" and price >= 1 then price else entry.price
 end
 
-local function onBuy(player: Player, entryId: string): { [string]: any }
+local function onBuy(player: Player, entryId: string, choice: MallGear.Choice?): { [string]: any }
 	local catalog = MallDefinitions.get(entryId)
 	local data = PlayerDataService:GetData(player)
 	if catalog == nil or data == nil or data.Job == nil then
@@ -141,12 +138,24 @@ local function onBuy(player: Player, entryId: string): { [string]: any }
 			-- Cannot happen after the check above; refund what didn't fit.
 			wallet.MallPoints += math.floor(entry.price * (grant.count - added) / grant.count)
 		end
-	else
-		if InventoryService:FreeSlots(player) < MallService:SetSize(player) then
+	elseif MallGear.KINDS[grant.kind] then
+		-- D-124: armor package, weapon, off-hand or accessory, at the level
+		-- tier the buyer picked (equippable from that level).
+		local bracket, why = MallGear.bracketOf(choice, data.Level)
+		if bracket == nil then
+			return { ok = false, reason = why }
+		end
+		local pieces, reason = MallGear.pieces(data.Job, data.Race, grant.kind, bracket, choice)
+		if pieces == nil or #pieces == 0 then
+			return { ok = false, reason = reason or "unknown" }
+		end
+		if InventoryService:FreeSlots(player) < #pieces then
 			return { ok = false, reason = "bag" }
 		end
 		wallet.MallPoints = have - entry.price
-		MallService:GrantSet(player, grant.rarity, source)
+		grantPieces(player, pieces, grant.rarity, source)
+	else
+		return { ok = false, reason = "unknown" }
 	end
 	AuditLogService:Audit({
 		actorUserId = player.UserId,

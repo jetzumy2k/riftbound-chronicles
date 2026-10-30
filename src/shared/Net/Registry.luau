@@ -38,6 +38,7 @@ local MallDefinitions = require(script.Parent.Parent.Definitions.MallDefinitions
 local HudSlots = require(script.Parent.Parent.Layout.HudSlots)
 local AdminRules = require(script.Parent.Parent.Logic.AdminRules)
 local NpcDefinitions = require(script.Parent.Parent.Definitions.NpcDefinitions)
+local PotionRules = require(script.Parent.Parent.Logic.PotionRules)
 local StaffRules = require(script.Parent.Parent.Logic.StaffRules)
 
 local NotifyKind = { "Info", "Warning", "Welcome" }
@@ -209,6 +210,15 @@ return function(S: any)
 			states = { "ProfileLoaded" },
 		},
 
+		-- D-126: which potion the quick button drinks (a setting).
+		SetQuickPotion = {
+			direction = "ClientToServer",
+			kind = "Event",
+			args = { S.enum(PotionRules.CHOICES) },
+			rate = { capacity = 4, refillPerSecond = 0.5 },
+			states = { "ProfileLoaded" },
+		},
+
 		-- Wear an owned title (or none). Display only.
 		EquipTitle = {
 			direction = "ClientToServer",
@@ -362,7 +372,16 @@ return function(S: any)
 		BuyMallItem = {
 			direction = "ClientToServer",
 			kind = "Function",
-			args = { S.enum(table.clone(MallDefinitions.IDS)) },
+			-- D-124: gear entries take the buyer's choice: the level tier,
+			-- the weapon type, the accessory piece (MallGear checks them).
+			args = {
+				S.enum(table.clone(MallDefinitions.IDS)),
+				S.optional(S.struct({
+					Bracket = S.optional(S.int(0, 30)),
+					Family = S.optional(S.string(16, 1, "^%a+$")),
+					Piece = S.optional(S.enum({ "Necklace", "Earrings", "Ring" })),
+				})),
+			},
 			rate = { capacity = 4, refillPerSecond = 1 },
 			states = { "ProfileLoaded", "HasJob" },
 		},
@@ -505,6 +524,29 @@ return function(S: any)
 			},
 		},
 
+		-- D-122: the Auction market. The client names a listing and what it
+		-- bids or lists from its own profile; the server checks reach,
+		-- level, ownership, Gold and the listing itself (escrow first).
+		Auction = {
+			direction = "ClientToServer",
+			kind = "Function",
+			args = {
+				S.enum({ "Browse", "Mine", "Mail", "List", "Bid", "BuyNow", "Cancel" }),
+				S.struct({
+					ListingId = S.optional(S.string(36, 36, "^[%x%-]+$")),
+					Guid = S.optional(guid),
+					StackId = S.optional(S.enum(STACKABLE_IDS)),
+					Count = S.optional(S.int(1, 1000)),
+					StartBid = S.optional(S.int(1, 1000000000000)),
+					BuyNow = S.optional(S.int(1, 1000000000000)),
+					Hours = S.optional(S.int(1, 48)),
+					Bid = S.optional(S.int(1, 1000000000000)),
+				}),
+			},
+			rate = { capacity = 8, refillPerSecond = 1 },
+			states = { "ProfileLoaded" },
+		},
+
 		-- D-116: use a Race Conversion Rune: the realm to move to and the
 		-- typed confirmation (the server checks the rune, combat and realm).
 		ConvertRace = {
@@ -552,6 +594,8 @@ return function(S: any)
 					Guid = S.optional(guid),
 					Quest = S.optional(S.enum(QUEST_IDS)),
 					Reason = S.optional(S.enum(AdminRules.REASONS)),
+					-- D-126: which stat SetStat overrides (Number 0 clears it).
+					Stat = S.optional(S.enum({ "MaxHP", "Attack", "Defense" })),
 				}),
 			},
 			rate = { capacity = 6, refillPerSecond = 1 },
@@ -1097,6 +1141,7 @@ return function(S: any)
 					Quests = questsView,
 					-- D-74.
 					HudLayout = hudLayout,
+					QuickPotion = S.optional(S.enum(PotionRules.CHOICES)),
 					-- D-90.
 					Attributes = attributesView,
 					-- D-93.

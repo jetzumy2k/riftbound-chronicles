@@ -91,7 +91,9 @@ local glyph: TextLabel? = nil
 -- Auto Attack: the enemy being attacked automatically (nil = off).
 local autoTarget: Model? = nil
 -- Auto-attack switch: looks for creatures on its own while on.
-local HUNT_STUDS = 50
+-- Creator review 2026-10-28: wide enough for big dungeon rooms and the
+-- open war zones (far targets need a clear line of sight: TargetController).
+local HUNT_STUDS = 140
 local HUNT_RESUME_SECONDS = 0.8
 local UNREACHABLE_SECONDS = 7
 local SKIP_SECONDS = 15

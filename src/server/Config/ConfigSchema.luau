@@ -110,6 +110,16 @@ return function(S: any)
 			RepairLevelStepPct = S.int(0, 500),
 		}),
 
+		Auction = S.struct({
+			Enabled = S.boolean(),
+			MinLevel = S.int(0, 30),
+			MaxListingsPerPlayer = S.int(1, 50),
+			ListFeePct = S.number(0, 50),
+			MinListFee = S.int(0, 1000000),
+			SaleFeePct = S.number(0, 50),
+			MinRaisePct = S.number(0, 100),
+		}),
+
 		Trade = S.struct({
 			Enabled = S.boolean(),
 			MinLevel = S.int(0, 30),

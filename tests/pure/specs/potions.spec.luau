@@ -45,5 +45,16 @@ return function(t)
 			t.eq(def.use.kind, "SkillReset")
 			t.eq(MallDefinitions.get("Relearn").grant.id, "RelearnScroll")
 		end)
+		t.it("the quick button drinks the chosen potion, else the automatic pick (D-126)", function()
+			local have = { HealingPotion = 3, MajorHealingPotion = 1 }
+			t.eq(PotionRules.choose(have, 10, "MajorHealingPotion"), "MajorHealingPotion")
+			t.eq(PotionRules.choose(have, 10, "Auto"), PotionRules.pick(have, 10))
+			t.eq(
+				PotionRules.choose(have, 10, "SupremeHealingPotion"),
+				PotionRules.pick(have, 10),
+				"none left: automatic"
+			)
+			t.ok(PotionRules.isChoice("Auto") and not PotionRules.isChoice("Bread"))
+		end)
 	end)
 end

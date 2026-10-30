@@ -34,10 +34,9 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local MallDefinitions = require(Shared.Definitions.MallDefinitions)
 local Constants = require(Shared.Constants)
-local ItemDefinitions = require(Shared.Definitions.ItemDefinitions)
-local JobDefinitions = require(Shared.Definitions.JobDefinitions)
 local BuffRules = require(Shared.Logic.BuffRules)
 local ItemRules = require(Shared.Logic.ItemRules)
+local MallGear = require(Shared.Logic.MallGear)
 local OverlayLayout = require(Shared.Layout.OverlayLayout)
 local MallLayout = require(Shared.Layout.MallLayout)
 local NetClient = require(Shared.Net.Client)
@@ -121,38 +120,35 @@ local function buffLeft(entry: MallDefinitions.Entry): number?
 	return nil
 end
 
--- The set's pieces and their fixed attributes for this character.
-local function setPreview(rarity: string): { string }
+-- D-124: the buyer's choice for the gear entry shown (level tier, weapon
+-- type, accessory piece), kept while the same entry stays selected.
+local gearChoice: MallGear.Choice = {}
+local gearChoiceFor: string? = nil
+
+-- The pieces a gear entry gives with `choice`, and their fixed attributes.
+local function gearPreview(kind: string, rarity: string, choice: MallGear.Choice): ({ string }, string?)
 	local s = state()
 	local job, race = s.Job, s.Race
 	if job == nil then
-		return {}
+		return {}, nil
 	end
-	local level = math.clamp(s.Level, 0, 30)
-	local family: string? = nil
-	for _, candidate in ItemDefinitions.familiesOf(job) do
-		if JobDefinitions.allowsWeapon(job, race, candidate) then
-			family = candidate
-			break
-		end
+	local level = choice.Bracket or MallGear.defaultBracket(s.Level)
+	local pieces, why = MallGear.pieces(job, race, kind, level, choice)
+	if pieces == nil then
+		return {}, why
 	end
 	local lines = {}
-	for _, kind in ItemDefinitions.kindsOf(job) do
-		local def = ItemDefinitions.defFor(job, kind, if kind == "Weapon" then family else nil, level)
-		if def then
-			local itemLevel = math.clamp(level, def.minItemLevel, def.maxItemLevel)
-			local parts = {}
-			for _, attribute in ItemRules.fixedRoll(def, rarity, itemLevel) do
-				local spec = ItemRules.STATS[attribute.Stat]
-				table.insert(parts, `{spec.name} {attribute.Value}{if spec.percent then "%" else ""}`)
-			end
-			table.insert(lines, `{def.name} (Lv {itemLevel}): {table.concat(parts, ", ")}`)
+	for _, piece in pieces do
+		local parts = {}
+		for _, attribute in ItemRules.fixedRoll(piece.def, rarity, piece.itemLevel) do
+			local spec = ItemRules.STATS[attribute.Stat]
+			table.insert(parts, `{spec.name} {attribute.Value}{if spec.percent then "%" else ""}`)
 		end
+		table.insert(lines, `{piece.def.name} (requires Lv {piece.itemLevel}): {table.concat(parts, ", ")}`)
 	end
-	return lines
+	return lines, nil
 end
 
--- What the cards of a tab are, by section.
 local function choicesFor(name: string): { { title: string, items: { Choice } } }
 	if name == "Points" then
 		local items = {}
@@ -203,7 +199,11 @@ local function buy(entry: MallDefinitions.Entry)
 		return
 	end
 	confirming = nil
-	local result = NetClient.invoke("BuyMallItem", entry.id)
+	local result = NetClient.invoke(
+		"BuyMallItem",
+		entry.id,
+		if MallGear.KINDS[entry.grant.kind] then gearChoice else nil
+	)
 	if type(result) ~= "table" then
 		setStatus("❌ No answer from the server.", true)
 	elseif result.ok then
@@ -408,15 +408,85 @@ local function detail(parent: Instance, choice: Choice)
 			Theme.Colors.TextDim
 		)
 	end
-	if e.grant.kind == "Set" then
-		text(
-			parent,
-			"Every piece for your class at your level, with these exact attributes:",
-			12,
-			Theme.Colors.TextDim
+	local blocked: string? = nil
+	if MallGear.KINDS[e.grant.kind] then
+		local st = state()
+		if gearChoiceFor ~= e.id then
+			gearChoiceFor = e.id
+			local families = if st.Job then MallGear.families(st.Job, st.Race) else {}
+			gearChoice = {
+				Bracket = MallGear.defaultBracket(st.Level),
+				Family = families[1],
+				Piece = MallGear.ACCESSORIES[1],
+			}
+		end
+		local function choiceRow(
+			label: string,
+			options: { { id: any, text: string } },
+			current: any,
+			set: (any) -> ()
 		)
-		for _, line in setPreview(e.grant.rarity) do
-			text(parent, "• " .. line, 11, Theme.Colors.Text)
+			text(parent, label, 12, Theme.Colors.TextDim, true)
+			local line = Kit.new("Frame", {
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Parent = parent,
+			})
+			local layout = Kit.list(line, Enum.FillDirection.Horizontal, 6, Enum.HorizontalAlignment.Left)
+			layout.Wraps = true
+			for _, option in options do
+				button(line, option.text, 96, option.id == current, function()
+					set(option.id)
+					confirming = nil
+					render()
+				end)
+			end
+		end
+		local levels = {}
+		for _, l in MallGear.LEVELS do
+			table.insert(levels, { id = l, text = if l > st.Level then `Lv {l} 🔒` else `Lv {l}` })
+		end
+		choiceRow("Level (it can be worn from this level)", levels, gearChoice.Bracket, function(v)
+			gearChoice.Bracket = v
+		end)
+		if e.grant.kind == "Weapon" and st.Job then
+			local options = {}
+			for _, family in MallGear.families(st.Job, st.Race) do
+				table.insert(options, { id = family, text = family })
+			end
+			choiceRow("Weapon type", options, gearChoice.Family, function(v)
+				gearChoice.Family = v
+			end)
+		elseif e.grant.kind == "Accessory" then
+			local options = {}
+			for _, piece in MallGear.ACCESSORIES do
+				table.insert(options, { id = piece, text = MallGear.PIECE_NAMES[piece] })
+			end
+			choiceRow("Accessory", options, gearChoice.Piece, function(v)
+				gearChoice.Piece = v
+			end)
+		end
+		local bracket = gearChoice.Bracket or 0
+		if bracket > st.Level then
+			text(
+				parent,
+				`🔒 You are level {st.Level}: you can buy it now and wear it from level {bracket}.`,
+				12,
+				Theme.Colors.GoldBright,
+				true
+			)
+		end
+		local lines, why = gearPreview(e.grant.kind, e.grant.rarity, gearChoice)
+		if why == "noOffHand" then
+			local message = "Your class has no off-hand piece."
+			blocked = message
+			text(parent, message, 13, TOO_DEAR, true)
+		else
+			text(parent, "You get, with these exact attributes:", 12, Theme.Colors.TextDim)
+			for _, line in lines do
+				text(parent, "• " .. line, 11, Theme.Colors.Text)
+			end
 		end
 	end
 	local affordable = points() >= priceOf(e)
@@ -432,11 +502,16 @@ local function detail(parent: Instance, choice: Choice)
 	)
 	button(
 		parent,
-		if asking then `Tap again to confirm ({priceOf(e)} MP)` else `Buy for {priceOf(e)} MP`,
+		if blocked
+			then "Not for your class"
+			elseif asking then `Tap again to confirm ({priceOf(e)} MP)`
+			else `Buy for {priceOf(e)} MP`,
 		240,
-		affordable or asking,
+		blocked == nil and (affordable or asking),
 		function()
-			buy(e)
+			if blocked == nil then
+				buy(e)
+			end
 		end
 	)
 	if not affordable then

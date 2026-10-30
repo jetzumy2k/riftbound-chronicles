@@ -73,6 +73,10 @@ Constants.Net = table.freeze({
 })
 
 -- Attribute names set by the server on well-known instances.
+-- The build tag shown in Studio when the game starts (raise with each
+-- change the creator should see; D-127).
+Constants.BUILD = "D-127"
+
 -- D-118: gear durability (a new item has Max).
 Constants.Durability = table.freeze({
 	Max = 100,

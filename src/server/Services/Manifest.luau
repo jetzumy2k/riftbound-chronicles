@@ -57,6 +57,8 @@ return {
 	{ name = "RouletteService", layer = 6 },
 	-- D-121: player-to-player trading.
 	{ name = "TradeService", layer = 6 },
+	-- D-122: the cross-server Auction market (after ShopService: its NPC).
+	{ name = "AuctionService", layer = 6 },
 	-- D-115: character slots (switch / create / delete).
 	{ name = "CharacterService", layer = 6 },
 	-- Phase 17 (D-77): the admin panel uses the services below it.

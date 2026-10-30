@@ -62,6 +62,7 @@ CharacterSlots.CHARACTER_FIELDS = table.freeze({
 	"BonusAttributes",
 	"Roulette",
 	"TradeHistory",
+	"Escrow",
 })
 -- Per-character wallet keys (Mall Points stay with the account).
 CharacterSlots.WALLET_FIELDS = table.freeze({ "Gold", "PvPMarks" })

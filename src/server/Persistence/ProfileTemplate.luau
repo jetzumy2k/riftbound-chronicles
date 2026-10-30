@@ -99,6 +99,10 @@ function ProfileTemplate.new(): { [string]: any }
 		BonusAttributes = { REC = 0, INT = 0, WIS = 0, STR = 0, AGI = 0 },
 		Roulette = { Day = 0, Used = 0 },
 
+		-- D-122: items / Gold on their way into the auction (key -> entry),
+		-- kept until the shared store confirms it (AuctionService).
+		Escrow = {},
+
 		-- D-121: the last trades (newest first), as evidence for reports.
 		TradeHistory = {},
 
@@ -127,6 +131,8 @@ function ProfileTemplate.new(): { [string]: any }
 			ShowDamageNumbers = true,
 			-- D-74: HUD pieces the player moved (Layout/HudSlots).
 			HudLayout = {},
+			-- D-126: which potion the quick button (H) drinks.
+			QuickPotion = "Auto",
 		},
 
 		Counters = {},

@@ -50,6 +50,21 @@ local function wrapProfile(profile: any): Session
 	function session.save(_)
 		profile:Save()
 	end
+	-- D-122: saves now and waits until it is written (true) or `timeout`
+	-- seconds pass (false). Yields.
+	function session.saveAndWait(_, timeout: number): boolean
+		local done = false
+		local connection = profile.OnAfterSave:Connect(function()
+			done = true
+		end)
+		profile:Save()
+		local deadline = os.clock() + timeout
+		while not done and os.clock() < deadline and profile:IsActive() do
+			task.wait(0.1)
+		end
+		connection:Disconnect()
+		return done
+	end
 	function session.endSession(_)
 		profile:EndSession()
 	end

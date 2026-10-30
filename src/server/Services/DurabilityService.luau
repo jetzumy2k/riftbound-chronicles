@@ -28,7 +28,8 @@ local InventoryService = require(script.Parent.InventoryService)
 local CombatService = require(script.Parent.CombatService)
 local MobService = require(script.Parent.MobService)
 
-local PUSH_DELAY = 3
+-- Batched: a fight does not send a bag update every few seconds (D-126).
+local PUSH_DELAY = 10
 
 local DurabilityService = {}
 

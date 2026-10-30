@@ -54,7 +54,8 @@ local log = Log.new("ShopService")
 
 local REACH_TOLERANCE = 6
 local MAX_SELL = 20
-local SNAPSHOT_DELAY = 2
+-- Kill Gold is batched (D-126: fewer redraws mid-fight).
+local SNAPSHOT_DELAY = 5
 
 local ShopService = {}
 

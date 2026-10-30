@@ -47,6 +47,7 @@ local CONTROLLER_ORDER = {
 	"CharacterSlotController",
 	"ShopController",
 	"TradeController",
+	"AuctionController",
 }
 
 Log.setLevel(if RunService:IsStudio() then "Debug" else "Info")
@@ -83,4 +84,15 @@ for _, item in controllers do
 end
 
 NetClient.fire("ClientReady")
+-- D-127: in Studio, show which build is running (so an old place file
+-- left open is easy to spot).
+if RunService:IsStudio() then
+	task.delay(3, function()
+		local notifications = script.Controllers:FindFirstChild("NotificationController")
+		if notifications then
+			local Constants = require(Shared.Constants)
+			require(notifications):ShowKey("Info", "build.loaded", { build = Constants.BUILD })
+		end
+	end)
+end
 log:Debug("client ready")

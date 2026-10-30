@@ -61,4 +61,28 @@ function PotionRules.pick(have: { [string]: number }, missingPct: number): strin
 	return biggest
 end
 
+-- D-126: the quick button's setting: "Auto" (pick above) or one potion.
+PotionRules.CHOICES = table.freeze({
+	"Auto",
+	"HealingPotion",
+	"GreaterHealingPotion",
+	"MajorHealingPotion",
+	"SupremeHealingPotion",
+})
+
+function PotionRules.isChoice(value: any): boolean
+	return type(value) == "string" and table.find(PotionRules.CHOICES, value) ~= nil
+end
+
+--[[
+	The potion the quick button drinks with the player's `choice`: that
+	potion while any are left, else the automatic pick.
+]]
+function PotionRules.choose(have: { [string]: number }, missingPct: number, choice: string?): string?
+	if choice and choice ~= "Auto" and (have[choice] or 0) > 0 then
+		return choice
+	end
+	return PotionRules.pick(have, missingPct)
+end
+
 return table.freeze(PotionRules)

@@ -354,6 +354,27 @@ end
 	Auto-attack: the nearest hostile creature within `range` (never a player
 	or a training dummy), skipping models in `skip`.
 ]]
+-- Beyond this, a creature is only picked if nothing solid is in the way
+-- (no running at creatures behind walls; creator review 2026-10-28).
+local CLEAR_SIGHT_STUDS = 50
+local sightParams = RaycastParams.new()
+sightParams.FilterType = Enum.RaycastFilterType.Exclude
+sightParams.IgnoreWater = true
+
+local function clearSight(from: BasePart, to: BasePart, target: Model): boolean
+	local skip: { Instance } = { target }
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(skip, player.Character)
+		end
+	end
+	sightParams.FilterDescendantsInstances = skip
+	local origin = from.Position + Vector3.new(0, 2, 0)
+	local goal = to.Position + Vector3.new(0, 1, 0)
+	local hit = Workspace:Raycast(origin, goal - origin, sightParams)
+	return hit == nil or not hit.Instance.CanCollide or hit.Instance:IsDescendantOf(target)
+end
+
 function TargetController.nearestMob(range: number, skip: { [Model]: boolean }?): Model?
 	local root = rootOf(localCharacter())
 	if root == nil then
@@ -369,8 +390,12 @@ function TargetController.nearestMob(range: number, skip: { [Model]: boolean }?)
 		then
 			continue
 		end
-		local distance = ((rootOf(model) :: BasePart).Position - root.Position).Magnitude
-		if distance <= bestDistance then
+		local mobRoot = rootOf(model) :: BasePart
+		local distance = (mobRoot.Position - root.Position).Magnitude
+		if
+			distance <= bestDistance
+			and (distance <= CLEAR_SIGHT_STUDS or clearSight(root, mobRoot, model))
+		then
 			best, bestDistance = model, distance
 		end
 	end

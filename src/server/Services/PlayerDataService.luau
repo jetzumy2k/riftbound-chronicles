@@ -243,6 +243,22 @@ function PlayerDataService:SaveNow(player: Player)
 	end
 end
 
+--[[
+	D-122: saves the profile and waits until it is written (true), or
+	`timeout` seconds pass (false). Used before a cross-server step that
+	must never run ahead of the profile (the auction's escrow). Yields.
+]]
+function PlayerDataService:SaveAndWait(player: Player, timeout: number?): boolean
+	local session = sessions[player]
+	if session == nil or (session :: any).saveAndWait == nil then
+		return false
+	end
+	local ok, saved = pcall(function()
+		return (session :: any):saveAndWait(timeout or 15)
+	end)
+	return ok and saved == true
+end
+
 -- Re-sends the snapshot (used by later phases after identity changes).
 function PlayerDataService:PushSnapshot(player: Player)
 	sendSnapshot(player)

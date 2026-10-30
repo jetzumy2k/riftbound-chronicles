@@ -45,6 +45,8 @@ local specs = {
 	{ "chain_quest", require("./specs/chain_quest.spec") },
 	{ "roulette", require("./specs/roulette.spec") },
 	{ "trade", require("./specs/trade.spec") },
+	{ "auction", require("./specs/auction.spec") },
+	{ "mall_gear", require("./specs/mall_gear.spec") },
 	{ "perf_budget", require("./specs/perf_budget.spec") },
 	{ "face_presets", require("./specs/face_presets.spec") },
 	{ "world_layout", require("./specs/world_layout.spec") },

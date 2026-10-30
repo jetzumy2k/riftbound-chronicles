@@ -170,6 +170,13 @@ local gridScroll = Vector2.zero
 -- first Salvage tap re-renders, and "Tap again" must stay in view.
 local detailScroll = Vector2.zero
 local filterScroll = Vector2.zero
+-- D-127: the consumables list (wide layout) keeps its place too.
+local sideScroll = Vector2.zero
+-- D-127: "Use" buttons whose cooldown counts down in place (id -> button),
+-- so the bag never rebuilds itself every second during a cooldown.
+local cooldownButtons: { [string]: TextButton } = {}
+-- The quick potion button's refresh (set in Start; used by "Set H").
+local refreshPotionHook: () -> () = function() end
 local renderToken = 0
 -- The last enhancement result, shown in the detail for a few seconds.
 local lastEnhance: { guid: string, success: boolean, level: number, at: number }? = nil
@@ -621,7 +628,8 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 				if wait > 0 then `{wait}s` else "Use",
 				84,
 				if wait <= 0 and have > 0 then Theme.Colors.Gold else nil
-			);
+			)
+			cooldownButtons[id] = action :: TextButton
 			(action :: TextButton).Activated:Connect(function()
 				local openRune = InventoryController.OpenRaceRune
 				if def.use and def.use.kind == "RaceChange" and openRune then
@@ -647,6 +655,29 @@ local function drawSide(parent: Instance, layout: InventoryLayout.Layout)
 			action.AnchorPoint = Vector2.new(1, 0)
 			action.Position = UDim2.fromScale(1, 0)
 			action.Parent = row
+		end
+		-- D-127: pick this potion for the quick button (H) right here.
+		if PotionRules.isPotion(id) then
+			local chosen = state().QuickPotion == id
+			local quick =
+				button(if chosen then "⭐ H" else "Set H", 56, if chosen then Theme.Colors.Gold else nil)
+			quick.AnchorPoint = Vector2.new(1, 0)
+			quick.Position = UDim2.new(1, -90, 0, 0)
+			quick.Parent = row
+			name.Size = UDim2.new(1, -152, 0, 20)
+			effect.Size = UDim2.new(1, -174, 0, 18)
+			quick.Activated:Connect(function()
+				local choice = if chosen then "Auto" else id
+				state().QuickPotion = choice
+				NetClient.fire("SetQuickPotion", choice)
+				NotificationController:ShowKey("Info", "potion.quick", {
+					name = if choice == "Auto"
+						then "Auto (smallest that heals enough)"
+						else `{PotionRules.pctOf(id)}% {def.name}`,
+				})
+				render()
+				refreshPotionHook()
+			end)
 		end
 	end
 
@@ -886,12 +917,24 @@ local function drawDetail(parent: Instance)
 	local job = JobDefinitions.get(def.job)
 	text(
 		parent,
-		`{item.Rarity} · {def.slot}{if def.family then ` ({def.family})` else ""} · Item level {item.ItemLevel}`,
+		`{item.Rarity} · {def.slot}{if def.family then ` ({def.family})` else ""}`,
 		12,
 		Theme.Colors.TextDim
 	).LayoutOrder =
 		2
 	text(parent, `{if job then job.displayName else def.job} gear`, 12, Theme.Colors.TextDim).LayoutOrder = 3
+	-- D-124: the level needed to wear it, Shaiya style.
+	local myLevel = state().Level
+	text(
+		parent,
+		if myLevel >= item.ItemLevel
+			then `✅ Requires level {item.ItemLevel}`
+			else `🔒 Requires level {item.ItemLevel} (you are {myLevel})`,
+		12,
+		if myLevel >= item.ItemLevel then Theme.Colors.Safe else Color3.fromRGB(255, 120, 120),
+		Theme.Fonts.BodyBold
+	).LayoutOrder =
+		3
 	-- D-118
 	local durability = DurabilityRules.of(item)
 	text(
@@ -1052,6 +1095,11 @@ function render()
 		if oldFilters and oldFilters:IsA("ScrollingFrame") then
 			filterScroll = oldFilters.CanvasPosition
 		end
+		local oldSide = panel:FindFirstChild("Side", true)
+		if oldSide and oldSide:IsA("ScrollingFrame") then
+			sideScroll = oldSide.CanvasPosition
+		end
+		cooldownButtons = {}
 		-- The 3D preview is kept across re-renders.
 		CharacterPreview.detach()
 		panel:Destroy()
@@ -1183,6 +1231,7 @@ function render()
 		local side = scroller("Side", layout.side, frame)
 		Kit.padding(side, 2, 2)
 		drawSide(side, layout)
+		restoreScroll(side, sideScroll)
 		filterBar(frame)
 		local grid = scroller("Grid", layout.grid, frame)
 		grid.AutomaticCanvasSize = Enum.AutomaticSize.None
@@ -1255,17 +1304,24 @@ function render()
 		restoreScroll(content, detailScroll)
 	end
 
-	-- Potion cooldowns count down while the screen is open.
-	local token = renderToken
-	for _, at in state().ReadyAt do
-		if at > os.clock() then
-			task.delay(1, function()
-				if open and token == renderToken then
-					render()
-				end
-			end)
-			break
+	-- D-127: cooldowns count down in place (see the ticker in Start); the
+	-- bag is never rebuilt just to change a number.
+end
+
+-- Updates every visible "Use" button's countdown without a rebuild.
+local function tickCooldowns()
+	local data = state()
+	for id, b in cooldownButtons do
+		if b.Parent == nil then
+			cooldownButtons[id] = nil
+			continue
 		end
+		local wait = math.ceil((data.ReadyAt[id] or 0) - os.clock())
+		local have = data.Stackables[id] or 0
+		b.Text = if wait > 0 then `{wait}s` else "Use"
+		local ready = wait <= 0 and have > 0
+		b.BackgroundColor3 = if ready then Theme.Colors.Gold else Theme.Colors.GlassHighlight
+		b.TextColor3 = if ready then Theme.Colors.Ink else Theme.Colors.Text
 	end
 end
 
@@ -1284,7 +1340,9 @@ local function refreshPotion()
 	potionButton.AnchorPoint = Vector2.new(1, 1)
 	potionButton.Position = UDim2.new(1, -slot.right, 1, -slot.bottom)
 	HudLayout.apply("Potion")
-	potionButton.Text = if wait > 0 then `🧪\n{wait}s` else `🧪\n×{have}`
+	local choice = data.QuickPotion
+	local tag = if choice and choice ~= "Auto" then `{PotionRules.pctOf(choice)}%` else "🧪"
+	potionButton.Text = if wait > 0 then `{tag}\n{wait}s` else `{tag}\n×{have}`
 	local ready = have > 0 and wait <= 0
 	potionButton.BackgroundTransparency = if ready then 0.1 else 0.45
 	potionButton.TextTransparency = if ready then 0 else 0.35
@@ -1298,10 +1356,80 @@ local function refreshPotion()
 end
 
 local function drinkPotion()
-	local id = PotionRules.pick(state().Stackables, missingHpPct())
+	local id = PotionRules.choose(state().Stackables, missingHpPct(), state().QuickPotion)
 	if id then
 		NetClient.fire("UseConsumable", id)
 	end
+end
+
+-- D-126: choose what the quick button drinks (right-click or hold it).
+local potionChooser: Frame? = nil
+local function closeChooser()
+	if potionChooser then
+		potionChooser:Destroy()
+		potionChooser = nil
+	end
+end
+local refreshPotionLater: () -> () = function() end
+local function openChooser()
+	closeChooser()
+	local s = state()
+	local frame = Kit.glassPanel({
+		Name = "PotionChooser",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(
+			potionButton.Position.X.Scale,
+			potionButton.Position.X.Offset,
+			potionButton.Position.Y.Scale,
+			potionButton.Position.Y.Offset - potionButton.AbsoluteSize.Y - 8
+		),
+		Size = UDim2.fromOffset(250, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = gui,
+	})
+	frame.BackgroundTransparency = 0.05
+	potionChooser = frame
+	Kit.padding(frame, 8, 8)
+	local list = Kit.list(frame, Enum.FillDirection.Vertical, 4, Enum.HorizontalAlignment.Center)
+	list.VerticalAlignment = Enum.VerticalAlignment.Top
+	local title =
+		Kit.label("🧪 Quick potion (H) drinks:", 13, Theme.Fonts.BodyBold, Theme.Colors.GoldBright)
+	title.Parent = frame
+	for order, choice in PotionRules.CHOICES do
+		local chosen = s.QuickPotion == choice
+		local label
+		if choice == "Auto" then
+			label = "Auto: smallest that heals enough"
+		else
+			local def = ItemDefinitions.stackable(choice)
+			label =
+				`{PotionRules.pctOf(choice)}% {if def then def.name else choice} (×{s.Stackables[choice] or 0})`
+		end
+		local b = Kit.new("TextButton", {
+			Size = UDim2.new(1, 0, 0, 34),
+			BackgroundColor3 = if chosen then Theme.Colors.Gold else Theme.Colors.GlassHighlight,
+			BackgroundTransparency = if chosen then 0.05 else 0.35,
+			Text = `{if chosen then "✅ " else ""}{label}`,
+			TextSize = 12,
+			FontFace = Theme.Fonts.BodyBold,
+			TextColor3 = if chosen then Theme.Colors.Ink else Theme.Colors.Text,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			LayoutOrder = order,
+			Parent = frame,
+		})
+		Kit.corner(b, 8)
+		b.Activated:Connect(function()
+			s.QuickPotion = choice
+			NetClient.fire("SetQuickPotion", choice)
+			closeChooser()
+			refreshPotionLater()
+		end)
+	end
+	task.delay(8, function()
+		if potionChooser == frame then
+			closeChooser()
+		end
+	end)
 end
 
 function InventoryController.setOpen(value: boolean)
@@ -1365,15 +1493,80 @@ function InventoryController:Start()
 		for _, id in PotionRules.IDS do
 			table.insert(lines, `{PotionRules.pctOf(id)}%: {stackables[id] or 0}`)
 		end
+		local choice = state().QuickPotion
 		return "🧪 Healing Potions",
-			`Drinks the smallest potion that heals what you are missing, else your biggest. They share a 15-second wait. Key: H.\nYou have {table.concat(
+			`{if choice == "Auto" or choice == nil
+				then "Drinks the smallest potion that heals what you are missing, else your biggest."
+				else `Drinks your chosen {PotionRules.pctOf(choice)}% potion (the automatic pick when none are left).`} They share a 15-second wait. Key: H. Right-click or hold to choose the potion.\nYou have {table.concat(
 				lines,
 				" · "
 			)}.`
 	end)
 	Kit.corner(potionButton, 26)
 	Kit.goldStroke(potionButton, 1.5, 0.2)
-	potionButton.Activated:Connect(drinkPotion)
+	potionButton.Activated:Connect(function()
+		if potionChooser then
+			closeChooser()
+			return
+		end
+		drinkPotion()
+	end)
+	-- D-126: right-click (desktop) or hold (touch) to choose the potion.
+	potionButton.MouseButton2Click:Connect(openChooser)
+	-- D-127: and a visible 🔧 on the button itself (the creator couldn't
+	-- find the right-click / hold).
+	local gear = Kit.new("TextButton", {
+		Name = "PotionChoose",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, -4, 0, 4),
+		Size = UDim2.fromOffset(26, 26),
+		BackgroundColor3 = Theme.Colors.Gold,
+		Text = "🔧",
+		TextSize = 14,
+		FontFace = Theme.Fonts.BodyBold,
+		TextColor3 = Theme.Colors.Ink,
+		ZIndex = potionButton.ZIndex + 2,
+		Parent = potionButton,
+	})
+	Kit.corner(gear, 13)
+	gear.Activated:Connect(function()
+		if potionChooser then
+			closeChooser()
+		else
+			openChooser()
+		end
+	end)
+	Tooltip.attach(gear, function()
+		return "🔧 Choose the quick potion", "Pick which healing potion the button and the H key drink."
+	end)
+	local holdToken = 0
+	potionButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			holdToken += 1
+			local token = holdToken
+			task.delay(0.6, function()
+				if token == holdToken then
+					openChooser()
+				end
+			end)
+		end
+	end)
+	potionButton.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			holdToken += 1
+		end
+	end)
+	refreshPotionLater = refreshPotion
+	refreshPotionHook = refreshPotion
+	-- D-127: Use-button countdowns tick in place twice a second.
+	task.spawn(function()
+		while true do
+			task.wait(0.5)
+			if open then
+				tickCooldowns()
+			end
+		end
+	end)
 	gui.Parent = localPlayer():WaitForChild("PlayerGui")
 	toggleCompact = HudLayout.bindToggle("Bag", toggle, "bag", function()
 		toggle.Text = if toggleCompact() then "🎒" else "🎒 BAG"
@@ -1402,10 +1595,49 @@ function InventoryController:Start()
 			end
 		end)
 	end)
-	PlayerDataController.Changed:Connect(function(_, reason)
-		-- Levels change what can be worn; everything else is inventory.
-		if reason == "inventory" or reason == "snapshot" or open then
-			render()
+	-- D-126 (creator report 2026-10-30: in a fight the bag kept redrawing
+	-- under the finger): redraw only for changes the bag shows (items, a
+	-- new level), never while the player is tapping it, and merge bursts.
+	local lastPress = 0
+	local renderPending = false
+	UserInputService.InputBegan:Connect(function(input)
+		if
+			open
+			and (
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+			)
+		then
+			lastPress = os.clock()
+		end
+	end)
+	local function requestRender()
+		if renderPending then
+			return
+		end
+		renderPending = true
+		task.spawn(function()
+			task.wait(0.25)
+			while os.clock() - lastPress < 0.9 do
+				task.wait(0.15)
+			end
+			renderPending = false
+			if open then
+				render()
+			end
+		end)
+	end
+	PlayerDataController.Changed:Connect(function(_, reason, levelsGained)
+		if
+			reason == "inventory"
+			or reason == "snapshot"
+			or (reason == "progression" and (levelsGained or 0) > 0)
+		then
+			if open then
+				requestRender()
+			else
+				toggle.Visible = state().Job ~= nil
+			end
 		end
 		refreshPotion()
 	end)
