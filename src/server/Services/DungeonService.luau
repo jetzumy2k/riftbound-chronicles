@@ -68,8 +68,10 @@ local PartyService = require(script.Parent.PartyService)
 local BudgetAudit = require(script.Parent.Parent.World.BudgetAudit)
 local DungeonBuilder = require(script.Parent.Parent.World.DungeonBuilder)
 
-local DUNGEON_ID = "RiftHollow" -- the dungeon behind the capital gates
-local GATE_ID = "Dungeons"
+-- D-130: every dungeon in DungeonDefinitions has its own capital gate and
+-- dungeon slots; the level 31-60 one is built and shown only with the
+-- level 60 cap.
+local MAIN_DUNGEON = "RiftHollow"
 local GATE_REACH = 24
 local GATE_FRONT = 16
 local PORTAL_REACH = 20
@@ -102,7 +104,21 @@ type Copy = {
 
 local DungeonService = {}
 
+-- Copies by "<dungeon id>:<race>".
 local copies: { [string]: Copy } = {}
+local dungeonFolder: Folder? = nil
+-- D-130: gates hidden while their dungeon needs the level 60 cap and it is
+-- off: gate id -> race -> { model, parent }.
+local hiddenGates: { [string]: { [string]: { model: Instance, parent: Instance } } } = {}
+local wiredGates: { [string]: boolean } = {}
+
+local function keyOf(dungeonId: string, race: string): string
+	return `{dungeonId}:{race}`
+end
+
+local function level60(): boolean
+	return ConfigurationService:Get("Progression").Level60 == true
+end
 -- Who is inside which copy (by position, refreshed every tick).
 local copyOfPlayer: { [Player]: Copy } = {}
 local floorOfPlayer: { [Player]: number } = {}
@@ -152,13 +168,13 @@ local function formatDuration(seconds: number): string
 	return `{s}s`
 end
 
--- In front of the race's dungeon gate, facing away from it.
-local function gateFrontCFrame(race: string): CFrame?
+-- In front of the race's gate `gateId`, facing away from it.
+local function gateFrontCFrame(race: string, gateId: string?): CFrame?
 	local realm = WorldLayout.realmFor(race)
 	if realm == nil then
 		return nil
 	end
-	local point, facing = WorldLayout.gateFront(realm, GATE_ID, GATE_FRONT)
+	local point, facing = WorldLayout.gateFront(realm, gateId or "Dungeons", GATE_FRONT)
 	if point == nil or facing == nil then
 		return nil
 	end
@@ -488,10 +504,10 @@ end
 -- Entering, leaving and moving between floors
 --------------------------------------------------------------------------------
 
-local function onGate(player: Player, gateRace: string, gate: BasePart)
+local function onGate(player: Player, gateRace: string, gate: BasePart, dungeonId: string)
 	local data = PlayerDataService:GetData(player)
 	local root = rootOf(player)
-	local copy = copies[gateRace]
+	local copy = copies[keyOf(dungeonId, gateRace)]
 	if data == nil or root == nil or copy == nil or CombatService:IsDefeated(player) then
 		return
 	end
@@ -507,6 +523,9 @@ local function onGate(player: Player, gateRace: string, gate: BasePart)
 	local gated = not RunService:IsStudio() or ConfigurationService:Get("Quests").GatesInStudio
 	if not QuestRules.unlocked(data, "DungeonAccess", gated) then
 		notify(player, "Warning", "quest.locked.dungeon")
+		return
+	end
+	if copy.dungeon.needsLevel60 and not level60() then
 		return
 	end
 	local level = LevelService:GetLevel(player) or 0
@@ -527,7 +546,7 @@ local function leave(player: Player)
 	if copy == nil or not alive(player) then
 		return
 	end
-	local outside = gateFrontCFrame(copy.race) or TravelService:GetHomeCFrame(player)
+	local outside = gateFrontCFrame(copy.race, copy.dungeon.gate) or TravelService:GetHomeCFrame(player)
 	if outside then
 		TravelService:Teleport(player, outside)
 	end
@@ -659,7 +678,7 @@ local function resolveRespawn(player: Player): CFrame?
 	end
 	copyOfPlayer[player] = nil
 	floorOfPlayer[player] = nil
-	return gateFrontCFrame(copy.race)
+	return gateFrontCFrame(copy.race, copy.dungeon.gate)
 end
 
 --------------------------------------------------------------------------------
@@ -740,11 +759,31 @@ end
 -- Lifecycle
 --------------------------------------------------------------------------------
 
-local function openGates()
+-- D-130: shows or hides a dungeon's gate in both capitals.
+local function showGate(gateId: string, shown: boolean)
 	for race in WorldLayout.Realms :: { [string]: any } do
-		local gate = WorldService:GetGate(race, GATE_ID)
+		local gate = WorldService:GetGate(race, gateId)
+		local hidden = hiddenGates[gateId] and hiddenGates[gateId][race]
+		if shown and hidden then
+			hidden.model.Parent = hidden.parent
+			hiddenGates[gateId][race] = nil
+		elseif not shown and gate and gate.Parent and gate.Parent.Parent then
+			hiddenGates[gateId] = hiddenGates[gateId] or {}
+			hiddenGates[gateId][race] = { model = gate.Parent, parent = gate.Parent.Parent :: Instance }
+			gate.Parent.Parent = nil
+		end
+	end
+end
+
+local function openGates(dungeon: DungeonDefinitions.Dungeon)
+	if wiredGates[dungeon.gate] then
+		return
+	end
+	wiredGates[dungeon.gate] = true
+	for race in WorldLayout.Realms :: { [string]: any } do
+		local gate = WorldService:GetGate(race, dungeon.gate)
 		if gate == nil then
-			log:Warn("no %s gate in the %s capital", GATE_ID, race)
+			log:Warn("no %s gate in the %s capital", dungeon.gate, race)
 			continue
 		end
 		local gateModel = gate.Parent
@@ -762,13 +801,13 @@ local function openGates()
 		gate.Transparency = 0.15
 		-- Walk through the gate to enter (no prompt).
 		TravelService:AddWalkPortal(gate, function(player)
-			onGate(player, race, gate)
+			onGate(player, race, gate, dungeon.id)
 		end)
 	end
 end
 
 local function buildCopy(folder: Folder, race: string, dungeon: DungeonDefinitions.Dungeon)
-	local o = WorldLayout.dungeonSlotOrigin(SLOT_BY_RACE[race])
+	local o = WorldLayout.dungeonSlotOrigin(SLOT_BY_RACE[race] + dungeon.slotOffset)
 	local origin = CFrame.new(o[1], o[2], o[3])
 	local map = DungeonBuilder.build(dungeon)
 	map.Name = `{dungeon.id}_{race}`
@@ -780,10 +819,10 @@ local function buildCopy(folder: Folder, race: string, dungeon: DungeonDefinitio
 		dungeon = dungeon,
 		origin = origin,
 		map = map,
-		owner = `dungeon:{race}`,
+		owner = `dungeon:{dungeon.id}:{race}`,
 		bosses = {},
 	}
-	copies[race] = copy
+	copies[keyOf(dungeon.id, race)] = copy
 	wirePortals(copy)
 	spawnCamps(copy)
 	buildAltars(copy)
@@ -796,8 +835,32 @@ function DungeonService:Init()
 	serverId = if game.JobId ~= "" then game.JobId else HttpService:GenerateGUID(false)
 end
 
+-- Builds (once) and opens every dungeon that may be open now; hides the
+-- gates of the ones that need the level 60 cap while it is off (D-130).
+local function refreshDungeons()
+	local folder = dungeonFolder
+	if folder == nil then
+		return
+	end
+	for _, dungeon in DungeonDefinitions.ById :: { [string]: DungeonDefinitions.Dungeon } do
+		local open = not dungeon.needsLevel60 or level60()
+		if open then
+			for race in SLOT_BY_RACE do
+				if copies[keyOf(dungeon.id, race)] == nil then
+					buildCopy(folder, race, dungeon)
+					log:Info("%s built for the %s", dungeon.name, race)
+				end
+			end
+			openGates(dungeon)
+		end
+		if dungeon.needsLevel60 then
+			showGate(dungeon.gate, open)
+		end
+	end
+end
+
 function DungeonService:Start()
-	local dungeon = DungeonDefinitions.get(DUNGEON_ID) :: DungeonDefinitions.Dungeon
+	local dungeon = DungeonDefinitions.get(MAIN_DUNGEON) :: DungeonDefinitions.Dungeon
 	local existing = Workspace:FindFirstChild("RC_Dungeons")
 	if existing then
 		existing:Destroy()
@@ -805,10 +868,12 @@ function DungeonService:Start()
 	local folder = Instance.new("Folder")
 	folder.Name = "RC_Dungeons"
 	folder.Parent = Workspace
-	for race in SLOT_BY_RACE do
-		buildCopy(folder, race, dungeon)
-	end
-	openGates()
+	dungeonFolder = folder
+	refreshDungeons()
+	-- The admin may switch the level 60 cap on or off at any time.
+	ConfigurationService.Changed:Connect(function()
+		task.spawn(refreshDungeons)
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		copyOfPlayer[player] = nil
 		floorOfPlayer[player] = nil
@@ -839,7 +904,7 @@ function DungeonService:RoomCFrame(
 	x: number,
 	z: number
 ): CFrame?
-	local copy = copies[race]
+	local copy = copies[keyOf(MAIN_DUNGEON, race)]
 	local floor = copy and copy.dungeon.floors[floorIndex]
 	if copy == nil or floor == nil then
 		return nil

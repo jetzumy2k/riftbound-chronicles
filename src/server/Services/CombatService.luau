@@ -1145,6 +1145,8 @@ export type NpcSpec = {
 	name: string,
 	level: number,
 	maxHp: number,
+	-- D-130: grows like players past 30 (the level 31-60 dungeon).
+	gentle: boolean?,
 	-- Multipliers on the level's base Attack / Defense (default 1).
 	attackScale: number?,
 	defenseScale: number?,
@@ -1166,7 +1168,14 @@ function CombatService:RegisterNpc(model: Model, spec: NpcSpec): boolean
 		return false
 	end
 	local entity = newEntity("Npc", model, humanoid, root, spec.name)
-	applyStats(entity, StatFormulas.forCreatureLevel(spec.level), spec.level, false)
+	applyStats(
+		entity,
+		if spec.gentle
+			then StatFormulas.forLevel(math.min(spec.level, 60))
+			else StatFormulas.forCreatureLevel(spec.level),
+		spec.level,
+		false
+	)
 	entity.maxHp = spec.maxHp
 	entity.hp = spec.maxHp
 	entity.attack *= spec.attackScale or 1

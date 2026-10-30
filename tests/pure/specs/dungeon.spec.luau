@@ -219,10 +219,42 @@ return function(t)
 	end)
 
 	t.describe("dungeon and enemy data", function()
+		t.it(
+			"the Abyssal Spire: levels 31-60, its own gate and slots, needs the level 60 cap (D-130)",
+			function()
+				local WorldLayout = load("src/shared/Definitions/WorldLayout")
+				local spire = DungeonDefinitions.get("AbyssalSpire") :: any
+				local hollow = DungeonDefinitions.get("RiftHollow") :: any
+				t.ok(spire.needsLevel60 and not hollow.needsLevel60)
+				t.eq(spire.minLevel, 31)
+				t.ok(spire.slotOffset >= 2, "never the Rift Hollow slots")
+				t.ok(spire.gate ~= hollow.gate)
+				local gateFound = false
+				for _, gate in WorldLayout.City.gates do
+					gateFound = gateFound or gate.id == spire.gate
+				end
+				t.ok(gateFound, "its gate is in the capital")
+				t.eq(spire.floors[1].levels[1], 31)
+				t.eq(spire.floors[3].levels[2], 60)
+				local last = spire.floors[#spire.floors]
+				t.eq(last.rooms[last.bossRoom].boss, "RiftEmperor", "the dungeon boss in its sanctum")
+				for _, floor in spire.floors do
+					for _, room in floor.rooms do
+						for _, camp in room.camps do
+							t.ok(
+								(EnemyDefinitions.get(camp.enemy) :: any).gentle,
+								`{camp.enemy} grows like players`
+							)
+						end
+					end
+				end
+			end
+		)
+
 		t.it("every enemy is sane", function()
 			for id, enemy in EnemyDefinitions.ById do
 				t.eq(enemy.id, id)
-				t.ok(enemy.level >= 0 and enemy.level <= 50, id)
+				t.ok(enemy.level >= 0 and enemy.level <= 60, id)
 				t.ok(enemy.attackRange < enemy.aggroRadius, `{id}: range < aggro`)
 				t.ok(enemy.aggroRadius < enemy.leashRadius, `{id}: aggro < leash`)
 				t.ok(enemy.windup >= 0.3, `{id}: readable wind-up`)

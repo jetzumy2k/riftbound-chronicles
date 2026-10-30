@@ -28,7 +28,6 @@
 
 local BossBalance = require(script.Parent.Parent.Logic.BossBalance)
 local CreatureLanguage = require(script.Parent.CreatureLanguage)
-local StatFormulas = require(script.Parent.Parent.Logic.StatFormulas)
 local XPTable = require(script.Parent.Parent.Logic.XPTable)
 
 export type Body = "Wolf" | "Beetle" | "Golem" | "Sprite" | "Guardian" | "Serpent"
@@ -40,6 +39,8 @@ export type Trait = "ThreeHeads" | "Mane" | "Horns" | "Wings" | "SerpentTail" | 
 export type Enemy = {
 	id: string,
 	name: string,
+	-- D-130: stats grow like players past level 30 (the level 31-60 dungeon).
+	gentle: boolean?,
 	level: number,
 	elite: boolean,
 	hpScale: number,
@@ -437,9 +438,11 @@ local function boss(
 	scale: number,
 	color: { number },
 	glow: { number },
-	duoFraction: number?
+	duoFraction: number?,
+	gentle: boolean?
 ): Enemy
 	local enemy = creature(id, name, body, level, true, 0, scale, color, glow) :: any
+	enemy.gentle = gentle == true
 	enemy.tier = tier
 	enemy.aggroRadius = if tier == "Mini" then 40 else 60
 	enemy.leashRadius = if tier == "Mini" then 60 else 80
@@ -450,10 +453,10 @@ local function boss(
 	enemy.defenseScale = 1.6
 	local enrage = EnemyDefinitions.ENRAGE_SECONDS[tier]
 	local fraction = duoFraction or BossBalance.DUO_FRACTION[tier]
-	enemy.hpScale = BossBalance.hpFor(level, enemy.defenseScale, fraction, enrage)
-		/ StatFormulas.forCreatureLevel(level).MaxHP
+	enemy.hpScale = BossBalance.hpFor(level, enemy.defenseScale, fraction, enrage, gentle)
+		/ BossBalance.creatureBase(level, gentle).MaxHP
 	enemy.attackCoefficient = 0.6
-	enemy.attackScale = BossBalance.attackScaleFor(level, enemy.attackCoefficient, HIT_SHARE[tier])
+	enemy.attackScale = BossBalance.attackScaleFor(level, enemy.attackCoefficient, HIT_SHARE[tier], gentle)
 	enemy.xp = math.floor(400 + level * level * (if tier == "Mini" then 4 else 10))
 	return enemy :: Enemy
 end
@@ -650,6 +653,111 @@ local roster: { Enemy } = {
 	),
 }
 
+-- D-130: the Abyssal Spire (levels 31-60). Its creatures are "gentle":
+-- their stats grow like players past 30 (BossBalance.creatureBase), so the
+-- level 60 era stays fair. EXP per kill follows the curve (about 200 kills
+-- a level for regular creatures).
+local function gentle(enemy: any, xpShare: number?): Enemy
+	enemy.gentle = true
+	if xpShare then
+		enemy.xp = math.floor(XPTable.toNext(math.min(enemy.level, 59)) * xpShare)
+	end
+	return enemy :: Enemy
+end
+-- Rows of mixed values: { id, name, body, level, elite, scale, colour, glow }.
+local SPIRE_CREATURES: { { any } } = {
+	-- Floor 1: the Fallen Bastion (31-40).
+	{ "HollowRevenant", "Hollow Revenant", "Wolf", 32, false, 1.15, { 70, 78, 96 }, { 170, 190, 255 } },
+	{ "SpireCrawler", "Spire Crawler", "Beetle", 34, false, 1.25, { 54, 50, 78 }, { 190, 130, 255 } },
+	{ "BastionColossus", "Bastion Colossus", "Golem", 36, true, 1.7, { 92, 88, 104 }, { 200, 170, 255 } },
+	-- Floor 2: the Ashen Throne (41-50).
+	{ "HellfireStalker", "Hellfire Stalker", "Wolf", 42, false, 1.2, { 96, 48, 36 }, { 255, 110, 40 } },
+	{ "Pyreshell", "Pyreshell", "Beetle", 44, false, 1.3, { 80, 44, 34 }, { 255, 150, 60 } },
+	{
+		"ObsidianSentinel",
+		"Obsidian Sentinel",
+		"Guardian",
+		46,
+		true,
+		1.6,
+		{ 40, 34, 40 },
+		{ 255, 90, 60 },
+	},
+	-- Floor 3: the Starless Vault (51-60).
+	{ "VoidHound", "Void Hound", "Wolf", 52, false, 1.25, { 30, 28, 52 }, { 150, 110, 255 } },
+	{ "StarDevourer", "Star Devourer", "Serpent", 54, false, 1.3, { 40, 46, 80 }, { 120, 200, 255 } },
+	{ "AstralWarden", "Astral Warden", "Guardian", 56, true, 1.7, { 70, 80, 120 }, { 180, 220, 255 } },
+}
+for _, spec: any in SPIRE_CREATURES do
+	table.insert(
+		roster,
+		gentle(
+			creature(spec[1], spec[2], spec[3], spec[4], spec[5], 0, spec[6], spec[7], spec[8]),
+			if spec[5] then 1.5 else 0.5
+		)
+	)
+end
+table.insert(
+	roster,
+	boss(
+		"Behemoth",
+		"Behemoth of the Bastion",
+		"Golem",
+		40,
+		"Floor",
+		3.4,
+		{ 84, 80, 100 },
+		{ 210, 180, 255 },
+		nil,
+		true
+	)
+)
+table.insert(
+	roster,
+	boss(
+		"Ifrit",
+		"Ifrit, the Ashen King",
+		"Guardian",
+		50,
+		"Floor",
+		3.4,
+		{ 70, 30, 24 },
+		{ 255, 120, 40 },
+		nil,
+		true
+	)
+)
+table.insert(
+	roster,
+	boss(
+		"Jormungandr",
+		"Jormungandr",
+		"Serpent",
+		58,
+		"Floor",
+		3.6,
+		{ 30, 40, 70 },
+		{ 110, 200, 255 },
+		nil,
+		true
+	)
+)
+table.insert(
+	roster,
+	boss(
+		"RiftEmperor",
+		"The Rift Emperor",
+		"Guardian",
+		60,
+		"Boss",
+		4.4,
+		{ 46, 32, 70 },
+		{ 200, 140, 255 },
+		nil,
+		true
+	)
+)
+
 -- Floor 4: thirty mini bosses, levels 31-40 (three per level), one per
 -- chamber: { id, name, body }. Their element and weight follow below.
 EnemyDefinitions.MINI_BOSSES = table.freeze({
@@ -689,6 +797,11 @@ EnemyDefinitions.MINI_BOSSES = table.freeze({
 -- keep their own colours (within the element's hue); mini bosses wear the
 -- element's palette.
 local ELEMENT: { [string]: CreatureLanguage.Element } = {
+	-- D-130: the Abyssal Spire.
+	Behemoth = "Void",
+	Ifrit = "Fire",
+	Jormungandr = "Sky",
+	RiftEmperor = "Void",
 	Cerberus = "Fire",
 	Chimera = "Fire",
 	Basilisk = "Wild",
@@ -768,6 +881,11 @@ end
 -- bosses must read as creatures, not statues).
 local LOOKS: { [string]: { Trait } } = {
 	Cerberus = { "ThreeHeads", "Mane", "Spikes" },
+	-- D-130
+	Behemoth = { "Spikes", "Horns" },
+	Ifrit = { "Horns", "Wings" },
+	Jormungandr = { "Crest", "Spikes" },
+	RiftEmperor = { "Wings", "Horns", "Crest" },
 	Chimera = { "Mane", "Horns", "Wings", "SerpentTail" },
 	Basilisk = { "Crest", "Spikes" },
 	Typhon = { "Wings", "Horns", "SerpentTail" },

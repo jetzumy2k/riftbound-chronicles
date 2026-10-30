@@ -279,8 +279,10 @@ return function(t)
 		t.it("a boss's basic hit is a fair share of a reference player's HP", function()
 			for id, enemy in EnemyDefinitions.ById do
 				if enemy.tier then
-					local ref = StatFormulas.forLevel(BossBalance.referenceLevel(enemy.level))
-					local share = BossBalance.attackScaleFor(enemy.level, enemy.attackCoefficient, 1)
+					-- D-130: gentle bosses are balanced against players of their level.
+					local ref = StatFormulas.forLevel(BossBalance.referenceLevel(enemy.level, enemy.gentle))
+					local share =
+						BossBalance.attackScaleFor(enemy.level, enemy.attackCoefficient, 1, enemy.gentle)
 					local hit = enemy.attackScale / share
 					t.ok(hit > 0.1 and hit < 0.4, `{id}: hit {hit} of HP`)
 					t.ok(ref.MaxHP > 0)

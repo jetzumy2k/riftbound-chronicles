@@ -64,7 +64,7 @@ return function(t)
 					t.ok(enemy.element == nil, `{id} is not a boss`)
 				end
 			end
-			t.eq(count, 45)
+			t.eq(count, 49, "45 + the Abyssal Spire's 4 (D-130)")
 		end)
 
 		t.it("no two bosses share body, anatomy, element and weight", function()

@@ -190,10 +190,14 @@ function MobService:Spawn(enemyId: string, at: CFrame, options: SpawnOptions?): 
 	end)
 
 	local level = math.clamp((options and options.level) or enemy.level, 0, StatFormulas.CREATURE_MAX)
-	local base = StatFormulas.forCreatureLevel(level)
+	-- D-130: gentle creatures grow like players past 30.
+	local base = if enemy.gentle
+		then StatFormulas.forLevel(math.min(level, 60))
+		else StatFormulas.forCreatureLevel(level)
 	local hpScale = enemy.hpScale * ((options and options.hpScale) or 1)
 	CombatService:RegisterNpc(model, {
 		name = enemy.name,
+		gentle = enemy.gentle,
 		level = level,
 		maxHp = math.floor(base.MaxHP * hpScale + 0.5),
 		attackScale = enemy.attackScale,

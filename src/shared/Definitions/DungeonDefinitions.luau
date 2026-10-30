@@ -137,6 +137,11 @@ export type Dungeon = {
 	-- One-time EXP for everyone who helped defeat a boss spawn, per class.
 	bonusXp: { [string]: number },
 	atmosphere: string,
+	-- D-130: the capital gate (WorldLayout.City.gates), the first dungeon
+	-- slot pair it uses, and whether it needs the level 60 cap.
+	gate: string,
+	slotOffset: number,
+	needsLevel60: boolean,
 }
 
 local DungeonDefinitions = {}
@@ -341,6 +346,11 @@ makeBoss("Cerberus", { enemy = "RiftWolf", level = 9, count = 2 })
 makeBoss("Chimera", { enemy = "EmberHound", level = 19, count = 2 })
 makeBoss("Basilisk", { enemy = "AbyssCrawler", level = 29, count = 2 })
 makeBoss("Typhon", { enemy = "AbyssalKnight", level = 36, count = 2 })
+-- D-130: the Abyssal Spire's floor bosses and the Rift Emperor.
+makeBoss("Behemoth", { enemy = "HollowRevenant", level = 39, count = 2 })
+makeBoss("Ifrit", { enemy = "HellfireStalker", level = 49, count = 2 })
+makeBoss("Jormungandr", { enemy = "VoidHound", level = 57, count = 2 })
+makeBoss("RiftEmperor", { enemy = "AstralWarden", level = 58, count = 2 })
 for _, spec in EnemyDefinitions.MINI_BOSSES do
 	makeBoss(spec[1], nil)
 end
@@ -588,6 +598,47 @@ local function hallFloor(index: number): Floor
 	}
 end
 
+-- D-130: a landing, one passage and the sanctum of a dungeon boss.
+local function sanctumFloor(
+	index: number,
+	name: string,
+	theme: Theme,
+	levels: { number },
+	bossId: string
+): Floor
+	local rooms: { Room } = { landing(index) }
+	local passages: { Passage } = {}
+	local z = LANDING[3]
+	table.insert(passages, { center = { 0, z + PASSAGE / 2 }, size = { DOOR, PASSAGE }, axis = "Z" })
+	z += PASSAGE
+	local sanctum = { 210, 80, 200 }
+	local enemy = EnemyDefinitions.get(bossId) :: EnemyDefinitions.Enemy
+	table.insert(rooms, {
+		id = `{bossId}Sanctum`,
+		name = `{enemy.name:match("^[^,]+") or enemy.name}'s Sanctum`,
+		kind = "Sanctum",
+		center = { 0, z + sanctum[3] / 2 },
+		size = sanctum,
+		doors = { door("N") },
+		camps = { { enemy = bossId, x = 0, z = 25, count = 1, class = "Boss" } },
+		boss = bossId,
+	})
+	return {
+		index = index,
+		name = name,
+		theme = theme,
+		levels = levels,
+		offsetX = (index - 1) * DungeonDefinitions.FLOOR_SPACING,
+		rooms = rooms,
+		passages = passages,
+		arrival = { 0, 28 },
+		leavePortal = { -20, 8 },
+		upPortal = { 20, 8 },
+		downPortal = nil,
+		bossRoom = #rooms,
+	}
+end
+
 local function rooms(specs: { { any } }): { RoomSpec }
 	local out = {}
 	for _, s in specs do
@@ -654,6 +705,68 @@ local floors: { Floor } = {
 	hallFloor(4),
 }
 
+-- D-130 (creator request 2026-10-30): the level 31-60 dungeon, behind
+-- the Abyss Gate, shown only with the level 60 cap. Like Rift Hollow:
+-- regular creatures, elites and mini bosses in every room, a floor boss
+-- guarding each way down, and the dungeon boss in its sanctum.
+local spireFloors: { Floor } = {
+	chainFloor(1, {
+		name = "The Fallen Bastion",
+		theme = "Void",
+		levels = { 31, 40 },
+		mobs = { "HollowRevenant", "SpireCrawler", "BastionColossus" },
+		miniBoss = "BastionColossus",
+		rooms = rooms({
+			{ "BastionGate", "Broken Bastion Gate", { 150, 50, 160 } },
+			{ "Barracks", "Hollow Barracks", { 160, 52, 170 } },
+			{ "Armory", "Ruined Armory", { 170, 54, 180 } },
+			{ "Ramparts", "Shattered Ramparts", { 160, 56, 180 } },
+			{ "Chapel", "Silent Chapel", { 150, 52, 160 } },
+			{ "Keep", "Fallen Keep", { 160, 56, 170 } },
+			{ "Breach", "The Breach", { 170, 58, 170 } },
+		}),
+		lair = { id = "BehemothLair", name = "Behemoth's Lair", size = { 200, 74, 200 } },
+		floorBoss = "Behemoth",
+	}),
+	chainFloor(2, {
+		name = "The Ashen Throne",
+		theme = "Ember",
+		levels = { 41, 50 },
+		mobs = { "HellfireStalker", "Pyreshell", "ObsidianSentinel" },
+		miniBoss = "ObsidianSentinel",
+		rooms = rooms({
+			{ "AshStair", "Ash Stair", { 150, 50, 160 } },
+			{ "CinderHall", "Cinder Hall", { 160, 54, 170 } },
+			{ "Smeltery", "The Smeltery", { 170, 56, 180 } },
+			{ "FlameBridge", "Bridge of Flame", { 160, 58, 180 } },
+			{ "EmberVault", "Ember Vault", { 150, 52, 160 } },
+			{ "ThroneWay", "The Throne Way", { 160, 56, 170 } },
+			{ "Antechamber", "Burning Antechamber", { 170, 60, 170 } },
+		}),
+		lair = { id = "IfritThrone", name = "The Ashen Throne", size = { 200, 76, 200 } },
+		floorBoss = "Ifrit",
+	}),
+	chainFloor(3, {
+		name = "The Starless Vault",
+		theme = "Frost",
+		levels = { 51, 60 },
+		mobs = { "VoidHound", "StarDevourer", "AstralWarden" },
+		miniBoss = "AstralWarden",
+		rooms = rooms({
+			{ "VaultDoor", "The Vault Door", { 150, 50, 160 } },
+			{ "Observatory", "Dead Observatory", { 160, 56, 170 } },
+			{ "StarGallery", "Gallery of Fallen Stars", { 170, 58, 180 } },
+			{ "VoidWell", "The Void Well", { 160, 58, 180 } },
+			{ "Orrery", "Shattered Orrery", { 150, 54, 160 } },
+			{ "NightNave", "Nave of Night", { 160, 58, 170 } },
+			{ "Threshold", "The Threshold", { 170, 60, 170 } },
+		}),
+		lair = { id = "SerpentCoil", name = "The Serpent's Coil", size = { 200, 76, 200 } },
+		floorBoss = "Jormungandr",
+	}),
+	sanctumFloor(4, "The Emperor's Sanctum", "Void", { 58, 60 }, "RiftEmperor"),
+}
+
 local dungeons: { [string]: Dungeon } = {
 	RiftHollow = {
 		id = "RiftHollow",
@@ -663,6 +776,21 @@ local dungeons: { [string]: Dungeon } = {
 		doorWidth = DOOR,
 		bonusXp = { MiniBoss = 400, FloorBoss = 1500, Boss = 5000 },
 		atmosphere = "Dungeon",
+		gate = "Dungeons",
+		slotOffset = 0,
+		needsLevel60 = false,
+	},
+	AbyssalSpire = {
+		id = "AbyssalSpire",
+		name = "The Abyssal Spire",
+		minLevel = 31,
+		floors = spireFloors,
+		doorWidth = DOOR,
+		bonusXp = { MiniBoss = 3000, FloorBoss = 12000, Boss = 40000 },
+		atmosphere = "Dungeon",
+		gate = "AbyssGate",
+		slotOffset = 2,
+		needsLevel60 = true,
 	},
 }
 

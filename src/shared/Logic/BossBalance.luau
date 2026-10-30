@@ -72,8 +72,21 @@ local function k(level: number): number
 end
 
 -- Players expected to fight a boss of `bossLevel`.
-function BossBalance.referenceLevel(bossLevel: number): number
-	return math.clamp(bossLevel, 0, Constants.Level.Base)
+--[[
+	The player level a boss is balanced against. `gentle` (D-130, the level
+	31-60 dungeon): the boss's own level, players growing the gentle way;
+	otherwise at most 30 (the original content).
+]]
+function BossBalance.referenceLevel(bossLevel: number, gentle: boolean?): number
+	return math.clamp(bossLevel, 0, if gentle then Constants.Level.Max else Constants.Level.Base)
+end
+
+-- A creature's base stats: gentle ones grow like players past 30 (D-130).
+function BossBalance.creatureBase(level: number, gentle: boolean?): StatFormulas.BaseStats
+	if gentle then
+		return StatFormulas.forLevel(math.clamp(level, 0, Constants.Level.Max))
+	end
+	return StatFormulas.forCreatureLevel(level)
 end
 
 -- Modelled damage per second of one reference player against `defense`.
@@ -103,10 +116,11 @@ function BossBalance.hpFor(
 	level: number,
 	defenseScale: number,
 	duoFraction: number,
-	enrageSeconds: number
+	enrageSeconds: number,
+	gentle: boolean?
 ): number
-	local defense = StatFormulas.forCreatureLevel(level).Defense * defenseScale
-	local dps = BossBalance.playerDps(BossBalance.referenceLevel(level), defense)
+	local defense = BossBalance.creatureBase(level, gentle).Defense * defenseScale
+	local dps = BossBalance.playerDps(BossBalance.referenceLevel(level, gentle), defense)
 	return duoFraction * enrageSeconds * 2 * dps
 end
 
@@ -138,10 +152,15 @@ end
 	`level` takes `hitFraction` of a reference player's HP. Abilities scale
 	with it too (their coefficients are relative to Attack).
 ]]
-function BossBalance.attackScaleFor(level: number, coefficient: number, hitFraction: number): number
-	local ref = BossBalance.referenceLevel(level)
+function BossBalance.attackScaleFor(
+	level: number,
+	coefficient: number,
+	hitFraction: number,
+	gentle: boolean?
+): number
+	local ref = BossBalance.referenceLevel(level, gentle)
 	local player = StatFormulas.forLevel(ref)
-	local raw = StatFormulas.forCreatureLevel(level).Attack * coefficient * power(level)
+	local raw = BossBalance.creatureBase(level, gentle).Attack * coefficient * power(level)
 	local dealt = raw * k(level) / (k(level) + player.Defense)
 	return hitFraction * player.MaxHP / dealt
 end

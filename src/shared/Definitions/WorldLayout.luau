@@ -233,6 +233,15 @@ WorldLayout.City = table.freeze({
 			position = { -64, 0, -126 },
 			facing = 0,
 		} :: Gate),
+		-- D-130: the level 31-60 dungeon (shown only with the level 60 cap).
+		table.freeze({
+			id = "AbyssGate",
+			label = "Abyssal Spire (Lv 31-60)",
+			destination = "Dungeons",
+			opensIn = "Level 60 cap",
+			position = { 64, 0, -126 },
+			facing = 0,
+		} :: Gate),
 	}),
 })
 
